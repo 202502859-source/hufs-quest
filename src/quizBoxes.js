@@ -1,0 +1,99 @@
+import Phaser from "phaser";
+import { SPAWN } from "./data/campus.js";
+import { TILE, TILE_SIZE } from "./gfx/textures.js";
+
+export const QUIZ_BOX_COUNT = 15;
+const RESPAWN_MS = 30_000;
+const OPEN_RANGE = 22; // 상자 중심에서 이 거리(px) 안이면 열 수 있습니다.
+const MIN_GAP_TILES = 4; // 상자끼리, 또 캐릭터와 이만큼 떨어뜨려 놓습니다.
+const PLACEABLE = new Set([TILE.PATH, TILE.GRASS, TILE.GRASS_FLOWER, TILE.LAWN]); // 길·잔디
+
+/*
+ * 맵 위 O/X 퀴즈 상자 15개를 관리합니다.
+ * 길·잔디 칸 가운데, 시작 위치에서 실제로 걸어갈 수 있는 칸에만 놓습니다(건물·나무·벽 칸 제외).
+ * 푼 상자는 사라지고 30초 뒤 다른 무작위 칸에 새로 생겨 개수를 15개로 유지합니다.
+ */
+export class QuizBoxes {
+  constructor(scene, ground, solid, onTap) {
+    this.scene = scene;
+    this.onTap = onTap;
+    this.boxes = [];
+    this.candidates = reachableTiles(ground, solid);
+    for (let i = 0; i < QUIZ_BOX_COUNT; i++) this.spawn();
+  }
+
+  spawn() {
+    const player = this.scene.player;
+    const playerTile = player ? { x: Math.floor(player.x / TILE_SIZE), y: Math.floor(player.y / TILE_SIZE) } : SPAWN;
+    const farFrom = (tile, other) => Math.max(Math.abs(tile.x - other.x), Math.abs(tile.y - other.y)) >= MIN_GAP_TILES;
+    let tile = null;
+    for (let tries = 0; tries < 300 && !tile; tries++) {
+      const pick = Phaser.Utils.Array.GetRandom(this.candidates);
+      if (farFrom(pick, playerTile) && this.boxes.every((b) => farFrom(pick, b.tile))) tile = pick;
+    }
+    tile ??= Phaser.Utils.Array.GetRandom(this.candidates);
+
+    const x = tile.x * TILE_SIZE + TILE_SIZE / 2;
+    const y = tile.y * TILE_SIZE + TILE_SIZE / 2;
+    const sprite = this.scene.add.image(x, y, "quiz-box").setDepth(y).setInteractive({ useHandCursor: true });
+    const box = { tile, x, y, sprite, question: null };
+    this.scene.tweens.add({ targets: sprite, y: y - 2, duration: 500, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+    // 터치 화면에서는 가까이 간 상자를 눌러서 엽니다.
+    sprite.on("pointerdown", () => {
+      if (this.nearest() === box) this.onTap(box);
+    });
+    this.boxes.push(box);
+    return box;
+  }
+
+  // 캐릭터와 가장 가까운, 열 수 있는 거리 안의 상자입니다. 없으면 null입니다.
+  nearest() {
+    const player = this.scene.player;
+    let best = null;
+    let bestDistance = OPEN_RANGE;
+    this.boxes.forEach((box) => {
+      const distance = Phaser.Math.Distance.Between(player.x, player.y, box.x, box.y);
+      if (distance < bestDistance) {
+        best = box;
+        bestDistance = distance;
+      }
+    });
+    return best;
+  }
+
+  // 다른 상자에 이미 들어 있는 문제입니다. 같은 문제가 두 상자에 동시에 나오지 않게 합니다.
+  assignedIds(except) {
+    return new Set(this.boxes.filter((b) => b !== except && b.question).map((b) => b.question.id));
+  }
+
+  solve(box) {
+    const index = this.boxes.indexOf(box);
+    if (index === -1) return;
+    this.boxes.splice(index, 1);
+    this.scene.tweens.killTweensOf(box.sprite);
+    box.sprite.destroy();
+    this.scene.time.delayedCall(RESPAWN_MS, () => this.spawn());
+  }
+}
+
+// 시작 위치에서 걸어서 닿을 수 있는 길·잔디 칸 목록입니다.
+function reachableTiles(ground, solid) {
+  const height = ground.length;
+  const width = ground[0].length;
+  const seen = new Set([`${SPAWN.x},${SPAWN.y}`]);
+  const queue = [SPAWN];
+  const result = [];
+  while (queue.length) {
+    const { x, y } = queue.shift();
+    if (PLACEABLE.has(ground[y][x])) result.push({ x, y });
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx;
+      const ny = y + dy;
+      const key = `${nx},${ny}`;
+      if (nx < 0 || ny < 0 || nx >= width || ny >= height || seen.has(key) || solid[ny][nx] !== -1) continue;
+      seen.add(key);
+      queue.push({ x: nx, y: ny });
+    }
+  }
+  return result;
+}

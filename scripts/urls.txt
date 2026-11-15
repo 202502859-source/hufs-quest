@@ -1,0 +1,40 @@
+# 수집할 공개 학사 페이지 (로그인 없이 열리는 페이지만)
+# robots.txt 확인: /hufs/<번호>/subview.do 는 허용, ?enc= 주소와 /bbs/ 게시판은 금지라 넣지 않습니다.
+# 한 줄에 하나. '#' 뒤는 메모입니다. 식당 메뉴처럼 매주 바뀌는 페이지는 넣지 않습니다.
+
+# 교육과정
+https://www.hufs.ac.kr/hufs/11371/subview.do  # 전공과정
+https://www.hufs.ac.kr/hufs/11372/subview.do  # 교양과정
+https://www.hufs.ac.kr/hufs/11373/subview.do  # 졸업이수학점
+https://www.hufs.ac.kr/hufs/11374/subview.do  # 교양필수이수학점
+https://www.hufs.ac.kr/hufs/13511/subview.do  # 마이크로디그리
+
+# 수업 및 성적
+https://www.hufs.ac.kr/hufs/11377/subview.do  # 수강신청지침
+https://www.hufs.ac.kr/hufs/11378/subview.do  # 계절학기
+https://www.hufs.ac.kr/hufs/11379/subview.do  # 성적규정
+
+# 학적
+https://www.hufs.ac.kr/hufs/11381/subview.do  # 재입학
+https://www.hufs.ac.kr/hufs/11382/subview.do  # 학사경고
+https://www.hufs.ac.kr/hufs/11383/subview.do  # 제적
+https://www.hufs.ac.kr/hufs/11384/subview.do  # 이중전공
+https://www.hufs.ac.kr/hufs/11385/subview.do  # 부전공
+https://www.hufs.ac.kr/hufs/11386/subview.do  # 학석사연계과정
+https://www.hufs.ac.kr/hufs/11387/subview.do  # 휴·복학
+https://www.hufs.ac.kr/hufs/11388/subview.do  # 전과
+https://www.hufs.ac.kr/hufs/11389/subview.do  # 조기졸업
+https://www.hufs.ac.kr/hufs/11390/subview.do  # 졸업
+https://www.hufs.ac.kr/hufs/11391/subview.do  # 수료
+
+# 장학 · 교직
+https://www.hufs.ac.kr/hufs/11393/subview.do  # 장학
+https://www.hufs.ac.kr/hufs/11394/subview.do  # 국가/국가근로장학
+https://www.hufs.ac.kr/hufs/11395/subview.do  # 교외장학
+https://www.hufs.ac.kr/hufs/11398/subview.do  # 교직과정
+
+# 학생 지원 · 시설
+https://www.hufs.ac.kr/hufs/11304/subview.do  # 증명서
+https://www.hufs.ac.kr/hufs/11301/subview.do  # 보건진료
+https://www.hufs.ac.kr/hufs/11323/subview.do  # 주차시설
+https://www.hufs.ac.kr/hufs/11159/subview.do  # 전화안내

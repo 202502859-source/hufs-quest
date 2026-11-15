@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>캠퍼스 퀘스트</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="game"></div>
+
+  <section id="title">
+    <div class="title-box">
+      <div class="lang-switch">
+        <button id="lang-ko" type="button">한국어</button>
+        <button id="lang-en" type="button">English</button>
+      </div>
+      <h1 id="title-name"></h1>
+      <p id="title-sub"></p>
+      <button id="start-student" class="start" type="button"><b></b><span></span></button>
+      <button id="start-visitor" class="start alt" type="button"><b></b><span></span></button>
+      <p id="title-controls" class="muted"></p>
+      <p id="title-note" class="muted"></p>
+      <button id="reset" class="linklike" type="button"></button>
+    </div>
+  </section>
+
+  <section id="hud" hidden>
+    <div class="hud-top">
+      <div id="hud-points" class="pill"></div>
+      <button id="hud-lang" class="pill" type="button">한/EN</button>
+    </div>
+    <canvas id="minimap" width="162" height="183" aria-hidden="true"></canvas>
+    <div id="tracker" hidden></div>
+    <div id="interior-banner" hidden></div>
+    <div id="arrow" hidden aria-hidden="true">➤</div>
+    <div id="prompt" role="status" hidden></div>
+    <nav class="hud-nav">
+      <button id="btn-quests" type="button"></button>
+      <button id="btn-map" type="button"></button>
+      <button id="btn-events" type="button"></button>
+      <button id="btn-stamps" type="button"></button>
+    </nav>
+    <div id="touch">
+      <div class="dpad">
+        <button id="t-up" type="button" aria-label="위">▲</button>
+        <button id="t-left" type="button" aria-label="왼쪽">◀</button>
+        <button id="t-right" type="button" aria-label="오른쪽">▶</button>
+        <button id="t-down" type="button" aria-label="아래">▼</button>
+      </div>
+      <button id="touch-act" type="button"></button>
+    </div>
+  </section>
+
+  <div id="modal-root" hidden></div>
+  <div id="toasts" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.80.1/dist/phaser.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/kb.js"></script>
+  <script src="js/retrieval.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/tiles.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    // Phaser가 없어도 안내 문구를 보여 줄 수 있도록 game.js는 Phaser가 있을 때만 읽습니다.
+    if (window.Phaser) document.write('<script src="js/game.js"><\/script>');
+    else { window.Game = {}; window.Input = {}; }
+  </script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+# 배포에 필요 없는 파일입니다. 현재 게임은 src와 index.html로 빌드됩니다.
+campus-map
+.claude
+CLAUDE.md
+dist
+node_modules
+.env
+.env.*
+/data
+/scripts
