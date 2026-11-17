@@ -51,3 +51,4 @@ Phaser 3 + Vite, JavaScript. 서버 함수는 Vercel(`api/`), DB는 Supabase, AI
 - `main`에 직접 커밋·push하지 않는다. 기능별 브랜치(`feat/...`, `fix/...`)에서 작업한다.
 - 한 번에 한 기능씩 만들고, 끝나면 확인 방법을 알려준다.
 - 로드맵 항목을 끝냈으면 `docs/ROADMAP.md`의 상태와 체크박스를 같이 고친다.
+- 기능의 상태가 바뀌거나 새 기능·새 파일·새 연결이 생기면 `docs/ARCHITECTURE.md`의 구조도(`class` 줄, 상자, 연결선)와 파일 표를 같은 작업에서 고친다.
