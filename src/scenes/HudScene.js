@@ -150,17 +150,22 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
-  // 미니게임 보상을 캠퍼스로 돌아왔을 때 잠깐 알립니다.
+  // 받은 보상(퀴즈·퀘스트·출석·미니게임)을 캠퍼스 화면에서 잠깐 알립니다.
   showRewardToast() {
     const reward = session.pendingReward;
     session.pendingReward = null;
     if (!reward || (!reward.exp && !reward.points)) return;
     // 퀴즈처럼 포인트 없이 경험치만 받은 경우에는 "+0 포인트"를 빼고 보여 줍니다.
     const parts = [reward.exp && `+${reward.exp} EXP`, reward.points && `+${reward.points} ${t("points")}`].filter(Boolean);
-    const toast = addLabel(this, this.scale.width / 2, 74, parts.join(", "), {
+    this.showToast(reward.label ? t(reward.label, reward) : parts.join(", "));
+  }
+
+  // 화면 위쪽 가운데에 잠깐 문구를 띄웁니다. error면 빨간색입니다.
+  showToast(text, { error = false } = {}) {
+    const toast = addLabel(this, this.scale.width / 2, 74, text, {
       size: 20,
-      color: "#231a00",
-      backgroundColor: "#f2c94c",
+      color: error ? "#ffffff" : "#231a00",
+      backgroundColor: error ? "#b3261e" : "#f2c94c",
       padding: { x: 14, y: 8 },
     }).setOrigin(0.5);
     this.tweens.add({

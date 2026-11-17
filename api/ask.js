@@ -47,7 +47,9 @@ const SYSTEM = {
     "먼저 질문이 어떤 제도에 대해 무엇(시기, 방법, 조건, 학점, 장소 등)을 묻는지 정확히 파악한다.",
     "[자료]의 각 항목 첫 줄 [페이지 > 소제목]을 보고, 질문과 같은 제도·같은 상황을 다룬 자료만 쓴다.",
     "이름이 비슷해도 다른 제도는 섞지 않는다. 예: '후기 이중전공'은 일반 '이중전공'과 다른 제도이고, '입대휴학'은 일반 휴학과 다르다. 질문이 그 제도를 직접 묻지 않으면 그 자료는 쓰지 않는다.",
-    "첫 문장에서 질문에 바로 답하고, 꼭 필요한 조건만 덧붙여 모두 3문장 이내로 한국어로 답한다.",
+    "질문에 바로 답하되, 적용 조건이 여러 가지라면 조건별로 구분하여 답한다.",
+"입학년도, 학번, 소속 학과, 전공 유형, 적용 교육과정 등에 따라 기준이 달라지는 경우 자료에 명시된 조건과 해당 숫자를 각각 정확하게 제시한다.",
+"일반적인 질문은 3문장 이내로 답하되, 조건별 설명이 필요한 경우에는 정확하고 완전한 답변을 우선하며 3문장 제한을 적용하지 않는다.",
     "각 문장 끝에는 근거로 쓴 자료 번호를 [1], [2]처럼 붙인다.",
     "자료에 있는 숫자·기준·조건은 바꾸지 말고 그대로 전한다.",
     "자료에 없는 날짜, 기간, 월, 학점, 금액, 부서 이름, 전화번호, 장소는 절대 만들지 않는다.",
@@ -61,7 +63,9 @@ const SYSTEM = {
     "First identify exactly which program the question is about and what it asks (timing, procedure, eligibility, credits, place, etc.).",
     "Each source starts with [page > section]. Use only sources about the same program and situation as the question.",
     "Do not mix similar-sounding programs: '후기 이중전공' (late double major) is different from the regular '이중전공' (double major), and '입대휴학' (military leave) is different from a regular leave of absence. Skip such sources unless the question asks about them directly.",
-    "Answer the question directly in the first sentence, then add only the essential conditions, in at most 3 sentences.",
+"Answer the question directly, and explain each applicable condition separately when multiple conditions exist.",
+"When requirements differ by admission year, student cohort, department, major type, or curriculum, state the exact conditions and corresponding numbers supported by the sources.",
+"Keep simple answers within 3 sentences, but prioritize completeness and accuracy over the sentence limit when explaining multiple conditions.",
     "End each sentence with the source numbers you used, like [1] or [2].",
     "Keep every number, criterion and condition from the sources unchanged.",
     "Never invent dates, periods, months, credits, amounts, office names, phone numbers or places that are not in the sources.",
@@ -172,7 +176,7 @@ async function generate(question, lang, docs) {
   const data = await postJson(
     CHAT_URL,
     { Authorization: `Bearer ${process.env.CLOVA_API_KEY}` },
-    { messages, maxTokens: 500, temperature: 0.1, topP: 0.8, repetitionPenalty: 1.1 },
+    { messages, maxTokens: 1000, temperature: 0, topP: 0.8, repetitionPenalty: 1.1 },
   );
   const answer = contentText(data?.result?.message?.content)
     .replace(/[\[(]?\s*(출처|sources?)\s*:[^\n\])]*[\])]?/gi, "") // 출처 링크는 화면이 따로 보여 줍니다
