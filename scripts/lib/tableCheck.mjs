@@ -35,7 +35,7 @@ export function renderTableCheck(pages, { collectedAt }) {
 
   for (const p of pages) {
     out.push(`## ${p.title} (${p.pageId})`, "", `원문: ${p.url}`, "");
-    for (const note of p.reviewNotes ?? []) out.push(`> ⚠ ${note.note}`, "");
+    for (const note of p.reviewNotes ?? []) out.push(`> ※ 검수 메모: ${note.note}`, "");
     for (const r of p.review) {
       const chunk = p.chunks.find((c) => c.id === r.id);
       out.push(`### ${r.id} · ${esc(chunk.section)}`, "");
@@ -46,7 +46,7 @@ export function renderTableCheck(pages, { collectedAt }) {
           `구분: ${s.labels.join(" / ")}`,
           ...s.cells.map((c) => `${c.header.join(" > ")}: ${c.text ?? "(빈 칸)"}${c.merged ? " ↑" : ""}`),
         ].join("<br>");
-        const flag = (p.reviewNotes ?? []).some((n) => s.labels.some((l) => l.includes(n.match))) ? "⚠ " : "";
+        const flag = (p.reviewNotes ?? []).some((n) => s.labels.some((l) => l.includes(n.match))) ? "※ " : "";
         const body = s.text.replace(/^\[[^\]]*\]\s*/, "");
         out.push(`| ${s.row}${s.focus ? `<br>${esc(s.focus)}` : ""} | ${esc(s.rawCells.join(" ¦ "))} | ${esc(grid)} | ${flag}${esc(body)} |`);
       }

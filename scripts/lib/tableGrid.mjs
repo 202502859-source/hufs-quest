@@ -15,7 +15,7 @@ export function cellText($, cell, fixes = []) {
   c.find("br").replaceWith("\n");
   const raw = c.text().split("\n").map(clean).filter(Boolean).join(" ");
   let text = raw.replace(/\s*~\s*/g, "~");
-  for (const [from, to] of fixes) text = text.split(from).join(to);
+  for (const [from, to] of fixes) text = from instanceof RegExp ? text.replace(from, to) : text.split(from).join(to);
   return { raw, text };
 }
 

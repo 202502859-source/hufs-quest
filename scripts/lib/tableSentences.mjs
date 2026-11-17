@@ -73,7 +73,7 @@ const KINDS = {
         }
         const bad = rec.cells.find((cell) => cell.text !== NONE && !NUMBER.test(cell.text ?? ""));
         if (bad) {
-          ambiguous.push(note(ctx, rec, `'${bad.header.at(-1)}' 칸 값 "${bad.text}"의 괄호 뜻이 페이지에 설명되어 있지 않음`));
+          ambiguous.push(note(ctx, rec, `'${bad.header.at(-1)}' 칸 값 "${bad.raw}"의 괄호 뜻이 페이지에 설명되어 있지 않음`));
           continue;
         }
         const track = trackOf(rec);
