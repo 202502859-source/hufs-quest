@@ -9,9 +9,11 @@
     "preview": "vite preview",
     "collect": "node scripts/collect.mjs",
     "ingest": "node scripts/ingest.mjs",
-    "eval": "node scripts/eval.mjs"
+    "eval": "node scripts/eval.mjs",
+    "test": "node --test scripts/lib/ tests/"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "galmuri": "^2.40.3",
     "phaser": "^3.90.0"
   },

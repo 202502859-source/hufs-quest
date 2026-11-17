@@ -1,4 +1,7 @@
-// 시연용 게임 상태입니다. 실제 서버와 로그인이 없으므로 모든 값은 가짜 데이터입니다.
+// 게임 상태입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답(progress)으로만 바뀝니다(applyProgress).
+// 서버와 주고받는 것은 src/data/progressApi.js가 맡고, 게스트는 지금처럼 메모리에서만 동작합니다.
+import { REWARD_QUESTS } from "../shared/progressRules.js";
+
 const listeners = new Set();
 let lang = "ko";
 
@@ -16,23 +19,59 @@ export function onLangChange(fn) {
   return () => listeners.delete(fn);
 }
 
+// 재학생 값은 처음 불러올 때(getProgress) 서버 값으로 덮어씁니다. 새 계정은 Lv.1 · 경험치 0 · 포인트 0입니다.
 export const session = {
   mode: "guest", // "student" 또는 "guest"
-  level: 3,
-  exp: 40,
+  level: 1,
+  exp: 0,
   expMax: 100,
-  points: 120,
+  points: 0,
   completed: new Set(),
-  trackedQuest: null, // 목적지를 안내 중인 퀘스트
-  pendingReward: null, // 미니게임에서 받아 캠퍼스로 돌아올 때 알릴 보상
+  quiz: null, // 서버의 퀴즈 기록(progress.quiz) 복사본. 다음 문제를 고를 때만 읽습니다.
+  trackedQuest: null, // 목적지를 안내 중인 퀘스트 (저장 안 함)
+  pendingReward: null, // 캠퍼스 화면에서 알릴 보상 (저장 안 함)
 };
 
-// 미니게임 보상을 주고, 캠퍼스로 돌아왔을 때 알릴 수 있게 쌓아 둡니다.
+// 서버 응답의 progress로 session을 덮어씁니다. 화면에서 경험치·포인트를 따로 더하거나 빼지 않습니다.
+export function applyProgress(progress) {
+  session.level = progress.level;
+  session.exp = progress.exp;
+  session.expMax = progress.expMax;
+  session.points = progress.points;
+  // 서버가 모르는 범위 밖 퀘스트(mockReg)의 완료 표시는 화면에 남겨 둡니다.
+  const localOnly = [...session.completed].filter((id) => !REWARD_QUESTS.includes(id));
+  session.completed = new Set([...progress.completedQuests, ...localOnly]);
+  session.quiz = { ...progress.quiz, rewarded: [...progress.quiz.rewarded], answered: [...progress.quiz.answered] };
+  if (session.completed.has(session.trackedQuest)) session.trackedQuest = null;
+}
+
+// 캠퍼스 화면(HUD)에서 알릴 보상을 쌓아 둡니다. label을 주면 그 문구로 알립니다(예: "checkInReward").
+export function notifyReward({ exp = 0, points = 0 }, label = null) {
+  const pending = session.pendingReward ?? { exp: 0, points: 0, label: null };
+  session.pendingReward = { exp: pending.exp + exp, points: pending.points + points, label: label ?? pending.label };
+}
+
+// 로그아웃하면 처음 상태(게스트, Lv.1 · 0)로 되돌립니다.
+export function resetSession() {
+  Object.assign(session, {
+    mode: "guest",
+    level: 1,
+    exp: 0,
+    expMax: 100,
+    points: 0,
+    completed: new Set(),
+    quiz: null,
+    trackedQuest: null,
+    pendingReward: null,
+  });
+}
+
+// 미니게임(모의 수강신청, 범위 밖) 보상입니다. 서버에 저장되지 않으므로,
+// 재학생은 다음 서버 응답 때 경험치·포인트가 서버 값으로 돌아갑니다.
 export function grantReward(exp, points) {
   const leveledUp = gainExp(exp);
   session.points += points;
-  const pending = session.pendingReward ?? { exp: 0, points: 0 };
-  session.pendingReward = { exp: pending.exp + exp, points: pending.points + points };
+  notifyReward({ exp, points });
   return leveledUp;
 }
 
@@ -64,7 +103,38 @@ const STRINGS = {
   subtitle: { ko: "걸어 다니며 만나는 한국외대 서울캠퍼스 학사 정보", en: "Discover HUFS Seoul Campus academics on foot" },
   studentLogin: { ko: "재학생 로그인", en: "Student Login" },
   guestBrowse: { ko: "게스트로 둘러보기", en: "Browse as Guest" },
-  demoNote: { ko: "대회 시연용 프로토타입 · 실제 로그인 없음", en: "Competition prototype · No real login" },
+  demoNote: { ko: "대회 시연용 프로토타입", en: "Competition prototype" },
+  demoNoteMockLogin: { ko: "가짜 로그인(메일을 보내지 않음)", en: "Mock login (no email is sent)" },
+  // 학교 이메일 로그인 창
+  loginTitle: { ko: "재학생 로그인", en: "Student Login" },
+  loginIntro: { ko: "학교 이메일로 받은 6자리 인증 코드로 로그인해요.", en: "Log in with a 6-digit code sent to your school email." },
+  loginIdLabel: { ko: "학번", en: "Student ID" },
+  loginIdPlaceholder: { ko: "학번 9자리", en: "9-digit student ID" },
+  loginDomainLabel: { ko: "학교 메일 주소", en: "School email domain" },
+  loginIdHint: { ko: "학번 9자리를 숫자로 입력해 주세요.", en: "Enter your 9-digit student ID (numbers only)." },
+  loginSend: { ko: "인증 코드 받기", en: "Get code" },
+  loginSending: { ko: "보내는 중…", en: "Sending…" },
+  loginCodeTitle: { ko: "인증 코드 입력", en: "Enter Code" },
+  loginCodeIntro: { ko: "학교 메일로 보낸 6자리 인증 코드를 입력해 주세요.", en: "Enter the 6-digit code we sent to your school email." },
+  loginCodeNote: { ko: "메일이 안 보이면 스팸함도 확인해 주세요.", en: "Can't find it? Check your spam folder." },
+  loginCodeLabel: { ko: "인증 코드 6자리", en: "6-digit code" },
+  loginVerifying: { ko: "확인하는 중…", en: "Checking…" },
+  loginResend: { ko: "코드 다시 받기", en: "Resend code" },
+  loginResendIn: { ko: "코드 다시 받기 ({s}초)", en: "Resend code ({s}s)" },
+  loginResent: { ko: "새 인증 코드를 보냈어요.", en: "We sent a new code." },
+  loginBack: { ko: "학번 다시 입력", en: "Change student ID" },
+  loginClose: { ko: "닫기 (Esc)", en: "Close (Esc)" },
+  loginWrongCode: { ko: "인증 코드가 맞지 않아요.", en: "That code doesn't match." },
+  loginExpiredCode: { ko: "인증 코드가 만료됐어요. 다시 받아 주세요.", en: "This code has expired. Please get a new one." },
+  loginRateLimited: { ko: "{s}초 뒤에 다시 받을 수 있어요.", en: "You can get a new code in {s}s." },
+  loginForbidden: { ko: "학교 메일로만 로그인할 수 있어요.", en: "Only school email addresses can log in." },
+  loginNotConfigured: { ko: "로그인 서버가 아직 설정되지 않았어요.", en: "Login isn't set up yet." },
+  loginNetwork: { ko: "연결이 불안정해요. 잠시 후 다시 시도해 주세요.", en: "Connection problem. Please try again shortly." },
+  loginFailed: { ko: "로그인하지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't log in. Please try again shortly." },
+  loginNoCode: { ko: "인증 코드를 먼저 받아 주세요.", en: "Please get a code first." },
+  loginDevCode: { ko: "개발용 인증 코드", en: "Dev code" },
+  loginSessionExpired: { ko: "로그인이 만료됐어요. 다시 로그인해 주세요.", en: "Your login expired. Please log in again." },
+  logout: { ko: "로그아웃", en: "Log out" },
   points: { ko: "포인트", en: "Points" },
   guestBadge: { ko: "게스트 모드", en: "Guest Mode" },
   guestNote: { ko: "레벨과 포인트는 재학생 전용", en: "Levels and points: students only" },
@@ -135,13 +205,22 @@ const STRINGS = {
   quizSource: { ko: "출처", en: "Source" },
   quizGuest: { ko: "게스트 모드에서는 경험치가 쌓이지 않아요.", en: "Guest mode doesn't earn EXP." },
   quizAlready: { ko: "이미 경험치를 받은 문제예요.", en: "You already earned EXP for this question." },
-  quizCap: { ko: "오늘 퀴즈로 받을 수 있는 경험치(50)를 다 받았어요.", en: "You've reached today's quiz EXP limit (50)." },
+  quizCap: { ko: "오늘 퀴즈로 받을 수 있는 경험치({cap})를 다 받았어요.", en: "You've reached today's quiz EXP limit ({cap})." },
+  quizSaving: { ko: "저장하는 중…", en: "Saving…" },
+  saveFailed: { ko: "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't save. Please try again in a moment." },
+  checkInReward: { ko: "출석 보상 +{points} 포인트", en: "Daily check-in +{points} points" },
+  progressLoading: { ko: "진행 기록을 불러오는 중…", en: "Loading your progress…" },
+  progressLoadFailed: { ko: "진행 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't load your progress. Please try again in a moment." },
   quizClose: { ko: "닫기 (ESC)", en: "Close (ESC)" },
   quizMapLegend: { ko: "퀴즈 상자", en: "Quiz boxes" },
   mapNote: { ko: "조감도를 위에서 본 형태로 옮긴 근사치이며, 길은 단순화했습니다.", en: "An approximation of the aerial map seen from above. Roads are simplified." },
 };
 
-export const t = (key) => STRINGS[key][lang];
+// 문구 안의 {이름}은 vars 값으로 바꿉니다. 예: t("quizCap", { cap: 50 })
+export const t = (key, vars) => {
+  const text = STRINGS[key][lang];
+  return vars ? text.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match)) : text;
+};
 
 export const QUEST_LIST = [
   {

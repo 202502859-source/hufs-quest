@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { askQuestion } from "../data/askApi.js";
-import { completeQuest, getLang, isGuest, onLangChange, setLang, t } from "../state.js";
+import { completeQuest } from "../data/progressApi.js";
+import { applyProgress, getLang, isGuest, notifyReward, onLangChange, session, setLang, t } from "../state.js";
 import { COLOR, FONT, addButton, centerLayout, drawPanel } from "../ui/widgets.js";
 
 const BOX = { x: 24, y: 392, w: 912, h: 124 };
@@ -57,10 +58,11 @@ export class DialogScene extends Phaser.Scene {
       if (this.isOpen) this.close();
     });
 
-    // 언어를 바꾸면 열린 창을 닫습니다. 다시 물어보면 새 언어로 답합니다.
-    onLangChange(() => {
+    // 언어를 바꾸면 열린 창을 닫습니다. 다시 물어보면 새 언어로 답합니다. 장면이 멈추면(로그아웃) 알림을 해제합니다.
+    const offLang = onLangChange(() => {
       if (this.isOpen) this.close();
     });
+    this.events.once("shutdown", offLang);
   }
 
   setDialogVisible(visible) {
@@ -380,7 +382,25 @@ export class DialogScene extends Phaser.Scene {
 
     // 이중전공 질문에 답을 받으면 이중전공 퀘스트를 완료합니다(재학생만).
     const answered = result.mode === "ai" || result.mode === "evidence" || result.mode === "local";
-    if (answered && !isGuest() && /이중전공|double\s*major/i.test(question)) completeQuest("doubleMajor");
+    if (answered && !isGuest() && /이중전공|double\s*major/i.test(question)) this.saveQuestComplete("doubleMajor");
+  }
+
+  // 퀘스트 완료를 서버에 기록하고, 받은 보상을 HUD에 알립니다. 이미 완료했거나 저장 중이면 다시 보내지 않습니다.
+  async saveQuestComplete(id) {
+    if (session.completed.has(id) || savingQuests.has(id)) return;
+    savingQuests.add(id);
+    const hud = this.scene.get("Hud");
+    try {
+      const response = await completeQuest(id);
+      applyProgress(response.progress);
+      if (response.result === "ok") notifyReward(response.gained);
+      hud.dirty = true; // 바뀐 레벨·포인트·완료 표시를 다시 그리고 보상을 알립니다.
+    } catch (error) {
+      console.warn("[quest] 퀘스트 완료를 저장하지 못했습니다", error);
+      hud.showToast(t("saveFailed"), { error: true });
+    } finally {
+      savingQuests.delete(id);
+    }
   }
 
   // 출처를 누르면 학교 홈페이지 원문을 새 탭으로 엽니다.
@@ -420,6 +440,8 @@ export class DialogScene extends Phaser.Scene {
     if (onClose) onClose();
   }
 }
+
+const savingQuests = new Set();
 
 function dedupe(sources) {
   const seen = new Set();

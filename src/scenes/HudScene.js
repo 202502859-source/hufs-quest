@@ -26,9 +26,11 @@ export class HudScene extends Phaser.Scene {
 
   create() {
     this.dirty = true;
-    onLangChange(() => {
+    // 로그아웃하면 이 장면이 멈추므로, 언어 변경 알림도 함께 해제합니다.
+    const offLang = onLangChange(() => {
       this.dirty = true;
     });
+    this.events.once("shutdown", offLang);
     // 미니게임에서 돌아오면 바뀐 경험치와 완료 표시를 다시 그립니다.
     this.events.on("wake", () => {
       this.dirty = true;
@@ -150,17 +152,22 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
-  // 미니게임 보상을 캠퍼스로 돌아왔을 때 잠깐 알립니다.
+  // 받은 보상(퀴즈·퀘스트·출석·미니게임)을 캠퍼스 화면에서 잠깐 알립니다.
   showRewardToast() {
     const reward = session.pendingReward;
     session.pendingReward = null;
     if (!reward || (!reward.exp && !reward.points)) return;
     // 퀴즈처럼 포인트 없이 경험치만 받은 경우에는 "+0 포인트"를 빼고 보여 줍니다.
     const parts = [reward.exp && `+${reward.exp} EXP`, reward.points && `+${reward.points} ${t("points")}`].filter(Boolean);
-    const toast = addLabel(this, this.scale.width / 2, 74, parts.join(", "), {
+    this.showToast(reward.label ? t(reward.label, reward) : parts.join(", "));
+  }
+
+  // 화면 위쪽 가운데에 잠깐 문구를 띄웁니다. error면 빨간색입니다.
+  showToast(text, { error = false } = {}) {
+    const toast = addLabel(this, this.scale.width / 2, 74, text, {
       size: 20,
-      color: "#231a00",
-      backgroundColor: "#f2c94c",
+      color: error ? "#ffffff" : "#231a00",
+      backgroundColor: error ? "#b3261e" : "#f2c94c",
       padding: { x: 14, y: 8 },
     }).setOrigin(0.5);
     this.tweens.add({
@@ -355,6 +362,14 @@ export class HudScene extends Phaser.Scene {
     g.fillStyle(0x58ad66, 1).fillRect(bar.x + 2, bar.y + 2, Math.round((bar.w - 4) * (exp / expMax)), bar.h - 4);
 
     addLabel(this, MARGIN + 16, MARGIN + 56, `★ ${points} ${t("points")}`, { size: 16 });
+
+    // 상태창 오른쪽 아래의 로그아웃 버튼. 누르면 타이틀로 돌아갑니다.
+    const logout = { w: 84, h: 26 };
+    addButton(this, MARGIN + 232 - logout.w, MARGIN + 52, logout.w, logout.h, t("logout"), () => this.scene.get("Campus").logout(), {
+      size: 12,
+      border: COLOR.line,
+      color: "#c9d4e8",
+    });
   }
 
   // 오늘의 행사 배너입니다. 맨 위 줄은 검색창이 쓰므로 퀘스트 목록 바로 위에 둡니다.
