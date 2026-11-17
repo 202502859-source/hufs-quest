@@ -58,10 +58,11 @@ export class DialogScene extends Phaser.Scene {
       if (this.isOpen) this.close();
     });
 
-    // 언어를 바꾸면 열린 창을 닫습니다. 다시 물어보면 새 언어로 답합니다.
-    onLangChange(() => {
+    // 언어를 바꾸면 열린 창을 닫습니다. 다시 물어보면 새 언어로 답합니다. 장면이 멈추면(로그아웃) 알림을 해제합니다.
+    const offLang = onLangChange(() => {
       if (this.isOpen) this.close();
     });
+    this.events.once("shutdown", offLang);
   }
 
   setDialogVisible(visible) {

@@ -13,6 +13,7 @@
     "test": "node --test scripts/lib/ tests/"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.119.0",
     "galmuri": "^2.40.3",
     "phaser": "^3.90.0"
   },

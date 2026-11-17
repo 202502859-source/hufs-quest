@@ -51,6 +51,21 @@ export function notifyReward({ exp = 0, points = 0 }, label = null) {
   session.pendingReward = { exp: pending.exp + exp, points: pending.points + points, label: label ?? pending.label };
 }
 
+// 로그아웃하면 처음 상태(게스트, Lv.1 · 0)로 되돌립니다.
+export function resetSession() {
+  Object.assign(session, {
+    mode: "guest",
+    level: 1,
+    exp: 0,
+    expMax: 100,
+    points: 0,
+    completed: new Set(),
+    quiz: null,
+    trackedQuest: null,
+    pendingReward: null,
+  });
+}
+
 // 미니게임(모의 수강신청, 범위 밖) 보상입니다. 서버에 저장되지 않으므로,
 // 재학생은 다음 서버 응답 때 경험치·포인트가 서버 값으로 돌아갑니다.
 export function grantReward(exp, points) {
@@ -88,7 +103,38 @@ const STRINGS = {
   subtitle: { ko: "걸어 다니며 만나는 한국외대 서울캠퍼스 학사 정보", en: "Discover HUFS Seoul Campus academics on foot" },
   studentLogin: { ko: "재학생 로그인", en: "Student Login" },
   guestBrowse: { ko: "게스트로 둘러보기", en: "Browse as Guest" },
-  demoNote: { ko: "대회 시연용 프로토타입 · 실제 로그인 없음", en: "Competition prototype · No real login" },
+  demoNote: { ko: "대회 시연용 프로토타입", en: "Competition prototype" },
+  demoNoteMockLogin: { ko: "가짜 로그인(메일을 보내지 않음)", en: "Mock login (no email is sent)" },
+  // 학교 이메일 로그인 창
+  loginTitle: { ko: "재학생 로그인", en: "Student Login" },
+  loginIntro: { ko: "학교 이메일로 받은 6자리 인증 코드로 로그인해요.", en: "Log in with a 6-digit code sent to your school email." },
+  loginIdLabel: { ko: "학번", en: "Student ID" },
+  loginIdPlaceholder: { ko: "학번 9자리", en: "9-digit student ID" },
+  loginDomainLabel: { ko: "학교 메일 주소", en: "School email domain" },
+  loginIdHint: { ko: "학번 9자리를 숫자로 입력해 주세요.", en: "Enter your 9-digit student ID (numbers only)." },
+  loginSend: { ko: "인증 코드 받기", en: "Get code" },
+  loginSending: { ko: "보내는 중…", en: "Sending…" },
+  loginCodeTitle: { ko: "인증 코드 입력", en: "Enter Code" },
+  loginCodeIntro: { ko: "학교 메일로 보낸 6자리 인증 코드를 입력해 주세요.", en: "Enter the 6-digit code we sent to your school email." },
+  loginCodeNote: { ko: "메일이 안 보이면 스팸함도 확인해 주세요.", en: "Can't find it? Check your spam folder." },
+  loginCodeLabel: { ko: "인증 코드 6자리", en: "6-digit code" },
+  loginVerifying: { ko: "확인하는 중…", en: "Checking…" },
+  loginResend: { ko: "코드 다시 받기", en: "Resend code" },
+  loginResendIn: { ko: "코드 다시 받기 ({s}초)", en: "Resend code ({s}s)" },
+  loginResent: { ko: "새 인증 코드를 보냈어요.", en: "We sent a new code." },
+  loginBack: { ko: "학번 다시 입력", en: "Change student ID" },
+  loginClose: { ko: "닫기 (Esc)", en: "Close (Esc)" },
+  loginWrongCode: { ko: "인증 코드가 맞지 않아요.", en: "That code doesn't match." },
+  loginExpiredCode: { ko: "인증 코드가 만료됐어요. 다시 받아 주세요.", en: "This code has expired. Please get a new one." },
+  loginRateLimited: { ko: "{s}초 뒤에 다시 받을 수 있어요.", en: "You can get a new code in {s}s." },
+  loginForbidden: { ko: "학교 메일로만 로그인할 수 있어요.", en: "Only school email addresses can log in." },
+  loginNotConfigured: { ko: "로그인 서버가 아직 설정되지 않았어요.", en: "Login isn't set up yet." },
+  loginNetwork: { ko: "연결이 불안정해요. 잠시 후 다시 시도해 주세요.", en: "Connection problem. Please try again shortly." },
+  loginFailed: { ko: "로그인하지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't log in. Please try again shortly." },
+  loginNoCode: { ko: "인증 코드를 먼저 받아 주세요.", en: "Please get a code first." },
+  loginDevCode: { ko: "개발용 인증 코드", en: "Dev code" },
+  loginSessionExpired: { ko: "로그인이 만료됐어요. 다시 로그인해 주세요.", en: "Your login expired. Please log in again." },
+  logout: { ko: "로그아웃", en: "Log out" },
   points: { ko: "포인트", en: "Points" },
   guestBadge: { ko: "게스트 모드", en: "Guest Mode" },
   guestNote: { ko: "레벨과 포인트는 재학생 전용", en: "Levels and points: students only" },

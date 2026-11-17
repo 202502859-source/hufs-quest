@@ -4,7 +4,9 @@ import { BUILDINGS, OPEN_SPACES, SPAWN, buildCampusLayers, doorTile } from "../d
 import { isTouchDevice } from "../device.js";
 import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
-import { onLangChange, t } from "../state.js";
+import { signOut } from "../data/auth.js";
+import { resetProgressCache } from "../data/progressApi.js";
+import { onLangChange, resetSession, t } from "../state.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
 import { createDeadlineOverlay } from "../ui/deadlineOverlay.js";
@@ -32,7 +34,10 @@ export class CampusScene extends Phaser.Scene {
     const worldHeight = groundLayer.height;
 
     this.nameTags = [...BUILDINGS, ...OPEN_SPACES].map((place) => this.addNameTag(place));
-    onLangChange(() => this.nameTags.forEach(({ place, tag }) => tag.setText(placeName(place))));
+    // 로그아웃으로 이 장면이 멈추면 언어 변경 알림도 해제합니다(지워진 글자를 고치려다 오류가 나지 않게).
+    const offLang = onLangChange(() => this.nameTags.forEach(({ place, tag }) => tag.setText(placeName(place))));
+    this.events.once("shutdown", offLang);
+    this.loggingOut = false;
 
     this.player = this.physics.add.sprite(
       SPAWN.x * TILE_SIZE + TILE_SIZE / 2,
@@ -178,6 +183,23 @@ export class CampusScene extends Phaser.Scene {
     this.input.keyboard.resetKeys();
     this.searchBar.setVisible(true);
     this.scene.resume();
+  }
+
+  // HUD의 로그아웃 버튼. 열린 창과 장면을 모두 닫고, 로그인과 진행 상태를 지운 뒤 타이틀로 돌아갑니다.
+  async logout() {
+    if (this.loggingOut) return;
+    this.loggingOut = true;
+    this.stopPlayer();
+    if (this.dialog?.isOpen) this.dialog.close();
+    if (this.deadlineOverlay?.isOpen()) this.deadlineOverlay.hide();
+    if (this.plannerOverlay?.isOpen()) this.plannerOverlay.hide();
+    this.searchBar.setVisible(false);
+    this.searchBar.clear();
+    ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
+    await signOut();
+    resetProgressCache();
+    resetSession();
+    this.scene.start("Title");
   }
 
   openMockReg() {

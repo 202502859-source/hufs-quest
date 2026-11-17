@@ -9,7 +9,7 @@ Cursor 등 AI 코딩 도구용 안내입니다. 규칙의 원본은 `CLAUDE.md`�
 
 ## 꼭 지킬 것
 
-- API 키와 `.env`는 읽거나 고치거나 커밋하지 않는다. 키는 `src/`나 `VITE_` 변수에 넣지 않는다.
+- API 키와 `.env`는 읽거나 고치거나 커밋하지 않는다. 서버 비밀 키(`CLOVA_API_KEY`, `SUPABASE_SERVICE_KEY`)는 `src/`나 `VITE_` 변수에 절대 넣지 않는다. 예외는 공개용 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`뿐이다(자세한 규칙은 `CLAUDE.md`).
 - `npm run ingest`는 실제 서비스 DB를 바꾸므로 사용자가 요청할 때만 실행한다.
 - 범위 밖 경로(`public/planner/`, `src/ui/plannerOverlay.js`, `src/scenes/MockRegScene.js`, `teammate/`)는 수정하지 않는다.
 - 주 담당이 다른 파일도 고칠 수 있다. 멈추고 묻지 말고, 작업이 끝나면 바꾼 파일과 각 파일의 주 담당자를 PR 설명 "작업 기록" 칸에 적는다.

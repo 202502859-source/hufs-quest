@@ -50,7 +50,8 @@ Phaser 3 + Vite, JavaScript. 서버 함수는 Vercel(`api/`), DB는 Supabase, AI
 
 - 화면 크기는 960x540, 도트 그래픽이 선명하도록 `pixelArt` 설정을 유지한다.
 - 포켓몬 등 기존 게임의 캐릭터·UI·이름은 쓰지 않고 오리지널 디자인으로 만든다. 외부 에셋은 라이선스를 확인하고 출처를 기록한다.
-- API 키(`CLOVA_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`)는 Vercel 환경 변수와 `.env`에만 둔다. `src/` 코드나 `VITE_` 변수에 넣지 않는다. `.env`는 읽거나 고치거나 커밋하지 않는다.
+- 서버 비밀 값(`CLOVA_API_KEY`, `SUPABASE_SERVICE_KEY`, 서버용 `SUPABASE_URL`)은 Vercel 환경 변수와 `.env`에만 둔다. `src/` 코드나 `VITE_` 변수에 절대 넣지 않는다. `.env`는 읽거나 고치거나 커밋하지 않는다.
+- 예외: 원래 공개용인 Supabase 주소와 Publishable(anon) 키만 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`로 브라우저에 둘 수 있다(학교 이메일 로그인용). 이 키가 공개돼도 안전하려면 **모든 public 테이블에 RLS가 켜져 있어야 하고** 브라우저가 부를 필요 없는 함수는 `anon` 실행 권한을 회수해야 한다. 새 테이블·함수를 만들 때도 같은 규칙을 지킨다. Secret 키(`sb_secret_…`)는 이 예외에 해당하지 않는다.
 - 저장소는 공개 상태다. 키, 개인 연락처, 학번을 코드·문서·커밋에 넣지 않는다.
 - 학교 홈페이지는 robots.txt가 허용하는 페이지만 수집한다. 공지 게시판은 자동 수집하지 않는다.
 - 학사 정보를 화면이나 퀴즈에 넣을 때는 항상 원문 출처 URL을 함께 둔다. 근거 없는 숫자·날짜를 지어내지 않는다.
