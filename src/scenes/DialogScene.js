@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { askQuestion } from "../data/askApi.js";
-import { completeQuest, getLang, isGuest, onLangChange, t } from "../state.js";
+import { completeQuest, getLang, isGuest, onLangChange, setLang, t } from "../state.js";
 import { COLOR, FONT, addButton, centerLayout, drawPanel } from "../ui/widgets.js";
 
 const BOX = { x: 24, y: 392, w: 912, h: 124 };
@@ -125,7 +125,17 @@ export class DialogScene extends Phaser.Scene {
 
   // 검색창에서 질문하면 부릅니다. 답을 기다리는 동안 다른 질문이 오면 마지막 질문의 답만 보여 줍니다.
   async openAnswer(question, onClose) {
-    if (this.isOpen && this.mode === "dialog") this.close();
+    if (this.isOpen) this.close();
+    const hasKorean = /[가-힣]/.test(question);
+    const hasEnglish = /[a-zA-Z]/.test(question);
+
+    if (hasKorean) {
+      setLang("ko");
+    } else if (hasEnglish) {
+      setLang("en");
+    }
+
+
     this.mode = "answer";
     this.onClose = onClose;
     this.isOpen = true;
