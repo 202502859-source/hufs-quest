@@ -32,9 +32,14 @@ export class TitleScene extends Phaser.Scene {
     });
 
     // 새로고침해도 로그인이 남아 있으면 로그인 창 없이 바로 진행 기록을 불러옵니다.
+    // (create가 끝나기 전에 답이 올 수 있어 isActive 대신 이 장면이 아직 떠 있는지를 직접 기록해 확인합니다.)
+    this.alive = true;
+    this.events.once("shutdown", () => {
+      this.alive = false;
+    });
     this.starting = true;
     restoreSession().then((loggedIn) => {
-      if (!this.scene.isActive()) return;
+      if (!this.alive) return;
       this.starting = false;
       if (loggedIn) this.startStudent();
     });

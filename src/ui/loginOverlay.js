@@ -7,6 +7,7 @@ const BASE = { width: 960, height: 540 };
 const BOX = { width: 600, top: 28 }; // 게임 좌표. 휴대폰 키보드가 올라와도 가리지 않게 화면 위쪽에 붙입니다.
 const BASE_FONT = 15;
 const MIN_TOUCH_FONT = 16; // 16px보다 작으면 일부 휴대폰이 입력할 때 화면을 확대합니다.
+const COMPACT_HEIGHT = 480; // 화면 높이가 이보다 낮으면(휴대폰 가로) 창을 촘촘하게 보여 줍니다.
 
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
@@ -53,7 +54,7 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
   const idIntro = el("p", "login-intro");
   const idRow = el("div", "login-row");
   const idInput = el("input", "login-id");
-  Object.assign(idInput, { type: "text", inputMode: "numeric", autocomplete: "off", maxLength: STUDENT_ID_LENGTH, spellcheck: false });
+  Object.assign(idInput, { type: "text", inputMode: "numeric", autocomplete: "off", spellcheck: false, enterKeyHint: "send" });
   idInput.setAttribute("pattern", "[0-9]*");
   const domainSelect = el("select", "login-domain");
   EMAIL_DOMAINS.forEach((domain) => {
@@ -77,7 +78,7 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
   const codeIntro = el("p", "login-intro");
   const codeNote = el("p", "login-note");
   const codeInput = el("input", "login-code");
-  Object.assign(codeInput, { type: "text", inputMode: "numeric", autocomplete: "one-time-code", maxLength: CODE_LENGTH, spellcheck: false });
+  Object.assign(codeInput, { type: "text", inputMode: "numeric", autocomplete: "one-time-code", spellcheck: false, enterKeyHint: "done" });
   codeInput.setAttribute("pattern", "[0-9]*");
   const codeStatus = el("p", "login-error");
   codeStatus.setAttribute("role", "alert");
@@ -180,6 +181,14 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     devTag.hidden = AUTH_MODE !== "mock" || !devCode;
     devTag.textContent = devCode ? `${t("loginDevCode")}: ${devCode}` : "";
   };
+
+  // 숫자가 아닌 글자(@ 포함)는 입력되기 전에 막습니다. 붙여넣기처럼 미리 막지 못한 것은 아래 input에서 지웁니다.
+  const digitsOnly = (event) => {
+    // 한 글자씩 치는 경우만 막습니다. 여러 글자가 한꺼번에 들어오면(자동 채우기 등) 숫자만 남기도록 input에 맡깁니다.
+    if (event.inputType?.startsWith("insert") && event.data?.length === 1 && /\D/.test(event.data)) event.preventDefault();
+  };
+  idInput.addEventListener("beforeinput", digitsOnly);
+  codeInput.addEventListener("beforeinput", digitsOnly);
 
   // 학번 칸에는 숫자만, 최대 9자리까지 남깁니다(붙여넣기·@ 입력도 여기서 지워짐).
   idInput.addEventListener("input", () => {
@@ -312,8 +321,11 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     const offsetY = (game.scale.height - BASE.height) / 2;
     const width = Math.min(BOX.width * scale, window.innerWidth - 16);
     const left = rect.left + (offsetX + BASE.width / 2) * scale - width / 2;
-    const top = Math.max(8, rect.top + (offsetY + BOX.top) * scale);
     const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+    // 휴대폰 가로 화면처럼 낮은 화면에서는 창을 맨 위에 붙이고(설명 줄은 CSS에서 숨김) 키보드가 입력칸을 가리지 않게 합니다.
+    const compact = window.innerHeight < COMPACT_HEIGHT;
+    box.classList.toggle("compact", compact);
+    const top = compact ? 8 : Math.max(8, rect.top + (offsetY + BOX.top) * scale);
     Object.assign(box.style, {
       left: `${Math.max(8, left)}px`,
       top: `${top}px`,
