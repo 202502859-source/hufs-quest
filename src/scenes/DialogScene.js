@@ -44,6 +44,8 @@ export class DialogScene extends Phaser.Scene {
     this.dialogObjects = [this.nameTabGraphics, this.boxGraphics, this.nameText, this.bodyText, this.nextMark];
 
     this.answerObjects = [];
+    this.answerPages = [];
+    this.currentAnswerPage = 0;
     this.setDialogVisible(false);
 
     this.input.on("pointerdown", () => {
@@ -164,10 +166,142 @@ export class DialogScene extends Phaser.Scene {
     add(this.add.text(TEXT_LEFT, NOTICE_Y, t("aiNotice"), { fontFamily: FONT, fontSize: "12px", color: "#a9b6cf" }));
     const closeX = ANSWER_BOX.x + ANSWER_BOX.w - 28 - CLOSE_BUTTON.w;
     const closeY = ANSWER_BOX.y + ANSWER_BOX.h - 22 - CLOSE_BUTTON.h;
-    const button = addButton(this, closeX, closeY, CLOSE_BUTTON.w, CLOSE_BUTTON.h, t("aiClose"), () => this.close(), { size: 16, border: COLOR.line });
+        const button = addButton(this, closeX, closeY, CLOSE_BUTTON.w, CLOSE_BUTTON.h, t("aiClose"), () => this.close(), { size: 16, border: COLOR.line });
     [button.g, button.text, button.zone].forEach(add);
-  }
 
+    const pageY = ANSWER_BOX.y + ANSWER_BOX.h - 100;
+
+    const prev = addButton(
+      this, TEXT_LEFT, pageY, 92, 32, "◀ 이전",
+      () => {
+        if (this.currentAnswerPage > 0) {
+          this.currentAnswerPage--;
+          this.showAnswerPage();
+        }
+      },
+      { size: 13, border: COLOR.line }
+    );
+
+    const next = addButton(
+      this, TEXT_LEFT + 210, pageY, 92, 32, "다음 ▶",
+      () => {
+        if (this.currentAnswerPage < this.answerPages.length - 1) {
+          this.currentAnswerPage++;
+          this.showAnswerPage();
+        }
+      },
+      { size: 13, border: COLOR.line }
+    );
+
+    [prev.g, prev.text, prev.zone, next.g, next.text, next.zone].forEach(add);
+
+    this.prevPageButton = prev;
+    this.nextPageButton = next;
+
+    this.pageIndicator = add(this.add.text(
+      TEXT_LEFT + 116,
+      pageY + 7,
+      "",
+      { fontFamily: FONT, fontSize: "13px", color: "#f2c94c" }
+    ));
+
+    this.setPageButtonVisible(prev, false);
+    this.setPageButtonVisible(next, false);
+  }
+    splitAnswerPages(text) {
+    const maxHeight = 158;
+    const pages = [];
+    const paragraphs = String(text).split("\n");
+    let current = "";
+
+    const fits = (value) => {
+      const measure = this.add.text(0, 0, value, {
+        fontFamily: FONT,
+        fontSize: "16px",
+        lineSpacing: 6,
+        wordWrap: { width: TEXT_WIDTH, useAdvancedWrap: true },
+      });
+
+      const height = measure.height;
+      measure.destroy();
+      return height <= maxHeight;
+    };
+
+    for (const paragraph of paragraphs) {
+      const words = paragraph.split(/(\s+)/).filter(Boolean);
+
+      if (!words.length) {
+        if (current && fits(current + "\n")) current += "\n";
+        continue;
+      }
+
+      for (const word of words) {
+        const candidate = current ? current + word : word.trimStart();
+
+        if (fits(candidate)) {
+          current = candidate;
+        } else {
+          if (current.trim()) pages.push(current.trim());
+          current = word.trimStart();
+
+          if (!fits(current)) {
+            let part = "";
+
+            for (const char of current) {
+              if (part && !fits(part + char)) {
+                pages.push(part);
+                part = "";
+              }
+              part += char;
+            }
+
+            current = part;
+          }
+        }
+      }
+
+      if (current && fits(current + "\n")) current += "\n";
+    }
+
+    if (current.trim()) pages.push(current.trim());
+
+    return pages.length ? pages : [""];
+  }
+    setPageButtonVisible(button, visible) {
+    if (!button) return;
+    button.g.setVisible(visible);
+    button.text.setVisible(visible);
+    button.zone.setVisible(visible);
+  }
+    showAnswerPage() {
+    const page = this.answerPages[this.currentAnswerPage] || "";
+    this.answerText.setText(page);
+
+    if (this.pageIndicator) {
+      this.pageIndicator.setText(
+        `${this.currentAnswerPage + 1} / ${this.answerPages.length}`
+      );
+    }
+
+    this.setPageButtonVisible(
+      this.prevPageButton,
+      this.currentAnswerPage > 0
+    );
+
+    this.setPageButtonVisible(
+      this.nextPageButton,
+      this.currentAnswerPage < this.answerPages.length - 1
+    );
+
+    const isLastPage =
+      this.currentAnswerPage === this.answerPages.length - 1;
+
+    if (this.sourceObjects) {
+      this.sourceObjects.forEach((object) => {
+        object.setVisible(isLastPage);
+      });
+    }
+  }
   showLoading(lang) {
     let dots = 0;
     this.answerText.setText(t("aiThinking"));
@@ -196,15 +330,44 @@ export class DialogScene extends Phaser.Scene {
     };
     let text = messages[result.mode] || result.answer || t("aiNotFound");
     if (result.mode === "evidence" || result.mode === "local") text = `${t("aiEvidenceOnly")}\n${text}`;
-    this.answerText.setText(text);
+    this.answerPages = this.splitAnswerPages(text);
+    this.currentAnswerPage = 0;
+    this.showAnswerPage();
+
 
     const sources = dedupe(result.sources || []).slice(0, MAX_SOURCES);
+
+    this.sourceObjects = [];
+
     if (sources.length) {
-      let y = this.answerText.y + this.answerText.height + 14;
-      y = Math.min(y, NOTICE_Y - 22 - sources.length * 22);
-      this.answerObjects.push(this.add.text(TEXT_LEFT, y, t("aiSources"), { fontFamily: FONT, fontSize: "13px", color: "#a9b6cf" }));
-      sources.forEach((source, i) => this.addSourceLink(source, i, y + 20 + i * 22));
+      this.answerPages.push("");
+
+      const sourceTitle = this.add.text(
+        TEXT_LEFT,
+        this.answerText.y,
+        t("aiSources"),
+        {
+          fontFamily: FONT,
+          fontSize: "15px",
+          color: "#f2c94c"
+        }
+      );
+
+      this.answerObjects.push(sourceTitle);
+      this.sourceObjects.push(sourceTitle);
+
+      sources.forEach((source, i) => {
+        const link = this.addSourceLink(
+          source,
+          i,
+          this.answerText.y + 36 + i * 30
+        );
+
+        this.sourceObjects.push(link);
+      });
     }
+
+    this.showAnswerPage();
 
     // 이중전공 질문에 답을 받으면 이중전공 퀘스트를 완료합니다(재학생만).
     const answered = result.mode === "ai" || result.mode === "evidence" || result.mode === "local";
@@ -237,14 +400,18 @@ export class DialogScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     link.on("pointerover", () => link.setColor("#ffffff"));
     link.on("pointerout", () => link.setColor("#9fd0ff"));
-    link.on("pointerup", () => window.open(source.url, "_blank", "noopener,noreferrer"));
+        link.on("pointerup", () => window.open(source.url, "_blank", "noopener,noreferrer"));
     this.answerObjects.push(link);
+    return link;
   }
 
   clearAnswer() {
     this.stopLoading();
     this.answerObjects.forEach((o) => o.destroy());
     this.answerObjects = [];
+    this.sourceObjects = [];
+    this.answerPages = [];
+    this.currentAnswerPage = 0;
   }
 
   close() {

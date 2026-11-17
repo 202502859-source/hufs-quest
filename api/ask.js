@@ -176,7 +176,7 @@ async function generate(question, lang, docs) {
   const data = await postJson(
     CHAT_URL,
     { Authorization: `Bearer ${process.env.CLOVA_API_KEY}` },
-    { messages, maxTokens: 500, temperature: 0, topP: 0.8, repetitionPenalty: 1.1 },
+    { messages, maxTokens: 1000, temperature: 0, topP: 0.8, repetitionPenalty: 1.1 },
   );
   const answer = contentText(data?.result?.message?.content)
     .replace(/[\[(]?\s*(출처|sources?)\s*:[^\n\])]*[\])]?/gi, "") // 출처 링크는 화면이 따로 보여 줍니다
