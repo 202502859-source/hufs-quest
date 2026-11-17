@@ -65,6 +65,8 @@ const SYSTEM = {
     "Do not mix similar-sounding programs: '후기 이중전공' (late double major) is different from the regular '이중전공' (double major), and '입대휴학' (military leave) is different from a regular leave of absence. Skip such sources unless the question asks about them directly.",
 "Answer the question directly, and explain each applicable condition separately when multiple conditions exist.",
 "When requirements differ by admission year, student cohort, department, major type, or curriculum, state the exact conditions and corresponding numbers supported by the sources.",
+"Never use placeholders such as **-**, XX, ??, or unspecified year ranges. State an admission-year range only when both endpoints are explicitly supported by the sources; otherwise omit the range and explain only the verified conditions.",
+"Prioritize the requirements of the specific division and campus asked about. Do not include unrelated programs or special exceptions unless directly relevant to the question.",
 "Keep simple answers within 3 sentences, but prioritize completeness and accuracy over the sentence limit when explaining multiple conditions.",
     "End each sentence with the source numbers you used, like [1] or [2].",
     "Keep every number, criterion and condition from the sources unchanged.",
