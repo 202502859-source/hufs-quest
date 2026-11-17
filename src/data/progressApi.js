@@ -6,19 +6,33 @@
 //   "real"      진짜 서버(/api/*)를 부릅니다.
 //   없음 · "mock" 가짜 서버(progressMock.js)를 브라우저 메모리에서 돌립니다. 새로고침하면 진행이 초기화됩니다.
 // 로그인 방식(VITE_AUTH_MODE, auth.js)과 따로 고릅니다. 예: 진짜 메일 로그인 + 가짜 진행 저장으로 로그인만 먼저 시험.
-// 진짜 진행 저장(real)은 진짜 로그인(VITE_AUTH_MODE=real)과 함께 써야 합니다. 가짜 로그인 토큰은 서버가 받아 주지 않습니다.
+// 진짜 진행 저장(real)은 진짜 로그인(VITE_AUTH_MODE=real)과 함께 써야 합니다. 가짜 로그인에는 진짜 토큰이 없으므로,
+// VITE_AUTH_MODE=mock + VITE_PROGRESS_MODE=real이면 콘솔에 경고하고 진행 저장도 가짜(mock)로 동작합니다.
 //
 // 가짜 모드에서 주소 끝에 붙여 상황을 재현할 수 있습니다.
 //   ?mock=cap      오늘 퀴즈 상한(50)에 이미 도달한 계정
 //   ?mock=already  퀴즈 · 퀘스트 · 출석을 모두 이미 받은 계정
 //   ?mock=error    퀴즈 · 퀘스트 · 출석 저장이 서버 오류로 실패 (불러오기는 성공)
 //   ?mock=slow     모든 응답이 3초 늦게 옴
-import { getAccessToken } from "./auth.js";
+import { AUTH_MODE, getAccessToken } from "./auth.js";
 import { ProgressApiError, createMockServer } from "./progressMock.js";
 
 export { ProgressApiError };
 
-export const PROGRESS_MODE = import.meta.env?.VITE_PROGRESS_MODE === "real" ? "real" : "mock";
+// 요청한 진행 저장 방식과 로그인 방식으로 실제로 쓸 방식을 정합니다. 진짜 진행 저장은 진짜 로그인일 때만 씁니다.
+export function resolveProgressMode(requested, authMode) {
+  if (requested !== "real") return "mock";
+  return authMode === "real" ? "real" : "mock";
+}
+
+const REQUESTED_PROGRESS_MODE = import.meta.env?.VITE_PROGRESS_MODE;
+export const PROGRESS_MODE = resolveProgressMode(REQUESTED_PROGRESS_MODE, AUTH_MODE);
+if (REQUESTED_PROGRESS_MODE === "real" && PROGRESS_MODE === "mock") {
+  console.warn(
+    "[progress] VITE_PROGRESS_MODE=real이지만 VITE_AUTH_MODE가 mock이라 진짜 로그인 토큰이 없습니다. 진행 저장도 가짜(mock)로 동작합니다. " +
+      "진짜 진행 저장을 쓰려면 VITE_AUTH_MODE=real로 함께 바꾸세요. (docs/AUTH_SETUP.md 0장)",
+  );
+}
 
 // 성공하면 PROGRESS_API.md의 응답 본문을 그대로 돌려줍니다. 실패하면 ProgressApiError를 던집니다(status: HTTP 상태, 네트워크 오류는 0).
 
