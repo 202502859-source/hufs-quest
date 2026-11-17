@@ -66,6 +66,7 @@ npm run eval       # 검색창 정확도 테스트
 
 ## 🗓 본선 로드맵
 👉 **[docs/ROADMAP.md](docs/ROADMAP.md)** — 일정표, 우선순위, 담당자, 마일스톤을 한눈에 볼 수 있습니다.
+🧩 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** — 기능 구조도, 기능별 파일과 담당자, 진행 상태
 
 | 마감 | 내용 |
 |---|---|
