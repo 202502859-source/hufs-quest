@@ -108,6 +108,8 @@ const STRINGS = {
   aiSources: { ko: "출처 (누르면 학교 홈페이지로 이동)", en: "Sources (opens the university website)" },
   aiNotice: { ko: "※ AI 답변은 참고용이며 최종 확인은 학교 공식 안내를 따르세요 · 학번·이름 등 개인정보는 입력하지 마세요", en: "※ AI answers are for reference only; confirm with official notices. · Do not enter personal info." },
   aiClose: { ko: "닫기 (Esc)", en: "Close (Esc)" },
+  aiPrevPage: { ko: "◀ 이전", en: "◀ Previous" },
+  aiNextPage: { ko: "다음 ▶", en: "Next ▶" },
   questAskHere: { ko: "화면 맨 위 검색창", en: "The search bar at the top" },
   mapButton: { ko: "전체 지도 (M)", en: "Full Map (M)" },
   mapTitle: { ko: "서울캠퍼스 전체 지도", en: "Seoul Campus Map" },
