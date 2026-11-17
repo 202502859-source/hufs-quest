@@ -1,0 +1,918 @@
+{
+  "base": "https://hufs-quest.vercel.app",
+  "at": "2026-11-17T07:16:37.174Z",
+  "correct": 43,
+  "total": 45,
+  "refused": 5,
+  "outOfScope": 5,
+  "rows": [
+    {
+      "q": "학사경고 몇 번 받으면 제적돼?",
+      "type": "구어체",
+      "pages": [
+        "11382",
+        "11383"
+      ],
+      "must": [
+        "4회"
+      ],
+      "mode": "ai",
+      "ms": 6277,
+      "answer": "학사경고를 4회 이상 받으면 제적됩니다. [2]\n\n학업성적으로 제적된 자가 재입학한 후에 또다시 한 번이라도 학사경고를 받으면 다시 제적 처리될 수 있으니 주의해야 합니다. [1][3]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11383/subview.do",
+        "https://www.hufs.ac.kr/hufs/11382/subview.do",
+        "https://www.hufs.ac.kr/hufs/11381/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "학사경고는 평점 몇 미만이면 받아?",
+      "type": "기본",
+      "pages": [
+        "11382",
+        "11383"
+      ],
+      "must": [
+        "1.75"
+      ],
+      "mode": "ai",
+      "ms": 4273,
+      "answer": "학사경고는 매 학기 학업성적 평점평균이 1.75 미만이면 받습니다. [1]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11382/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "성적 불량으로 제적됐다가 재입학했는데 학사경고 받으면 어떻게 돼?",
+      "type": "조건",
+      "pages": [
+        "11381",
+        "11383"
+      ],
+      "must": [
+        "제적"
+      ],
+      "mode": "ai",
+      "ms": 4446,
+      "answer": "학업성적불량으로 제적되었다가 재입학한 자가 학사경고를 단 1회라도 받은 경우 다시 제적 처리합니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11381/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "재입학 신청은 언제 해?",
+      "type": "기본",
+      "pages": [
+        "11381"
+      ],
+      "must": [
+        "5일"
+      ],
+      "mode": "ai",
+      "ms": 3549,
+      "answer": "재입학 신청 시기는 매 학기 방학 시작일로부터 5일간입니다. 구체적인 일정은 매 학기 학사 공지에서 확인해 주세요[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11381/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "계절학기는 최대 몇 학점까지 들을 수 있어?",
+      "type": "기본",
+      "pages": [
+        "11378"
+      ],
+      "must": [
+        "6학점"
+      ],
+      "mode": "ai",
+      "ms": 4451,
+      "answer": "계절학기에서는 최대 6학점까지 수강 가능합니다. 이는 매 계절학기마다 신청 가능한 학점이 6학점으로 제한되기 때문입니다. 단, 휴학생도 계절학기를 수강할 수는 있지만, 이때 인정되는 학점은 최대 6학점이며, 다음 학기에 복학하지 않을 시 해당 성적이 불인정됩니다[1][2].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11378/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "휴학생도 계절학기 들을 수 있어?",
+      "type": "조건",
+      "pages": [
+        "11378"
+      ],
+      "must": [
+        "복학"
+      ],
+      "mode": "ai",
+      "ms": 4843,
+      "answer": "네, 휴학생도 계절학기를 들을 수 있습니다. 다만, 휴학 중인 학생이 계절학기를 통해 이수할 수 있는 학점은 최대 6학점으로 제한됩니다. 또한, 계절학기 종료 후 이어지는 정규 학기에 반드시 복학해야 합니다. 그렇지 않을 경우 해당 성적이 불인정되니 주의하시기 바랍니다[1]. 구체적인 내용은 매 학기 학사 공지를 확인하거나 담당 부서인 교무팀으로 문의해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11378/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "계절학기 신청자가 적으면 폐강돼?",
+      "type": "구어체",
+      "pages": [
+        "11378"
+      ],
+      "must": [
+        "30명"
+      ],
+      "mode": "ai",
+      "ms": 4180,
+      "answer": "네, 계절학기 신청자가 적으면 폐강됩니다. 수강 신청 인원이 30명 미만인 교과목은 개설하지 않습니다[2]. 구체적인 일정은 매 학기 학사 공지에서 확인해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11378/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "How many credits can I take in a summer session?",
+      "type": "영어",
+      "lang": "en",
+      "pages": [
+        "11378"
+      ],
+      "must": [
+        "6"
+      ],
+      "mode": "ai",
+      "ms": 5026,
+      "answer": "In a summer session, you can register for up to 6 credits per session [1]. This applies whether you're taking classes to meet graduation requirements or for other needs [2]. Note that if you're on leave, you may still be able to take summer courses under certain conditions related to your leave status [2]. For more detailed information regarding maximum course loads and credit carryover policies, please refer to the campus-specific syllabus [3].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11378/subview.do",
+        "https://www.hufs.ac.kr/hufs/11377/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "이중전공 언제 신청해?",
+      "type": "구어체",
+      "pages": [
+        "11384"
+      ],
+      "must": [
+        "1학년"
+      ],
+      "mode": "ai",
+      "ms": 4342,
+      "answer": "일반 이중전공은 1학년 과정이 끝나기 전에 학교 홈페이지 종합 정보 시스템에서 신청합니다. 후기 이중전공은 매년 4월에 신청하는데, 구체적인 일정은 매 학기 학사 공지를 확인하세요[1][2].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "이중전공 배정 기준이 뭐야?",
+      "type": "기본",
+      "pages": [
+        "11384"
+      ],
+      "must": [
+        "34학점"
+      ],
+      "mode": "ai",
+      "ms": 3684,
+      "answer": "이중전공 배정 기준은 학과별 배정 기준에 따릅니다. 단, 배정학기 계절학기 성적은 포함되지 않습니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "(다) 답변 오류",
+      "foundSource": true
+    },
+    {
+      "q": "25학번은 이중전공 우선 선발 기준 학점이 몇이야?",
+      "type": "조건",
+      "pages": [
+        "11384"
+      ],
+      "must": [
+        "32학점"
+      ],
+      "mode": "evidence",
+      "ms": 4009,
+      "answer": "[이중전공 > 배정원칙 및 기준]\n배정원칙 : 1학년 과정을 마치고, 34학점 이상을 취득한 경우를 우선으로 선발함(단, 25학번 이후부터는 32학점 이상 취득한 경우를 우선으로 선발)\n배정기준 : 학과별 배정 기준에 따라 배정(배정학기 계절학기 성적 미포함)\n배정비율 : 입학정원의 150%로 함(단, 사범대학은 100%)",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "이중전공 배정 비율은 입학정원의 몇 퍼센트야?",
+      "type": "기본",
+      "pages": [
+        "11384"
+      ],
+      "must": [
+        "150%"
+      ],
+      "mode": "ai",
+      "ms": 3509,
+      "answer": "이중전공 배정 비율은 입학 정원의 150%입니다. 단, 사범대학은 예외적으로 100%를 적용합니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "사범대 학생이 아닌데 사범대 전공을 이중전공으로 할 수 있어?",
+      "type": "조건",
+      "pages": [
+        "11384"
+      ],
+      "any": [
+        "없",
+        "불가"
+      ],
+      "mode": "ai",
+      "ms": 3958,
+      "answer": "아니요, 비 사범대학 학생은 사범대학 각 학과의 전공을 이중전공으로 이수할 수 없습니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "후기 이중전공은 어떤 제도야?",
+      "type": "혼동",
+      "pages": [
+        "11384"
+      ],
+      "must": [
+        "부전공"
+      ],
+      "mode": "ai",
+      "ms": 6123,
+      "answer": "후기 이중전공은 부전공 이수자가 정규 8학기 내에 졸업학점을 모두 취득한 후 1~2학기 추가 수학하여 이중전공에 필요한 나머지 학점을 취득해 제1전공과 이중전공 학위를 동시에 취득하는 제도입니다. 따라서 8학기까지 이중전공에 해당하는 학점을 모두 완료했더라도 9학기 이수가 필수이며, 수강신청 및 등록도 필요합니다[3]. 매년 4월에 신청받고 있으며, 신청 자격은 부전공을 이수 중인 7~8학기 재학생이나 7학기 이후 8학기 이전 휴학생으로 동일 부전공을 이수 중인 학생입니다. 단 조기졸업 대상자와 학·석사 연계 과정 이수자는 신청할 수 없습니다[1][2].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "후기 이중전공은 언제 신청해?",
+      "type": "혼동",
+      "pages": [
+        "11384"
+      ],
+      "must": [
+        "4월"
+      ],
+      "mustNot": [
+        "1학년 과정"
+      ],
+      "mode": "ai",
+      "ms": 4748,
+      "answer": "후기 이중전공은 매년 4월 중에 신청합니다. [1]\n\n부전공을 이수 중인 7~8학기 재학생이나 7학기 이후 8학기 이전 휴학생이면서 희망하는 이중전공과 동일한 부전공을 이수 중이어야 합니다. 또한 조기졸업 대상자나 학·석사 연계과정 이수자는 신청할 수 없습니다. [2]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "부전공은 몇 학점 들어야 해?",
+      "type": "기본",
+      "pages": [
+        "11385"
+      ],
+      "must": [
+        "21학점"
+      ],
+      "mustNot": [
+        "관계없이"
+      ],
+      "mode": "ai",
+      "ms": 3719,
+      "answer": "부전공은 21학점 이상을 들으면 됩니다. [1]\n\n이는 전공심화+부전공이나 단일전공+부전공도 마찬가지입니다. [2]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11385/subview.do",
+        "https://www.hufs.ac.kr/hufs/11373/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "2025학번 졸업하려면 몇 학점 필요해?",
+      "type": "조건",
+      "pages": [
+        "11373"
+      ],
+      "must": [
+        "126"
+      ],
+      "mustNot": [
+        "150"
+      ],
+      "mode": "ai",
+      "ms": 4969,
+      "answer": "2025학번 학생이 졸업을 하려면 글로벌 캠퍼스 재학생은 126학점이 필요하며, 서울 캠퍼스 재학생은 126학점에서 최대 150학점까지 필요합니다. 두 경우 모두 모든 영역별로 최소 이수학점을 채워야 합니다. 구체적인 내용은 각 캠퍼스의 학사 공지를 확인하거나 담당 부서에 문의하시기 바랍니다[1][4].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11373/subview.do"
+      ],
+      "result": "(다) 답변 오류",
+      "foundSource": true
+    },
+    {
+      "q": "서울캠퍼스 2020학번 이중전공하면 졸업학점이 몇이야?",
+      "type": "조건",
+      "pages": [
+        "11373"
+      ],
+      "must": [
+        "134"
+      ],
+      "mode": "evidence",
+      "ms": 5720,
+      "answer": "[졸업이수학점 > 서울캠퍼스 2015~2024학년도 입학생 졸업학점 배분표]\n구분 | 영역별 최소 이수학점 | 졸업학점 합계\n전공 | 이중전공 | 부전공 | 교양 | 교직\n모든대학, (사범대학,, AI융합대학, 제외) | 이중전공 | 54 | 42 | - | 32 | - | 134\n부전공 | 54 | - | 21\n전공심화+부전공 | 70 | - | 21\n전공심화(단일전공) | 70 | - | -\nAI융합대학 | 이중전공 | 42 | 42 | - | 32 | - | 134\n부전공 | 42 | - | 21\n전공심화+부전공 | 58 | - | 21\n전공심화(단일전공) | 58 | - | -\n사범, 대학 | 2015, ~, 2023 | 이중, 전공 | 사범대 | 50 | 50 | - | 18 | 22 | 140\n비사범대, (복수교직) | 50 | 42, (50) | - | 26 | 140, (148)\n부전공 | 50 | - | 21 | 32 | 134\n전공심화+부전공 | 68 | - | 21 | 22\n전공심화(단일전공) | 68 | - | - | 32\n2024 | 이중, 전공 | 사범대 | 50 | 50 | - | 16 | 24 | 140\n비사범대, (복수교직) | 50 | 42, (50) | - | 24 | 140, (148)\n부전공 | 50 | - | 21 | 32 | 134\n전공심화+부전공 | 68 | - | 21 | 20\n전공심화(단일전공) | 68 | - | - | 32\n[졸업이수학점 > 서울캠퍼스 2025학년도 이후 입학생 졸업학점 배분표]\n구분 | 영역별 최소 이수학점 | 졸업학점 합계\n전공 | 이중전공 | 부전공 | 교양 | 기초 | 교직\n모든대학, (사범대학, 제외) | 이중전공 | 42 | 42 | - | 32 | 6 | - | 126\n부전공 | 42 | - | 21\n전공심화+부전공 | 54 | - | 21\n전공심화(단일전공) | 54 | - | -\n사범대학 | 이중, 전공 | 사범대 | 50 | 50 | - | 16 | - | 24 | 140\n비사범대, (복수교직) | 50 | 42, (50) | - | 24 | 140, (148)\n부전공 | 50 | - | 21 | 32 | 134\n전공심화+부전공 | 68 | - | 21 | 20\n전공심화(단일전공) | 68 | - | - | 32",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11373/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "졸업하려면 평점이 몇 이상이어야 해?",
+      "type": "기본",
+      "pages": [
+        "11390"
+      ],
+      "must": [
+        "2.0"
+      ],
+      "mode": "ai",
+      "ms": 3698,
+      "answer": "졸업하려면 총 성적 평점평균이 2.00 이상이어야 합니다. [2]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11390/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "졸업 학점 다 채웠는데 휴학 중이면 졸업할 수 있어?",
+      "type": "조건",
+      "pages": [
+        "11390",
+        "11387"
+      ],
+      "any": [
+        "불가",
+        "없",
+        "못"
+      ],
+      "mode": "ai",
+      "ms": 4506,
+      "answer": "아니요, 졸업 학점을 다 채웠더라도 휴학 중에는 졸업이 불가능합니다. 졸업을 위해서는 8회 이상 등록을 해야 하며, 해당 학기에는 재학 중인 상태여야 합니다[2]. 따라서 휴학 중에 졸업하려면 군 입대와 같이 예외적인 경우를 제외하고는 반드시 복학을 진행해야 합니다.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11390/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "최우등 졸업 기준이 뭐야?",
+      "type": "기본",
+      "pages": [
+        "11390"
+      ],
+      "must": [
+        "4.25"
+      ],
+      "mode": "ai",
+      "ms": 4408,
+      "answer": "최우등 졸업 기준은 졸업 성적 평점이 4.25 이상입니다. 이는 2026년 전기(2월) 졸업생부터 적용되며, 해당 내용은 학위증 및 학적부에 기재됩니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11390/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "조기졸업 조건이 뭐야?",
+      "type": "기본",
+      "pages": [
+        "11389"
+      ],
+      "must": [
+        "4.0"
+      ],
+      "mode": "ai",
+      "ms": 4415,
+      "answer": "조기졸업 조건은 제2학년 2학기까지 졸업학점 배분표에서 요구하는 소정의 학점을 이수하고, 총 성적 평점평균이 4.00 이상이어야 합니다. 단, 신설학과의 제1회 졸업대상자는 조기졸업을 할 수 없습니다. 다만, 7학기까지 필수과목의 이수가 가능한 경우는 예외입니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11389/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "조기졸업하면 몇 학기 만에 졸업해?",
+      "type": "기본",
+      "pages": [
+        "11389"
+      ],
+      "must": [
+        "7학기"
+      ],
+      "mode": "ai",
+      "ms": 4037,
+      "answer": "조기졸업하면 7학기만에 졸업합니다. 이는 정규 수업연한보다 1학기를 단축한 것입니다. 다만, 조기졸업 대상자로 선발된 이후에도 조건을 충족하지 못하면 8학기에 등록해야 합니다[1][2].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11389/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "조기졸업 대상자인데 한 학기 평점이 3.7이면 어떻게 돼?",
+      "type": "조건",
+      "pages": [
+        "11389"
+      ],
+      "must": [
+        "취소"
+      ],
+      "mode": "ai",
+      "ms": 3994,
+      "answer": "조기졸업 대상자였어도 한 학기의 성적이 3.75미만인 경우에는 조기졸업 자격이 취소됩니다. 따라서 8학기를 등록해야 합니다[3].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11389/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "예비수강신청함에 몇 강좌까지 담을 수 있어?",
+      "type": "기본",
+      "pages": [
+        "11377"
+      ],
+      "must": [
+        "15"
+      ],
+      "mode": "ai",
+      "ms": 3683,
+      "answer": "예비수강신청함에는 최대 15개 강좌를 담을 수 있습니다. [1]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11377/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "수강신청 취소할 때 학점 제한 있어?",
+      "type": "기본",
+      "pages": [
+        "11377"
+      ],
+      "must": [
+        "12학점"
+      ],
+      "mode": "ai",
+      "ms": 3891,
+      "answer": "네, 수강신청 취소를 하려면 최소 12학점 이상 남아야 합니다. 다만 4학년도 예외적으로 취소할 수 있지만 모든 과목을 취소할 수는 없습니다. 구체적인 일정은 매 학기 공지를 확인하세요[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11377/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "4학년도 12학점 밑으로는 수강 취소 못 해?",
+      "type": "조건",
+      "pages": [
+        "11377"
+      ],
+      "must": [
+        "예외"
+      ],
+      "mode": "ai",
+      "ms": 4162,
+      "answer": "네, 4학년도 12학점 미만으로는 수강 취소가 불가능합니다. 다만, 4학년은 예외적으로 일부 과목은 취소할 수 있지만, 모든 과목을 취소하는 것은 허용되지 않습니다.[1] 구체적인 일정은 매 학기 공지를 확인하거나 담당 부서에 문의해 주시기 바랍니다.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11377/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "1학기에 최대 학점 다 안 들으면 2학기로 넘길 수 있어?",
+      "type": "구어체",
+      "pages": [
+        "11377"
+      ],
+      "must": [
+        "이월"
+      ],
+      "mode": "ai",
+      "ms": 5550,
+      "answer": "네, 1학기에 최대 학점을 다 듣지 못한 경우 동일 연도의 2학기에 넘겨서 들을 수 있습니다. 동일 연도 1학기 최대 수강학점을 수강하지 않은 학점에 대해서는 동일 연도 2학기에 이월하여 신청 가능합니다. 다만, 적용 대상 및 이월 학점 등에 대한 자세한 내용은 캠퍼스별 수강 편람을 참조해야 합니다[2].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11377/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "성적 A0는 평점이 몇이야?",
+      "type": "기본",
+      "pages": [
+        "11379",
+        "11382"
+      ],
+      "must": [
+        "4.0"
+      ],
+      "mode": "ai",
+      "ms": 3182,
+      "answer": "성적 A0는 평점이 4.0입니다. [1]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11382/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "B+ 받으면 평점 몇 점이야?",
+      "type": "구어체",
+      "pages": [
+        "11379",
+        "11382"
+      ],
+      "must": [
+        "3.5"
+      ],
+      "mode": "ai",
+      "ms": 3233,
+      "answer": "B+를 받으면 3.5점입니다. [2]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11379/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "How many academic warnings lead to dismissal?",
+      "type": "영어",
+      "lang": "en",
+      "pages": [
+        "11382",
+        "11383"
+      ],
+      "any": [
+        "4",
+        "four"
+      ],
+      "mode": "ai",
+      "ms": 4568,
+      "answer": "Four cumulative academic warnings can lead to dismissal due to poor academic performance [3]. This means if a student receives four or more academic warnings, they will be dismissed even if they meet other requirements under the school's rules [2].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11381/subview.do",
+        "https://www.hufs.ac.kr/hufs/11382/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "전과하려면 조건이 뭐야?",
+      "type": "기본",
+      "pages": [
+        "11388"
+      ],
+      "must": [
+        "3.5"
+      ],
+      "mode": "ai",
+      "ms": 5215,
+      "answer": "전과를 하려면 아래 조건을 충족해야 합니다.\n재학생: 휴학 중인 학생은 전과 원서 접수 기간 전에 복학원을 제출해야 합니다.[1]\n평점 평균: 3.50 이상이어야 합니다.[1]\n소정 학점: 이수 학기에 따라 표에 명시된 학점을 취득해야 하며, 2024학번까지는 최소 17학점이 필요합니다.[1]\n\n구체적인 일정은 매 학기 학사 공지에서 확인하세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11388/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "25학번이 2학기 마치고 전과하려면 몇 학점 필요해?",
+      "type": "조건",
+      "pages": [
+        "11388"
+      ],
+      "must": [
+        "32학점"
+      ],
+      "mode": "ai",
+      "ms": 3402,
+      "answer": "2025학번 학생이 2학기를 마치고 전과를 하려면 32학점 이상이 필요합니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11388/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "휴학은 최대 몇 년까지 할 수 있어?",
+      "type": "기본",
+      "pages": [
+        "11387"
+      ],
+      "must": [
+        "3년"
+      ],
+      "mode": "ai",
+      "ms": 4118,
+      "answer": "휴학은 최대 3년까지 가능합니다. 단, 2012학년도 제2학기 3학년 편입학생부터는 2년을 초과할 수 없습니다. 또한 일반 휴학 기간은 1년에 1회씩만 신청할 수 있습니다. [2]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11387/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "신입생도 첫 학기에 휴학할 수 있어?",
+      "type": "조건",
+      "pages": [
+        "11387"
+      ],
+      "must": [
+        "4주"
+      ],
+      "mode": "ai",
+      "ms": 4736,
+      "answer": "신입생은 첫 학기에는 일반 휴학을 할 수 없습니다. 다만 질병이나 입원으로 인해 4주 이상의 치료가 필요할 때는 수업일수 4분의 3선 이전까지 휴학을 허가받을 수 있습니다. 이때는 병원급 이상 기관에서 발급한 진단서를 함께 제출해야 합니다[2].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11387/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "군대 가는데 휴학은 언제까지 신청해야 돼?",
+      "type": "혼동",
+      "pages": [
+        "11387"
+      ],
+      "must": [
+        "입대일"
+      ],
+      "mode": "ai",
+      "ms": 4774,
+      "answer": "군입대 휴학은 입대일까지 신청해야 합니다. 단, 재학 중 입대한 뒤 귀향 조치되면 귀향 조치된 날로부터 3일 이내에 귀향증을 첨부해 군입대 휴학을 취소하고 학적을 정리해야 합니다[3]. 구체적인 일정은 매 학기 학사 공지를 통해 확인해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11387/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "육아휴학은 최대 얼마나 할 수 있어?",
+      "type": "혼동",
+      "pages": [
+        "11387"
+      ],
+      "must": [
+        "2년"
+      ],
+      "mode": "ai",
+      "ms": 5063,
+      "answer": "육아휴학은 1자녀당 1회에 한하여 2년(4개 학기) 이내로 신청 가능합니다. 단, 양육 대상 자녀의 나이는 12세 이하 또는 초등학교 6학년 이하이며, 남성도 신청할 수 있습니다. 또한 16세 이하 또는 고등학교 1학년 이하인 자녀가 신체적, 정신적 장애로 인해 장기간의 치료나 요양이 필요할 시에도 신청 가능하며 이때는 장애인등록증을 제출해야 합니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11387/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "학석사연계과정 지원하려면 평점 몇 이상이야?",
+      "type": "기본",
+      "pages": [
+        "11386"
+      ],
+      "must": [
+        "3.5"
+      ],
+      "mode": "ai",
+      "ms": 3505,
+      "answer": "학석사연계과정을 지원하려면 총 평점평균이 3.50 이상이어야 합니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11386/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "성적우수 장학금 받으려면 몇 학점 이상, 평점 몇 이상이어야 해?",
+      "type": "조건",
+      "pages": [
+        "11393"
+      ],
+      "must": [
+        "14학점",
+        "3.5"
+      ],
+      "mode": "ai",
+      "ms": 4525,
+      "answer": "성적우수 장학금을 받으려면 직전 정규 학기에 14학점 이상을 이수하고 평점 평균 3.5 이상을 받아야 합니다. 만약 수혜 기준을 충족하지 못하면 자격이 소멸되지만, 이후 수혜 기준을 다시 충족한다면 자격을 회복할 수 있습니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11393/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "국가장학금 성적 기준이 뭐야?",
+      "type": "기본",
+      "pages": [
+        "11394"
+      ],
+      "must": [
+        "80"
+      ],
+      "mode": "ai",
+      "ms": 6505,
+      "answer": "국가장학금의 성적 기준은 다음과 같습니다.\n국가장학금Ⅰ유형: 직전 학기에 취득한 학점이 12학점 이상, 백분위 환산 점수가 80점 이상이어야 합니다. 단, 학자금 지원 구간이 3구간에 해당하는 학생은 백분위 환산 점수가 70점 이상이면 2회에 한해 구제받을 수 있습니다.[3]\n국가장학금Ⅱ유형: 국가장학금Ⅰ유형의 성적 기준과 동일합니다.[3]\n\n구체적인 일정은 매 학기 학사 공지에서 확인해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11394/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "국가근로 하면 학기 중에 한 달에 몇 시간까지 일할 수 있어?",
+      "type": "구어체",
+      "pages": [
+        "11394"
+      ],
+      "must": [
+        "80시간"
+      ],
+      "mode": "ai",
+      "ms": 4132,
+      "answer": "국가근로를 하면 학기 중에 한 달에 최대 80시간까지 일할 수 있습니다. [1]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11394/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "교직이수 신청하려면 몇 학점 이상 들어야 해?",
+      "type": "조건",
+      "pages": [
+        "11398"
+      ],
+      "must": [
+        "48학점"
+      ],
+      "mode": "ai",
+      "ms": 4041,
+      "answer": "교직이수를 신청하려면 48학점 이상을 이수해야 합니다. 단, 이때 2학년 1학기 하계 계절 학기의 성적은 포함되지 않습니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11398/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "성적증명서는 어디서 발급받아?",
+      "type": "기본",
+      "pages": [
+        "11304"
+      ],
+      "must": [
+        "원스톱"
+      ],
+      "mode": "ai",
+      "ms": 5273,
+      "answer": "성적증명서는 인터넷 또는 우편으로 발급받을 수 있으며, 서울캠퍼스와 글로벌캠퍼스의 원스톱서비스센터에서 발급 가능합니다. 구체적인 방법은 각각 [1]의 '증명서 인터넷발급', '증명서 우편발급' 항목을 참고하세요. 또한, 서울캠퍼스는 국제학사 1층 114호 원스톱서비스센터 앞에서, 글로벌캠퍼스는 학생회관 1층 로비의 증명서 자동발급기를 이용하면 됩니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11304/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "증명서 자동발급기는 몇 시까지 운영해?",
+      "type": "기본",
+      "pages": [
+        "11304"
+      ],
+      "any": [
+        "20:00",
+        "20시",
+        "오후 8시"
+      ],
+      "mode": "ai",
+      "ms": 4255,
+      "answer": "증명서 자동발급기는 오전 8시부터 오후 8시까지 운영합니다. 서울캠퍼스는 국제학사 1층 114호 원스톱서비스센터 앞에 있고, 글로벌캠퍼스는 학생회관 1층 로비에 있습니다[1].",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11304/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "마이크로디그리 다 못 들으면 졸업에 지장 있어?",
+      "type": "조건",
+      "pages": [
+        "13511"
+      ],
+      "any": [
+        "무관",
+        "관계없",
+        "상관없",
+        "영향"
+      ],
+      "mode": "ai",
+      "ms": 4556,
+      "answer": "마이크로디그리는 졸업 요건과 무관한 비학위 과정입니다. 다만 졸업 이수 학점 충족 전까지 이수를 완료해야 하고, 그렇지 못하면 신청한 마이크로디그리가 자동으로 취소됩니다[1]. 따라서 졸업을 위해 반드시 들어야 할 필요는 없지만, 이수하지 못한 경우 기록상 불이익이 있을 수 있으니 주의하세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/13511/subview.do"
+      ],
+      "result": "정확",
+      "foundSource": true
+    },
+    {
+      "q": "오늘 학식 메뉴 뭐야?",
+      "type": "범위밖",
+      "outOfScope": true,
+      "mode": "ai",
+      "ms": 3412,
+      "answer": "공개된 학사 안내에서 찾지 못했어요. 담당 부서인 학생지원팀에 문의해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11159/subview.do"
+      ],
+      "result": "거절"
+    },
+    {
+      "q": "2027년 1학기 개강일이 언제야?",
+      "type": "범위밖",
+      "outOfScope": true,
+      "note": "학사일정 수집 후 일반 문항으로 바꿀 것",
+      "mode": "ai",
+      "ms": 4446,
+      "answer": "공개된 학사 안내에서 찾지 못했어요. 담당 부서에 확인해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11384/subview.do"
+      ],
+      "result": "거절"
+    },
+    {
+      "q": "도서관 운영 시간 알려줘",
+      "type": "범위밖",
+      "outOfScope": true,
+      "mode": "ai",
+      "ms": 3728,
+      "answer": "공개된 학사 안내에서 도서관 운영 시간을 찾을 수 없습니다. 담당 부서인 기획관리 파트에 문의하시거나 구체적인 일정은 매 학기 학사 공지를 확인하시기 바랍니다. [1]",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11159/subview.do"
+      ],
+      "result": "거절"
+    },
+    {
+      "q": "기숙사 입사 신청은 언제 해?",
+      "type": "범위밖",
+      "outOfScope": true,
+      "mode": "ai",
+      "ms": 3315,
+      "answer": "공개된 학사 안내에서 찾지 못했어요. 담당 부서에 확인해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11381/subview.do",
+        "https://www.hufs.ac.kr/hufs/11377/subview.do",
+        "https://www.hufs.ac.kr/hufs/11394/subview.do",
+        "https://www.hufs.ac.kr/hufs/11389/subview.do"
+      ],
+      "result": "거절"
+    },
+    {
+      "q": "이번 학기 중간고사 기간이 언제야?",
+      "type": "범위밖",
+      "outOfScope": true,
+      "note": "학사일정 수집 후 일반 문항으로 바꿀 것",
+      "mode": "ai",
+      "ms": 3421,
+      "answer": "공개된 학사 안내에서 찾지 못했어요. 담당 부서에 확인해 주세요.",
+      "sources": [
+        "https://www.hufs.ac.kr/hufs/11373/subview.do"
+      ],
+      "result": "거절"
+    }
+  ]
+}
