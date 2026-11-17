@@ -29,11 +29,11 @@ flowchart LR
 
     subgraph external["외부 서비스"]
         clova["CLOVA Studio<br/>질문 정제 · 임베딩 · 답변"]
-        vector["Supabase 벡터 DB<br/>학사 문서 216조각"]
+        vector["Supabase 벡터 DB<br/>학사 문서 242조각"]
         userDb["Supabase 사용자 DB<br/>진행 · 포인트 · 행사"]
     end
 
-    collect["학사 페이지 수집<br/>scripts/ · 공개 페이지 27곳"]
+    collect["학사 페이지 수집<br/>scripts/ · 공개 페이지 27곳 · 표 정리 4곳"]
 
     user --> game
     search --> ask
@@ -96,6 +96,7 @@ class interior,eventMarker,newApi todo                     ← 만들 것
 | Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단). 행사 테이블은 아직 없음 | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
 | 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` | 신중혁 |
+| 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` | 이종헌 (검색창 개선 1~4단계) |
 
 게임 상태(경험치·포인트)는 `src/state.js`에 있고, 서버 저장과 연결하는 부분은 이종헌·임현규 공동 담당입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답으로만 바뀌고(`applyProgress`), 게스트는 서버를 부르지 않고 메모리에서만 동작합니다.
 
@@ -115,12 +116,15 @@ class interior,eventMarker,newApi todo                     ← 만들 것
 
 **학사 문서가 벡터 DB에 들어가기까지**
 1. `scripts/urls.txt`의 공개 페이지를 `npm run collect`가 1.5초 간격으로 받아 `data/chunks.json`에 조각으로 저장합니다.
-2. `npm run ingest`가 조각마다 CLOVA 임베딩(1024차원)을 만들어 Supabase `chunks` 테이블에 저장하고, 이번에 없는 옛 조각은 지웁니다. **실제 서비스 DB가 바뀌므로 실행 전에 단톡에 알리고, 실행한 사실과 조각 수 변화를 PR에 적습니다.**
+2. `scripts/tablePages.mjs`에 있는 페이지(졸업이수학점·전과·수료·학석사연계과정)는 기존 조각에 더해 **표 정리 조각**(`<페이지>-t01` …)도 만듭니다. 표의 rowspan/colspan을 풀어 행마다 캠퍼스·학번·단과대학·이수 유형을 붙인 한 문장으로 바꾸므로, 숫자가 다른 표의 조건과 섞이지 않습니다. 숫자는 원문 칸에서만 가져오고, 괄호 값처럼 뜻이 애매한 행은 문장을 만들지 않고 보류합니다.
+3. collect가 원문 행과 생성 문장을 나란히 보여 주는 `data/table-check.md`를 만듭니다. **사람이 숫자를 검수한 뒤에만** ingest를 실행합니다. (표 문장 규칙 테스트: `npm test`)
+4. `npm run ingest`가 조각마다 CLOVA 임베딩(1024차원)을 만들어 Supabase `chunks` 테이블에 저장하고, 이번에 없는 옛 조각은 지웁니다. **실제 서비스 DB가 바뀌므로 실행 전에 단톡에 알리고, 실행한 사실과 조각 수 변화를 PR에 적습니다.**
 
 ## 변경 기록
 
 | 날짜 | 변경 내용 | 작성 |
 | --- | --- | --- |
 | 2026-11-17 | 구조도 첫 작성 | 이종헌 |
+| 2026-11-17 | 표 정리 조각 추가(벡터 DB 216 → 242조각), 수집 흐름에 검수 단계 추가 | 이종헌 |
 | 2026-11-17 | 진행 저장 연결(`progressApi.js`, 가짜 모드)과 진행 규칙(`shared/progressRules.js`) 상자 추가, 일부 구현으로 표시 | 이종헌 |
 | 2026-11-18 | Supabase 사용자 DB를 일부 구현으로 표시(진행 저장 스키마 실행, `supabase/`에 SQL 기록) | 이종헌 |
