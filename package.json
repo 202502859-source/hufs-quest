@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "collect": "node scripts/collect.mjs",
     "ingest": "node scripts/ingest.mjs",
-    "eval": "node scripts/eval.mjs"
+    "eval": "node scripts/eval.mjs",
+    "test": "node --test tests/"
   },
   "dependencies": {
     "galmuri": "^2.40.3",
