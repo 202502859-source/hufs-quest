@@ -173,7 +173,7 @@ export class DialogScene extends Phaser.Scene {
     const pageY = ANSWER_BOX.y + ANSWER_BOX.h - 100;
 
     const prev = addButton(
-      this, TEXT_LEFT, pageY, 92, 32, "◀ 이전",
+      this, TEXT_LEFT, pageY, 92, 32, t("aiPrevPage"),
       () => {
         if (this.currentAnswerPage > 0) {
           this.currentAnswerPage--;
@@ -184,7 +184,7 @@ export class DialogScene extends Phaser.Scene {
     );
 
     const next = addButton(
-      this, TEXT_LEFT + 210, pageY, 92, 32, "다음 ▶",
+      this, TEXT_LEFT + 210, pageY, 92, 32,t("aiNextPage"),
       () => {
         if (this.currentAnswerPage < this.answerPages.length - 1) {
           this.currentAnswerPage++;
