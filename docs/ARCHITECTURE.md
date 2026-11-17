@@ -1,7 +1,7 @@
 # 🧩 HUFS Quest 기능 구조도
 
 > 기능이 어디에 있고 무엇과 연결되는지 한눈에 보는 문서입니다. **기능 상태가 바뀌면 이 파일도 같은 PR에서 고칩니다.**
-> 마지막 수정: 2026-11-17 · 일정과 담당자는 [ROADMAP.md](ROADMAP.md)
+> 마지막 수정: 2026-11-18 · 일정과 담당자는 [ROADMAP.md](ROADMAP.md)
 
 ## 구조도
 
@@ -53,8 +53,8 @@ flowchart LR
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect done
-    class explore,quiz,notice,progress,rules partial
-    class interior,eventMarker,newApi,userDb todo
+    class explore,quiz,notice,progress,rules,userDb partial
+    class interior,eventMarker,newApi todo
 ```
 
 | 색 | 상태 |
@@ -71,8 +71,8 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect done      ← 동작 중
-class explore,quiz,notice,progress,rules partial           ← 일부 구현
-class interior,eventMarker,newApi,userDb todo              ← 만들 것
+class explore,quiz,notice,progress,rules,userDb partial    ← 일부 구현
+class interior,eventMarker,newApi todo                     ← 만들 것
 ```
 
 - 예: 행사 마커가 완성되면 `eventMarker`를 `todo` 줄에서 지우고 `done` 줄에 넣습니다.
@@ -93,7 +93,7 @@ class interior,eventMarker,newApi,userDb todo              ← 만들 것
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
 | 로그인 · 저장 · 행사 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
-| Supabase 사용자 DB | 새 `supabase/` (테이블 SQL) | 임현규 |
+| Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단). 행사 테이블은 아직 없음 | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
 | 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` | 신중혁 |
 
@@ -123,3 +123,4 @@ class interior,eventMarker,newApi,userDb todo              ← 만들 것
 | --- | --- | --- |
 | 2026-11-17 | 구조도 첫 작성 | 이종헌 |
 | 2026-11-17 | 진행 저장 연결(`progressApi.js`, 가짜 모드)과 진행 규칙(`shared/progressRules.js`) 상자 추가, 일부 구현으로 표시 | 이종헌 |
+| 2026-11-18 | Supabase 사용자 DB를 일부 구현으로 표시(진행 저장 스키마 실행, `supabase/`에 SQL 기록) | 이종헌 |
