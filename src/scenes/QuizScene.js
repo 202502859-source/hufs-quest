@@ -1,7 +1,8 @@
 import Phaser from "phaser";
 import { QUIZ_CATEGORIES } from "../data/quiz.js";
-import { QUIZ_REWARD, recordAnswer } from "../quizProgress.js";
-import { getLang, t } from "../state.js";
+import { recordAnswer } from "../quizProgress.js";
+import { QUIZ_DAILY_CAP, QUIZ_REWARD_EXP } from "../../shared/progressRules.js";
+import { getLang, isGuest, t } from "../state.js";
 import { COLOR, FONT, addButton, addLabel, addShade, centerLayout, drawPanel } from "../ui/widgets.js";
 
 // 960x540 기준 배치입니다. AI 답변 패널과 같은 이름표+패널 모양을 씁니다.
@@ -22,6 +23,8 @@ export class QuizScene extends Phaser.Scene {
     this.question = question;
     this.onClose = onClose;
     this.answered = false;
+    // 같은 Quiz 장면이 다른 상자로 다시 열려도, 앞 창의 늦은 저장 응답이 새 창에 그려지지 않게 창마다 번호를 붙입니다.
+    this.openId = (this.openId ?? 0) + 1;
     const lang = getLang();
     centerLayout(this);
     addShade(this, 0.6);
@@ -69,13 +72,16 @@ export class QuizScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-ESC", () => this.closeQuiz());
   }
 
-  choose(value) {
+  // 답을 고르면 O/X 버튼을 바로 지워 다시 누를 수 없게 하고, 정답·해설은 곧바로 보여 줍니다.
+  // 경험치 줄은 서버 저장 응답이 온 뒤에 채웁니다.
+  async choose(value) {
     if (this.answered) return;
     this.answered = true;
+    const openId = this.openId;
     const lang = getLang();
     const question = this.question;
     const correct = value === question.answer;
-    const result = recordAnswer(question, correct);
+    const pending = recordAnswer(question, value);
     this.choiceObjects.forEach((o) => o.destroy());
 
     let y = CHOICE.y - 4;
@@ -100,13 +106,22 @@ export class QuizScene extends Phaser.Scene {
     link.on("pointerup", () => window.open(question.source.url, "_blank", "noopener,noreferrer"));
     y += link.height + 12;
 
+    const rewardLabel = addLabel(this, LEFT, y, isGuest() ? "" : t("quizSaving"), { size: 14, color: "#a9b6cf" });
+    const result = await pending;
+    // 응답을 기다리는 사이 창을 닫았으면 그리지 않고, 받은 경험치만 HUD에 바로 반영합니다.
+    if (openId !== this.openId || !this.scene.isActive()) {
+      this.scene.get("Hud").dirty = true;
+      return;
+    }
+
     const rewardText = {
-      ok: { text: `+${QUIZ_REWARD} EXP`, color: "#f2c94c" },
+      ok: { text: `+${QUIZ_REWARD_EXP} EXP`, color: "#f2c94c" },
       guest: { text: t("quizGuest"), color: "#a9b6cf" },
       already: { text: t("quizAlready"), color: "#a9b6cf" },
-      cap: { text: t("quizCap"), color: "#a9b6cf" },
+      cap: { text: t("quizCap", { cap: QUIZ_DAILY_CAP }), color: "#a9b6cf" },
+      error: { text: t("saveFailed"), color: "#ff9a9a" },
     }[result];
-    if (rewardText) addLabel(this, LEFT, y, rewardText.text, { size: 14, color: rewardText.color });
+    rewardLabel.setText(rewardText?.text ?? "").setColor(rewardText?.color ?? "#a9b6cf");
   }
 
   closeQuiz() {
