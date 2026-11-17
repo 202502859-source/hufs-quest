@@ -4,7 +4,7 @@
 //   "real"      Supabase Auth 이메일 OTP로 진짜 메일을 보냅니다. VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY(공개용 키)가 필요합니다.
 //   없음 · "mock" 메일을 보내지 않고 6자리 코드를 만들어 화면 구석과 콘솔에 보여 줍니다(개발용). ?mockotp=fast면 20초 뒤 만료.
 //
-// 개인 정보: 학번 · 이메일은 메모리에만 잠깐 두고 콘솔 · 오류 메시지 · 저장소 어디에도 남기지 않습니다.
+// 개인 정보: 메일 아이디 · 이메일은 메모리에만 잠깐 두고 콘솔 · 오류 메시지 · 저장소 어디에도 남기지 않습니다.
 // 서버 비밀 키(SUPABASE_SERVICE_KEY)는 이 파일을 포함한 브라우저 코드에 절대 넣지 않습니다.
 import {
   AuthError,
@@ -25,9 +25,9 @@ export const AUTH_MODE = env.VITE_AUTH_MODE === "real" ? "real" : "mock";
 let pending = null; // { email, sentAt } 마지막으로 코드를 보낸 주소와 시각 (메모리에만)
 const lastSent = new Map(); // 이메일 → 보낸 시각. 같은 주소로 60초 안에 다시 보내지 않게 합니다.
 
-// 학번 + 선택한 도메인으로 인증 코드를 보냅니다. → { sentAt, devCode? } (devCode는 가짜 모드에서만)
-export async function sendCode(studentId, domain) {
-  const email = buildEmail(studentId, domain);
+// 학교 메일 아이디 + 선택한 도메인으로 인증 코드를 보냅니다. → { sentAt, devCode? } (devCode는 가짜 모드에서만)
+export async function sendCode(mailId, domain) {
+  const email = buildEmail(mailId, domain);
   const wait = resendWaitSeconds(lastSent.get(email), Date.now());
   if (wait > 0) throw new AuthError("rate_limited", { retryAfter: wait });
 
@@ -141,7 +141,7 @@ async function realVerify({ email, sentAt }, code) {
 }
 
 // ── 가짜 모드 ─────────────────────────────────────────────
-const MOCK_LOGIN_KEY = "hufs-quest-mock-login"; // 로그인했다는 표시만 저장합니다(학번 · 이메일은 저장하지 않음).
+const MOCK_LOGIN_KEY = "hufs-quest-mock-login"; // 로그인했다는 표시만 저장합니다(메일 아이디 · 이메일은 저장하지 않음).
 
 function mockQueryFast() {
   try {

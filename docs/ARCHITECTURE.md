@@ -17,7 +17,7 @@ flowchart LR
         interior["건물 내부 진입<br/>Tiled 맵 1곳"]
         eventMarker["행사 마커<br/>실시간 반영"]
         progress["진행 저장 연결<br/>progressApi.js · 지금은 가짜 모드"]
-        login["학교 이메일 로그인<br/>학번 9자리 · 6자리 코드 · 가짜 모드 완료"]
+        login["학교 이메일 로그인<br/>메일 아이디 · 6자리 코드 · 가짜 모드 완료"]
     end
 
     rules["진행 규칙<br/>shared/progressRules.js · 서버와 화면이 같이 씀"]
@@ -96,7 +96,7 @@ class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
 | 건물 내부 진입 | 새로 만듦. `campus-map/js/game.js`, `campus-map/js/tiles.js` 참고 | 이종헌 |
 | 행사 마커 | 새로 만듦. `campus-map/js/state.js`의 행사 로직 참고 | 이종헌(화면) · 임현규(데이터) |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
-| 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (학번 9자리 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **가짜 모드 완료, 진짜 메일은 아직 시험 안 함** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
+| 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **가짜 모드 완료, 진짜 메일은 아직 시험 안 함** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
 | 로그인 · 저장 · 행사 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
 | Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단). 행사 테이블은 아직 없음 | 임현규 |
@@ -121,7 +121,7 @@ class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
 4. 가짜 모드는 새로고침하면 초기화됩니다. 주소에 `?mock=cap` · `already` · `error` · `slow`를 붙여 상황을 재현할 수 있습니다.
 
 **재학생 로그인부터 캠퍼스 입장까지**
-1. 타이틀 "재학생 로그인" → `loginOverlay`에서 학번 9자리 + 도메인 목록(`@hufs.ac.kr`)으로 이메일을 조립합니다. 학번 · 이메일은 저장하거나 로그로 남기지 않습니다.
+1. 타이틀 "재학생 로그인" → `loginOverlay`에서 학교 메일 아이디(구글 아이디 규칙: 영문 소문자 · 숫자 · . _ -, 최대 64자) + 도메인 목록(`@hufs.ac.kr`)으로 이메일을 조립합니다. 아이디 · 이메일은 저장하거나 로그로 남기지 않습니다.
 2. `auth.sendCode`가 6자리 코드를 보냅니다(진짜: Supabase `signInWithOtp`, 가짜: 화면 왼쪽 아래에 개발용 코드). 같은 주소는 60초 뒤에만 다시 받을 수 있고, 코드는 10분 뒤 만료됩니다.
 3. `auth.verifyCode`가 통과하면 `getProgress` → `checkIn` → 캠퍼스 입장. 로그인은 브라우저에 남아 새로고침해도 유지되고, HUD "로그아웃"으로 지웁니다.
 4. 진행 API 요청에는 `progressApi`가 로그인 토큰(`Authorization: Bearer`)을 붙입니다. 학교 메일이 아닌 가입은 Supabase Auth Hook과 진행 API의 403이 서버에서 막습니다([AUTH_SETUP.md](AUTH_SETUP.md) 4장).
@@ -141,3 +141,4 @@ class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
 | 2026-11-17 | 진행 저장 연결(`progressApi.js`, 가짜 모드)과 진행 규칙(`shared/progressRules.js`) 상자 추가, 일부 구현으로 표시 | 이종헌 |
 | 2026-11-18 | Supabase 사용자 DB를 일부 구현으로 표시(진행 저장 스키마 실행, `supabase/`에 SQL 기록) | 이종헌 |
 | 2026-11-18 | 학교 이메일 로그인 상자(일부 구현: 가짜 모드 완료, 진짜 메일 미시험)와 Supabase Auth 상자 추가, 파일 표에 로그인 파일 추가 | 이종헌 |
+| 2026-11-18 | 로그인 아이디를 학번 9자리에서 학교 메일 아이디(구글 아이디 규칙)로 고침 | 이종헌 |
