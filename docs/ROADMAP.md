@@ -97,6 +97,7 @@ gantt
 | `src/data/campus.js`, `src/data/npcs.js`, `src/quizBoxes.js` | 이종헌 | 캠퍼스 맵 데이터, 퀴즈 상자 배치 |
 | `api/ask.js`, `shared/kb.js`, `src/data/askApi.js` | 신중혁 | 빠른 검색창 서버 함수와 키워드 검색 |
 | `scripts/`, `data/chunks.json` | 신중혁 | 문서 수집 · 임베딩 · 정확도 테스트 |
+| 검색창 개선 1~4단계 (`scripts/`, `data/`) | 이종헌 | 복잡한 표를 조건 포함 문장 조각으로 정리·검수·ingest·eval. 5~6단계(`api/ask.js`)는 신중혁 |
 | `src/data/quiz.js` | 신중혁 | O/X 퀴즈 문항 (검수: 이종헌) |
 | `supabase/` (새로 만듦), 새 `api/*` 서버 함수 | 임현규 | DB 스키마, 로그인, 진행 저장, 행사 |
 | `shared/deadlines.js`, `shared/deadlineCalc.js`, `api/deadlines.js` | 임현규 (데이터 내용: 신중혁) | 마감 임박 공지 |
@@ -216,3 +217,4 @@ gantt
 | 날짜 | 변경 내용 | 작성 |
 | --- | --- | --- |
 | 2026-11-17 | 본선 로드맵 첫 작성, 역할 재분담(게임·맵·그래픽 이종헌 / AI 신중혁 / 백엔드 임현규) | 이종헌 |
+| 2026-11-17 | 폴더별 담당에 검색창 개선 1~4단계(이종헌) · 5~6단계(신중혁) 분담 추가 | 이종헌 |
