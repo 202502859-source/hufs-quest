@@ -5,12 +5,15 @@
 // 모드: VITE_PROGRESS_MODE (비밀 값 아님)
 //   "real"      진짜 서버(/api/*)를 부릅니다.
 //   없음 · "mock" 가짜 서버(progressMock.js)를 브라우저 메모리에서 돌립니다. 새로고침하면 진행이 초기화됩니다.
+// 로그인 방식(VITE_AUTH_MODE, auth.js)과 따로 고릅니다. 예: 진짜 메일 로그인 + 가짜 진행 저장으로 로그인만 먼저 시험.
+// 진짜 진행 저장(real)은 진짜 로그인(VITE_AUTH_MODE=real)과 함께 써야 합니다. 가짜 로그인 토큰은 서버가 받아 주지 않습니다.
 //
 // 가짜 모드에서 주소 끝에 붙여 상황을 재현할 수 있습니다.
 //   ?mock=cap      오늘 퀴즈 상한(50)에 이미 도달한 계정
 //   ?mock=already  퀴즈 · 퀘스트 · 출석을 모두 이미 받은 계정
 //   ?mock=error    퀴즈 · 퀘스트 · 출석 저장이 서버 오류로 실패 (불러오기는 성공)
 //   ?mock=slow     모든 응답이 3초 늦게 옴
+import { getAccessToken } from "./auth.js";
 import { ProgressApiError, createMockServer } from "./progressMock.js";
 
 export { ProgressApiError };
@@ -44,10 +47,10 @@ export function checkIn() {
 // ── 진짜 모드 ─────────────────────────────────────────────
 // 아직 서버(api/progress.js 등, 임현규 담당)가 없어 시험 불가. 서버가 생기면 Vercel Preview에서 함께 확인합니다.
 
-// 로그인 토큰을 붙이는 곳은 여기 한 곳뿐입니다.
-// TODO(로그인 화면 작업): Supabase JS 클라이언트의 세션에서 access_token을 꺼내 { Authorization: `Bearer ${token}` }를 돌려줍니다.
+// 로그인 토큰을 붙이는 곳은 여기 한 곳뿐입니다. 토큰은 auth.js(Supabase 로그인 세션)에서 받습니다.
 async function authHeader() {
-  return {};
+  const token = await getAccessToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function request(method, path, body) {
@@ -79,6 +82,11 @@ function mockScenario() {
 
 const scenario = PROGRESS_MODE === "mock" ? mockScenario() : null;
 let mockServer = null;
+
+// 로그아웃하면 가짜 서버의 진행 기록을 비웁니다. 다른 학번으로 다시 로그인했을 때 앞 사람 기록이 보이지 않게 합니다.
+export function resetProgressCache() {
+  mockServer = null;
+}
 
 async function mockCall(name, body, { write = true } = {}) {
   mockServer ??= createMockServer({ seed: scenario });
