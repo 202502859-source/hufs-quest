@@ -1,4 +1,4 @@
--- 2026-11-17 Supabase SQL Editor에서 실행함 (실행: 이종헌). 아래는 실행한 원문 그대로입니다.
+-- 작성·실행: 임현규 (Supabase SQL Editor, 11/17 밤 실행, 11/18 00:10경 재실행). 11/17 23:53 RLS·정책 조회로 적용 확인(확인: 이종헌)
 -- HUFS Quest: 로그인 · 진행 저장 DB 스키마 및 RLS, 원자적 보상 처리 함수
 -- Supabase Dashboard > SQL Editor 에 전체 내용을 붙여넣고 Run 하세요.
 
