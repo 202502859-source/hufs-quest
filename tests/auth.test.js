@@ -1,5 +1,5 @@
 // 학교 이메일 로그인 형식 규칙과 가짜 인증이 약속대로 동작하는지 확인합니다. 실행: npm test
-// 아이디는 실제 학번 · 메일이 아닌 예시 값(123456789, hufs.student 등)만 씁니다.
+// 아이디는 실제 학번 · 메일이 아닌 예시 값(123456789, hufsquest25 등)만 씁니다.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -33,25 +33,26 @@ function setup({ expirySeconds } = {}) {
 
 const rejectsWith = (fn, code) => assert.throws(fn, (e) => e instanceof AuthError && e.code === code);
 
-test("메일 아이디 통과: 9자리 학번, 영문 아이디, 한 글자, 밑줄·하이픈, 64자", () => {
+test("메일 아이디 통과: 9자리 숫자, 영문 소문자·대문자 섞임, 한 글자, 64자", () => {
   assert.equal(MAIL_ID_MAX_LENGTH, 64);
-  for (const id of ["123456789", "hufs.student", "a", "abc_12-3", "a".repeat(64), "a.b.c"]) {
+  for (const id of ["123456789", "hufsquest25", "HufsQuest25", "a", "a".repeat(64)]) {
     assert.equal(isValidMailId(id), true, id);
+    assert.equal(mailIdProblem(id), null, id);
   }
 });
 
-test("메일 아이디 거절: 65자, 빈 값, 마침표 위치, 한글, 공백, +, @, 대문자", () => {
+test("메일 아이디 거절: 65자, 빈 값, 마침표·밑줄·하이픈, 한글, 공백, +, @", () => {
   const cases = {
     ["a".repeat(65)]: "chars",
     "": "empty",
-    ".abc": "dots",
-    "abc.": "dots",
-    "a..b": "dots",
+    ".": "chars",
+    "_": "chars",
+    "-": "chars",
+    "a.b": "chars",
     "외대생": "chars",
-    "hufs student": "chars",
-    "hufs+student": "chars",
-    "hufs@student": "chars",
-    "Hufs": "chars", // 저장 전에 소문자로 바꿔야 함(normalizeMailId)
+    "hufs quest": "chars",
+    "hufs+quest": "chars",
+    "hufs@quest": "chars",
   };
   for (const [id, problem] of Object.entries(cases)) {
     assert.equal(isValidMailId(id), false, id);
@@ -61,23 +62,21 @@ test("메일 아이디 거절: 65자, 빈 값, 마침표 위치, 한글, 공백,
   assert.equal(mailIdProblem(null), "empty");
 });
 
-test("입력칸 정리: 대문자는 소문자로, 허용 글자가 아닌 것은 지우고, 64자까지만", () => {
-  assert.equal(normalizeMailId("Hufs.Student"), "hufs.student");
-  assert.equal(normalizeMailId("ABC_12-3"), "abc_12-3");
-  assert.equal(normalizeMailId("hufs student+1!"), "hufsstudent1");
+test("입력칸 정리: 영문·숫자가 아닌 글자는 지우고 64자까지만, 대·소문자는 친 그대로", () => {
+  assert.equal(normalizeMailId("HufsQuest25"), "HufsQuest25");
+  assert.equal(normalizeMailId("hufs.quest_25-x"), "hufsquest25x");
+  assert.equal(normalizeMailId("hufs quest+1!"), "hufsquest1");
   assert.equal(normalizeMailId("외대hufs"), "hufs");
   assert.equal(normalizeMailId("a".repeat(70)), "a".repeat(64));
   assert.equal(normalizeMailId(null), "");
-  // 정리만 하고 마침표 위치는 고치지 않음 → 안내 문구로 알려 줌
-  assert.equal(mailIdProblem(normalizeMailId(".Abc")), "dots");
 });
 
-test("붙여 넣은 전체 주소: 목록에 있는 도메인이면 아이디만, 아니면 거절", () => {
-  assert.deepEqual(splitMailInput("abc@hufs.ac.kr"), { id: "abc", domain: "hufs.ac.kr", foreign: false });
-  assert.deepEqual(splitMailInput("  Hufs.Student@HUFS.AC.KR "), { id: "hufs.student", domain: "hufs.ac.kr", foreign: false });
+test("붙여 넣은 전체 주소: 목록에 있는 도메인이면 아이디만(친 그대로), 아니면 거절", () => {
+  assert.deepEqual(splitMailInput("ABC@hufs.ac.kr"), { id: "ABC", domain: "hufs.ac.kr", foreign: false });
+  assert.deepEqual(splitMailInput("  HufsQuest25@HUFS.AC.KR "), { id: "HufsQuest25", domain: "hufs.ac.kr", foreign: false });
   assert.deepEqual(splitMailInput("abc@gmail.com"), { id: "abc", domain: null, foreign: true });
   assert.deepEqual(splitMailInput("abc@hufs.ac.kr.evil.com"), { id: "abc", domain: null, foreign: true });
-  assert.deepEqual(splitMailInput("hufs.student"), { id: "hufs.student", domain: null, foreign: false });
+  assert.deepEqual(splitMailInput("hufsquest25"), { id: "hufsquest25", domain: null, foreign: false });
   // @까지만 친 상태는 거절하지 않고 아이디만 남김(도메인은 드롭다운에서 고름)
   assert.deepEqual(splitMailInput("abc@"), { id: "abc", domain: null, foreign: false });
 });
@@ -91,12 +90,14 @@ test("코드 칸 정리: 숫자가 아닌 글자는 지운다", () => {
 test("이메일은 메일 아이디 + 목록에 있는 도메인으로만 조립", () => {
   assert.deepEqual(EMAIL_DOMAINS, ["hufs.ac.kr"]);
   assert.equal(buildEmail(ID, "hufs.ac.kr"), EMAIL);
-  assert.equal(buildEmail("hufs.student", "hufs.ac.kr"), "hufs.student@hufs.ac.kr");
+  // 보낼 때는 소문자로 바꿔 같은 계정이 둘로 나뉘지 않게 함
+  assert.equal(buildEmail("HufsQuest25", "hufs.ac.kr"), "hufsquest25@hufs.ac.kr");
+  assert.equal(buildEmail("hufsquest25", "hufs.ac.kr"), "hufsquest25@hufs.ac.kr");
   rejectsWith(() => buildEmail(ID, "gmail.com"), "invalid");
   rejectsWith(() => buildEmail(ID, "hufs.ac.kr.evil.com"), "invalid");
   rejectsWith(() => buildEmail(ID, "@hufs.ac.kr"), "invalid");
   rejectsWith(() => buildEmail("evil@gmail.com#", "hufs.ac.kr"), "invalid");
-  rejectsWith(() => buildEmail("a..b", "hufs.ac.kr"), "invalid");
+  rejectsWith(() => buildEmail("a.b", "hufs.ac.kr"), "invalid");
   rejectsWith(() => buildEmail("", "hufs.ac.kr"), "invalid");
   rejectsWith(() => buildEmail("a".repeat(65), "hufs.ac.kr"), "invalid");
 });

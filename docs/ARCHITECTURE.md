@@ -121,7 +121,7 @@ class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
 4. 가짜 모드는 새로고침하면 초기화됩니다. 주소에 `?mock=cap` · `already` · `error` · `slow`를 붙여 상황을 재현할 수 있습니다.
 
 **재학생 로그인부터 캠퍼스 입장까지**
-1. 타이틀 "재학생 로그인" → `loginOverlay`에서 학교 메일 아이디(구글 아이디 규칙: 영문 소문자 · 숫자 · . _ -, 최대 64자) + 도메인 목록(`@hufs.ac.kr`)으로 이메일을 조립합니다. 아이디 · 이메일은 저장하거나 로그로 남기지 않습니다.
+1. 타이틀 "재학생 로그인" → `loginOverlay`에서 학교 메일 아이디(영문 대 · 소문자와 숫자, 최대 64자, 보낼 때 소문자로 변환) + 도메인 목록(`@hufs.ac.kr`)으로 이메일을 조립합니다. 아이디 · 이메일은 저장하거나 로그로 남기지 않습니다.
 2. `auth.sendCode`가 6자리 코드를 보냅니다(진짜: Supabase `signInWithOtp`, 가짜: 화면 왼쪽 아래에 개발용 코드). 같은 주소는 60초 뒤에만 다시 받을 수 있고, 코드는 10분 뒤 만료됩니다.
 3. `auth.verifyCode`가 통과하면 `getProgress` → `checkIn` → 캠퍼스 입장. 로그인은 브라우저에 남아 새로고침해도 유지되고, HUD "로그아웃"으로 지웁니다.
 4. 진행 API 요청에는 `progressApi`가 로그인 토큰(`Authorization: Bearer`)을 붙입니다. 학교 메일이 아닌 가입은 Supabase Auth Hook과 진행 API의 403이 서버에서 막습니다([AUTH_SETUP.md](AUTH_SETUP.md) 4장).
@@ -141,4 +141,4 @@ class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
 | 2026-11-17 | 진행 저장 연결(`progressApi.js`, 가짜 모드)과 진행 규칙(`shared/progressRules.js`) 상자 추가, 일부 구현으로 표시 | 이종헌 |
 | 2026-11-18 | Supabase 사용자 DB를 일부 구현으로 표시(진행 저장 스키마 실행, `supabase/`에 SQL 기록) | 이종헌 |
 | 2026-11-18 | 학교 이메일 로그인 상자(일부 구현: 가짜 모드 완료, 진짜 메일 미시험)와 Supabase Auth 상자 추가, 파일 표에 로그인 파일 추가 | 이종헌 |
-| 2026-11-18 | 로그인 아이디를 학번 9자리에서 학교 메일 아이디(구글 아이디 규칙)로 고침 | 이종헌 |
+| 2026-11-18 | 로그인 아이디를 학번 9자리에서 학교 메일 아이디(영문 대 · 소문자와 숫자, 최대 64자)로 고침 | 이종헌 |

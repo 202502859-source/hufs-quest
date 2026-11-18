@@ -42,7 +42,7 @@ function errorText(error) {
 /*
  * 학교 이메일 6자리 인증 코드 로그인 창입니다. 한글·숫자 입력과 휴대폰 키보드 때문에 HTML로 게임 위에 띄웁니다.
  * 1단계: [학교 메일 아이디] + [도메인 목록] → "인증 코드 받기"
- *   아이디는 구글 아이디 규칙(영문 소문자 · 숫자 · . _ -, 최대 64자). 대문자는 소문자로 바꾸고 다른 글자는 바로 지웁니다.
+ *   아이디는 영문(대 · 소문자)과 숫자만, 최대 64자. 친 그대로 보여 주고(소문자 변환은 이메일을 만들 때), 다른 글자는 바로 지웁니다.
  * 2단계: [코드 6자리] (붙여넣기 가능, 6자리면 자동 확인) · "아이디 다시 입력" · "코드 다시 받기"(60초 뒤)
  * 아이디는 이 창 안에서만 잠깐 들고 있고, 창을 닫으면 지웁니다. 콘솔 · 오류 메시지에도 남기지 않습니다.
  */
@@ -159,7 +159,6 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     const problem = mailIdProblem(mailId());
     let hint = null;
     if (idForeign) hint = t("loginForeignDomain", { domains: EMAIL_DOMAINS.map((d) => `@${d}`).join(", ") });
-    else if (problem === "dots") hint = t("loginIdDots");
     else if (problem || idStripped) hint = t("loginIdRule");
     idHint.textContent = hint ?? "";
     idHint.hidden = !hint;
@@ -224,7 +223,7 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     const typedAt = raw.trim().endsWith("@") && !pasted;
     idForeign = parsed.foreign;
     const local = raw.includes("@") ? raw.slice(0, raw.indexOf("@")) : raw;
-    idStripped = local.trim().toLowerCase() !== parsed.id;
+    idStripped = local.trim() !== parsed.id;
     if (pasted) {
       // 붙여넣기는 칸 전체를 붙여 넣은 아이디로 바꾸고 커서를 끝에 둡니다.
       idInput.value = parsed.id;

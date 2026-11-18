@@ -1,10 +1,11 @@
 // 학교 이메일 로그인의 형식 규칙입니다. 화면(loginOverlay)과 가짜 인증(authMock), 테스트가 같이 씁니다.
 // 화면에서 막아도 우회할 수 있으므로, 실제로 다른 도메인을 막는 일은 서버(Supabase Auth Hook, 진행 API의 403)가 합니다.
 
-// 학교 메일 아이디(@ 앞부분) 규칙. HUFS 메일은 Google Workspace 기반이라 구글 아이디 규칙을 따릅니다.
-// 영문 소문자 · 숫자 · 마침표(.) · 밑줄(_) · 하이픈(-), 1~64자. 마침표는 맨 앞 · 맨 끝 · 연속(..) 불가. 9자리 학번도 그대로 통과합니다.
+// 학교 메일 아이디(@ 앞부분) 규칙: 영문 대 · 소문자와 숫자만, 1~64자. 9자리 학번도 그대로 통과합니다.
+// 64자는 구글(Google Workspace) 상한입니다. 학교 공식 상한은 확인하지 못했습니다.
+// 입력칸에는 친 그대로(대문자 포함) 보여 주고, 이메일을 만들 때(buildEmail) 소문자로 바꿉니다.
 export const MAIL_ID_MAX_LENGTH = 64;
-const MAIL_ID_CHARS = /^[a-z0-9._-]+$/;
+const MAIL_ID_CHARS = /^[A-Za-z0-9]+$/;
 // 로그인에 쓸 수 있는 학교 메일 도메인. 나중에 다른 도메인을 허용하면 여기에 추가합니다(서버 Auth Hook도 같이).
 export const EMAIL_DOMAINS = ["hufs.ac.kr"];
 export const CODE_LENGTH = 6;
@@ -26,19 +27,17 @@ export class AuthError extends Error {
 
 export const onlyDigits = (value) => String(value ?? "").replace(/\D/g, "");
 
-// 입력칸 정리: 대문자는 소문자로 바꾸고, 허용 글자가 아닌 것은 지우고, 64자까지만 남깁니다.
+// 입력칸 정리: 영문 · 숫자가 아닌 글자는 지우고, 64자까지만 남깁니다. 대 · 소문자는 친 그대로 둡니다.
 export const normalizeMailId = (value) =>
   String(value ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]/g, "")
+    .replace(/[^A-Za-z0-9]/g, "")
     .slice(0, MAIL_ID_MAX_LENGTH);
 
 // 아이디가 규칙에 맞지 않는 이유. 맞으면 null.
-//   "empty" 비어 있음 · "chars" 허용 글자가 아니거나 64자 초과 · "dots" 마침표가 맨 앞 · 맨 끝 · 연속
+//   "empty" 비어 있음 · "chars" 영문 · 숫자가 아닌 글자가 있거나 64자 초과
 export function mailIdProblem(value) {
   if (typeof value !== "string" || value === "") return "empty";
   if (value.length > MAIL_ID_MAX_LENGTH || !MAIL_ID_CHARS.test(value)) return "chars";
-  if (value.startsWith(".") || value.endsWith(".") || value.includes("..")) return "dots";
   return null;
 }
 
@@ -60,10 +59,12 @@ export function splitMailInput(raw) {
 export const isValidCode = (value) => typeof value === "string" && /^\d{6}$/.test(value);
 
 // 최종 이메일은 "메일 아이디 + 선택한 도메인"으로만 만듭니다. 규칙에 맞지 않는 아이디나 목록에 없는 도메인은 거절합니다.
+// 아이디는 소문자로 바꿔 보냅니다. Supabase는 이메일을 소문자로 저장하고 구글 메일은 대 · 소문자를 구분하지 않으므로,
+// "HufsQuest25"와 "hufsquest25"가 서로 다른 계정으로 나뉘지 않게 합니다.
 export function buildEmail(mailId, domain) {
   if (!isValidMailId(mailId)) throw new AuthError("invalid");
   if (!EMAIL_DOMAINS.includes(domain)) throw new AuthError("invalid");
-  return `${mailId}@${domain}`;
+  return `${mailId.toLowerCase()}@${domain}`;
 }
 
 // 코드를 보낸 뒤 다시 받기까지 남은 초. 0이면 바로 다시 받을 수 있습니다.
