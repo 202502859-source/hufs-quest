@@ -151,6 +151,7 @@ const STRINGS = {
     en: "I couldn't find this in the public academic guides, and I won't guess.\nPlease check with the Academic Support Center.",
   },
   aiBusy: { ko: "질문이 너무 많아요. 잠시 후 다시 물어봐 주세요.", en: "Too many questions. Please try again in a moment." },
+  aiDailyLimit: { ko: "오늘 질문 한도에 도달했어요.", en: "You've reached today's question limit." },
   aiEvidenceOnly: { ko: "(AI 연결 없이 찾은 공식 안내 원문입니다)", en: "(Official guide text found without the AI)" },
   aiSources: { ko: "출처 (누르면 학교 홈페이지로 이동)", en: "Sources (opens the university website)" },
   aiNotice: { ko: "※ AI 답변은 참고용이며 최종 확인은 학교 공식 안내를 따르세요 · 학번·이름 등 개인정보는 입력하지 마세요", en: "※ AI answers are for reference only; confirm with official notices. · Do not enter personal info." },

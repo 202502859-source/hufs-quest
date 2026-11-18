@@ -4,10 +4,33 @@
 //       npm run eval -- https://<Preview 주소>.vercel.app   (PR Preview 등 다른 주소로 테스트)
 // API 키가 필요 없고, 서버의 1분당 요청 제한 때문에 질문 사이에 6.5초씩 쉽니다(약 6분 소요).
 // 결과는 data/eval/<날짜-시간>.json에 저장되어 고치기 전후를 비교할 수 있습니다.
+//
+// 사용량 제한(IP당 하루 50)에 50문항이 걸리지 않게, 서버 전용 토큰을 헤더로 보냅니다.
+//   ASK_EVAL_TOKEN: Vercel 환경 변수와 같은 값. 맞으면 서버가 IP 한도만 건너뛰고 전체 하루 한도에는 셉니다.
+//   VERCEL_AUTOMATION_BYPASS_SECRET: Preview에 Vercel 배포 보호(로그인)가 켜져 있을 때만 필요.
+// 두 값은 터미널 환경 변수나 .env에서 읽고(이 두 이름만 읽음), 화면이나 결과 파일에 출력하지 않습니다.
 import { mkdir, writeFile } from "node:fs/promises";
+import { existsSync, readFileSync } from "node:fs";
 
 const BASE = (process.argv[2] || "https://hufs-quest.vercel.app").replace(/\/$/, "");
 const DELAY_MS = 6500;
+const EVAL_ENV = readEvalEnv(["ASK_EVAL_TOKEN", "VERCEL_AUTOMATION_BYPASS_SECRET"]);
+const EXTRA_HEADERS = {
+  ...(EVAL_ENV.ASK_EVAL_TOKEN ? { "x-ask-eval-token": EVAL_ENV.ASK_EVAL_TOKEN } : {}),
+  ...(EVAL_ENV.VERCEL_AUTOMATION_BYPASS_SECRET ? { "x-vercel-protection-bypass": EVAL_ENV.VERCEL_AUTOMATION_BYPASS_SECRET } : {}),
+};
+
+// 터미널 환경 변수가 먼저, 없으면 .env에서 지정한 이름만 읽습니다.
+function readEvalEnv(names) {
+  const values = Object.fromEntries(names.map((n) => [n, process.env[n] || ""]));
+  const file = new URL("../.env", import.meta.url);
+  if (!existsSync(file)) return values;
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
+    if (m && names.includes(m[1]) && !values[m[1]]) values[m[1]] = m[2].replace(/^(['"])(.*)\1$/, "$2");
+  }
+  return values;
+}
 
 // q: 질문 / type: 기본·구어체·조건·혼동·영어·범위밖 / pages: 정답 근거가 있는 학교 페이지 번호(URL의 숫자)
 // must: 답에 모두 있어야 할 말 / any: 이 중 하나는 있어야 할 말 / mustNot: 있으면 안 되는 말 / lang: 기본 ko
@@ -90,7 +113,7 @@ async function ask(question, lang) {
   const started = Date.now();
   const res = await fetch(`${BASE}/api/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...EXTRA_HEADERS },
     body: JSON.stringify({ question, lang }),
     signal: AbortSignal.timeout(30000),
   });
@@ -120,7 +143,8 @@ function grade(c, r) {
 
 const MARK = { 정확: "✓", 거절: "✓", 지어냄: "✗", "(나) 검색 실패": "✗", "(나) 엉뚱한 근거": "✗", "(다) 답변 오류": "△" };
 const startedAt = new Date();
-console.log(`\n빠른 검색창 정확도 테스트 ${CASES.length}문항  (${BASE}, ${startedAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })})\n`);
+console.log(`\n빠른 검색창 정확도 테스트 ${CASES.length}문항  (${BASE}, ${startedAt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" })})`);
+console.log(`eval 토큰 ${EVAL_ENV.ASK_EVAL_TOKEN ? "사용" : "없음(IP 하루 한도 50에 걸릴 수 있음)"} · 배포 보호 우회 ${EVAL_ENV.VERCEL_AUTOMATION_BYPASS_SECRET ? "사용" : "없음"}\n`);
 
 const rows = [];
 for (const [i, c] of CASES.entries()) {
@@ -133,7 +157,7 @@ for (const [i, c] of CASES.entries()) {
   const g = grade(c, r);
   rows.push({ ...c, mode: r.mode, ms: r.ms, answer: r.answer ?? null, sources: (r.sources || []).map((s) => s?.url), ...g });
   console.log(`${String(i + 1).padStart(2)}. ${MARK[g.result]} [${c.type}] ${c.q}`);
-  console.log(`      → ${cut(r.answer || "(답 없음)", 70)}  (${(r.ms / 1000).toFixed(1)}초, ${g.result}${r.mode === "evidence" ? ", AI 실패로 원문 표시" : ""})`);
+  console.log(`      → ${cut(r.answer || "(답 없음)", 70)}  (${(r.ms / 1000).toFixed(1)}초, ${g.result}${r.mode === "evidence" ? ", AI 실패로 원문 표시" : ""}${r.status === 429 ? `, 사용량 한도(${r.reason})` : ""})`);
   if (i < CASES.length - 1) await sleep(DELAY_MS);
 }
 

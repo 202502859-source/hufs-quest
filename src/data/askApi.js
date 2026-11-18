@@ -5,7 +5,8 @@ const TIMEOUT_MS = 25_000;
 
 /*
  * 상단 검색창의 질문을 서버(api/ask.js)에 보냅니다.
- * 돌려받는 값: { mode: "ai" | "evidence" | "local" | "none" | "busy", answer, sources: [{ title, url }] }
+ * 돌려받는 값: { mode: "ai" | "evidence" | "local" | "none" | "busy" | "limit", answer, sources: [{ title, url }] }
+ * - busy: 1분 한도에 걸림(잠시 후 다시) · limit: 오늘 한도(IP 하루 또는 서비스 전체 하루)에 걸림
  * - 로컬 개발 서버(npm run dev)에는 서버 함수가 없어서, 그때는 브라우저 안의 지식 베이스에서 근거 원문만 찾아 보여 줍니다.
  */
 export async function askQuestion(question, lang) {
@@ -16,7 +17,11 @@ export async function askQuestion(question, lang) {
       body: JSON.stringify({ question, lang }),
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (response.status === 429) return { mode: "busy", answer: null, sources: [] };
+    if (response.status === 429) {
+      const { reason } = await response.json().catch(() => ({}));
+      const mode = reason === "day" || reason === "global" ? "limit" : "busy";
+      return { mode, answer: null, sources: [] };
+    }
     if (!response.ok) throw new Error(`ask ${response.status}`);
     const data = await response.json();
     if (!data || !data.mode) throw new Error("bad response");

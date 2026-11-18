@@ -60,8 +60,8 @@ flowchart LR
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect done
-    class explore,quiz,notice,progress,rules,userDb,login partial
-    class mapInfo,newApi,limiter,supaAuth todo
+    class explore,quiz,notice,progress,rules,userDb,login,limiter partial
+    class mapInfo,newApi,supaAuth todo
 ```
 
 | 색 | 상태 |
@@ -78,8 +78,8 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect done      ← 동작 중
-class explore,quiz,notice,progress,rules,userDb,login partial    ← 일부 구현
-class mapInfo,newApi,limiter,supaAuth todo                  ← 만들 것
+class explore,quiz,notice,progress,rules,userDb,login,limiter partial    ← 일부 구현
+class mapInfo,newApi,supaAuth todo                  ← 만들 것
 ```
 
 - 예: 건물 정보 분리가 완성되면 `mapInfo`를 `todo` 줄에서 지우고 `done` 줄에 넣습니다.
@@ -97,7 +97,7 @@ class mapInfo,newApi,limiter,supaAuth todo                  ← 만들 것
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`, `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
 | 건물 정보 · 맵 기준일 | 새로 만듦 `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태), 맵 기준일과 신고 버튼은 `src/ui/` | 이종헌(형식·화면) · 임현규(내용) |
-| 사용량 제한 · 답변 캐시 | `supabase/003_usage_limits.sql` (IP 해시 1분 · 하루 + 전체 하루 카운터, `ask_hit` 함수, 11/18 대시보드 실행 · 테스트 통과, **`api/ask.js` 연결은 아직**), 새로 만듦 `api/_lib/`, `api/ask.js`에서 호출. 지금은 `api/ask.js` 안 메모리 제한(1분 10회, 인스턴스별)만 있음 | 임현규 · 신중혁 |
+| 사용량 제한 · 답변 캐시 | `api/_lib/usageLimit.js` (한도 상수 분당 10 · 하루 50 · 전체 하루 500, IP 해시 = SHA-256(`ASK_IP_SALT` + 한국 날짜 + IP), 1차 메모리 제한 → 2차 `ask_hit`, Supabase 실패 시 메모리 제한으로 대체, eval 토큰은 IP 한도만 건너뜀) ← `api/ask.js`가 첫 AI 호출 전에 호출(429 `{ error, reason, retryAfter }`, 200자 초과 400). DB는 `supabase/003_usage_limits.sql`(11/18 실행). 화면 안내 `src/data/askApi.js`(`busy` · `limit`), 테스트 `tests/usageLimit.test.js`. **사용량 제한은 Preview 확인 전, 답변 캐시는 아직** | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
 | 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **가짜 모드 완료, 진짜 메일은 아직 시험 안 함** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
@@ -147,3 +147,4 @@ class mapInfo,newApi,limiter,supaAuth todo                  ← 만들 것
 | 2026-11-18 | 사전교육 피드백 반영: 건물 내부 진입 · 행사 마커 상자 제외, 건물 정보 · 맵 기준일과 사용량 제한 · 답변 캐시 상자 추가 | 이종헌 |
 | 2026-11-18 | 로그인 아이디를 학번 9자리에서 학교 메일 아이디(영문 대 · 소문자와 숫자, 최대 64자)로 고침 | 이종헌 |
 | 2026-11-18 | 파일 표에 `supabase/003_usage_limits.sql`(검색창 공용 사용량 카운터) 추가, 같은 날 대시보드 실행. 사용량 제한 상자는 `api/ask.js` 연결 전이라 "만들 것" 그대로 | 이종헌 |
+| 2026-11-19 | `api/_lib/usageLimit.js`로 `api/ask.js`와 `ask_hit` 연결, 사용량 제한 상자를 "일부 구현"으로(Preview 확인 · 답변 캐시 남음) | 이종헌 |

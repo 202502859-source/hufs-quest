@@ -338,6 +338,7 @@ export class DialogScene extends Phaser.Scene {
     const messages = {
       none: t("aiNotFound"),
       busy: t("aiBusy"),
+      limit: t("aiDailyLimit"),
     };
     let text = messages[result.mode] || result.answer || t("aiNotFound");
     if (result.mode === "evidence" || result.mode === "local") text = `${t("aiEvidenceOnly")}\n${text}`;
