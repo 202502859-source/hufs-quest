@@ -115,6 +115,16 @@ const STRINGS = {
   loginIdRule: { ko: "영문과 숫자만 쓸 수 있어요", en: "Only letters and numbers" },
   loginForeignDomain: { ko: "학교 메일({domains})만 사용할 수 있어요", en: "Only school email ({domains}) can be used" },
   loginSend: { ko: "인증 코드 받기", en: "Get code" },
+  // 개인정보 안내(docs/OPERATIONS.md 8장). 문구를 바꾸면 OPERATIONS 8장과 같이 고칩니다.
+  loginPrivacyTitle: { ko: "개인정보 안내", en: "Privacy notice" },
+  loginPrivacyCollect: {
+    ko: "모으는 것: 학교 이메일 주소, 게임 진행 기록(경험치·포인트·퀴즈·퀘스트)",
+    en: "What we collect: your school email and game progress (EXP, points, quizzes, quests)",
+  },
+  loginPrivacyPurpose: { ko: "목적: 로그인과 진행 저장", en: "Why: to log you in and save your progress" },
+  loginPrivacyRetention: { ko: "보관 기간: 대회가 끝난 뒤 2026-12-31까지 모두 삭제", en: "How long: all deleted by Dec 31, 2026, after the contest" },
+  loginPrivacyNoQuestions: { ko: "검색창에 입력한 질문 내용은 저장하지 않아요.", en: "Questions you type in the search bar are not stored." },
+  loginPrivacyAgree: { ko: "위 내용을 확인했고 동의해요", en: "I have read and agree to the above" },
   loginSending: { ko: "보내는 중…", en: "Sending…" },
   loginCodeTitle: { ko: "인증 코드 입력", en: "Enter Code" },
   loginCodeIntro: { ko: "학교 메일로 보낸 6자리 인증 코드를 입력해 주세요.", en: "Enter the 6-digit code we sent to your school email." },
