@@ -1,6 +1,7 @@
 // 게임 상태입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답(progress)으로만 바뀝니다(applyProgress).
 // 서버와 주고받는 것은 src/data/progressApi.js가 맡고, 게스트는 지금처럼 메모리에서만 동작합니다.
 import { REWARD_QUESTS } from "../shared/progressRules.js";
+import { SHOW_OUT_OF_SCOPE } from "./data/features.js";
 
 const listeners = new Set();
 let lang = "ko";
@@ -224,7 +225,8 @@ export const t = (key, vars) => {
   return vars ? text.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match)) : text;
 };
 
-export const QUEST_LIST = [
+// outOfScope: true인 퀘스트는 src/data/features.js의 SHOW_OUT_OF_SCOPE가 false면 목록에서 빠집니다.
+const ALL_QUESTS = [
   {
     id: "doubleMajor",
     name: { ko: "이중전공 요건 알아보기", en: "Double major requirements" },
@@ -241,6 +243,7 @@ export const QUEST_LIST = [
     studentOnly: true,
     destination: "cyber",
     minigame: true,
+    outOfScope: true, // 모의 수강신청: 본선 범위 밖(PRD 3장)
     description: {
       ko: "30초 안에 가상 과목을 담아 보는 미니게임이에요.\n빨리 누를수록 성공 확률이 높아요.",
       en: "A minigame where you add fictional courses within 30 seconds.\nThe faster you click, the better your odds.",
@@ -257,3 +260,6 @@ export const QUEST_LIST = [
     },
   },
 ];
+
+// 화면(퀘스트 목록 · 안내 창 · 지도)이 쓰는 퀘스트 목록입니다.
+export const QUEST_LIST = SHOW_OUT_OF_SCOPE ? ALL_QUESTS : ALL_QUESTS.filter((q) => !q.outOfScope);
