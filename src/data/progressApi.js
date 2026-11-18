@@ -97,7 +97,7 @@ function mockScenario() {
 const scenario = PROGRESS_MODE === "mock" ? mockScenario() : null;
 let mockServer = null;
 
-// 로그아웃하면 가짜 서버의 진행 기록을 비웁니다. 다른 학번으로 다시 로그인했을 때 앞 사람 기록이 보이지 않게 합니다.
+// 로그아웃하면 가짜 서버의 진행 기록을 비웁니다. 다른 아이디로 다시 로그인했을 때 앞 사람 기록이 보이지 않게 합니다.
 export function resetProgressCache() {
   mockServer = null;
 }

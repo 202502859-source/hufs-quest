@@ -10,7 +10,7 @@
     "collect": "node scripts/collect.mjs",
     "ingest": "node scripts/ingest.mjs",
     "eval": "node scripts/eval.mjs",
-    "test": "node --test scripts/lib/ tests/"
+    "test": "node --test \"scripts/lib/*.test.mjs\" \"tests/*.test.js\""
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

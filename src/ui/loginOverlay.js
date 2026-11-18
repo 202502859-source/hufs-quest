@@ -1,6 +1,16 @@
 import { isTouchDevice } from "../device.js";
 import { AUTH_MODE, AuthError, sendCode, verifyCode } from "../data/auth.js";
-import { CODE_LENGTH, EMAIL_DOMAINS, STUDENT_ID_LENGTH, isValidCode, isValidStudentId, onlyDigits, resendWaitSeconds } from "../data/authRules.js";
+import {
+  CODE_LENGTH,
+  EMAIL_DOMAINS,
+  MAIL_ID_MAX_LENGTH,
+  isValidCode,
+  mailIdProblem,
+  normalizeMailId,
+  onlyDigits,
+  resendWaitSeconds,
+  splitMailInput,
+} from "../data/authRules.js";
 import { getLang, onLangChange, t } from "../state.js";
 
 const BASE = { width: 960, height: 540 };
@@ -31,9 +41,10 @@ function errorText(error) {
 
 /*
  * 학교 이메일 6자리 인증 코드 로그인 창입니다. 한글·숫자 입력과 휴대폰 키보드 때문에 HTML로 게임 위에 띄웁니다.
- * 1단계: [학번 9자리] + [도메인 목록] → "인증 코드 받기"
- * 2단계: [코드 6자리] (붙여넣기 가능, 6자리면 자동 확인) · "학번 다시 입력" · "코드 다시 받기"(60초 뒤)
- * 학번은 이 창 안에서만 잠깐 들고 있고, 창을 닫으면 지웁니다.
+ * 1단계: [학교 메일 아이디] + [도메인 목록] → "인증 코드 받기"
+ *   아이디는 영문(대 · 소문자)과 숫자만, 최대 64자. 친 그대로 보여 주고(소문자 변환은 이메일을 만들 때), 다른 글자는 바로 지웁니다.
+ * 2단계: [코드 6자리] (붙여넣기 가능, 6자리면 자동 확인) · "아이디 다시 입력" · "코드 다시 받기"(60초 뒤)
+ * 아이디는 이 창 안에서만 잠깐 들고 있고, 창을 닫으면 지웁니다. 콘솔 · 오류 메시지에도 남기지 않습니다.
  */
 export function createLoginOverlay(game, { onSuccess, onClose }) {
   const backdrop = el("div", "login-overlay");
@@ -48,14 +59,26 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
   close.type = "button";
   header.append(title, close);
 
-  // 1단계: 학번 + 도메인
+  // 1단계: 학교 메일 아이디 + 도메인
   const idForm = el("form", "login-step");
   idForm.noValidate = true;
   const idIntro = el("p", "login-intro");
+  const idLabel = el("label", "login-label");
+  idLabel.htmlFor = "login-mail-id";
   const idRow = el("div", "login-row");
   const idInput = el("input", "login-id");
-  Object.assign(idInput, { type: "text", inputMode: "numeric", autocomplete: "off", spellcheck: false, enterKeyHint: "send" });
-  idInput.setAttribute("pattern", "[0-9]*");
+  // 영문 키보드(email)를 띄우고, 자동 대문자 · 자동 고침 · 맞춤법 검사를 끕니다.
+  Object.assign(idInput, {
+    id: "login-mail-id",
+    type: "text",
+    inputMode: "email",
+    autocomplete: "username",
+    spellcheck: false,
+    maxLength: MAIL_ID_MAX_LENGTH,
+    enterKeyHint: "send",
+  });
+  idInput.setAttribute("autocapitalize", "off");
+  idInput.setAttribute("autocorrect", "off");
   const domainSelect = el("select", "login-domain");
   EMAIL_DOMAINS.forEach((domain) => {
     const option = el("option", "", `@${domain}`);
@@ -70,7 +93,7 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
   const sendButton = el("button", "login-primary");
   sendButton.type = "submit";
   idActions.append(sendButton);
-  idForm.append(idIntro, idRow, idHint, idError, idActions);
+  idForm.append(idIntro, idLabel, idRow, idHint, idError, idActions);
 
   // 2단계: 인증 코드
   const codeForm = el("form", "login-step");
@@ -105,8 +128,10 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
   let devCode = null;
   let timer = null;
   let message = null; // { key, vars, ok } 2단계 아래에 보여 줄 문구
+  let idStripped = false; // 방금 입력에서 허용되지 않는 글자를 지웠는지 (안내 문구용)
+  let idForeign = false; // 목록에 없는 도메인 주소를 붙여 넣었는지
 
-  const studentId = () => idInput.value;
+  const mailId = () => idInput.value;
   const domain = () => domainSelect.value;
 
   const applyText = () => {
@@ -116,9 +141,8 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     close.textContent = t("loginClose");
     idIntro.textContent = t("loginIntro");
     idInput.placeholder = t("loginIdPlaceholder");
-    idInput.setAttribute("aria-label", t("loginIdLabel"));
+    idLabel.textContent = t("loginIdLabel");
     domainSelect.setAttribute("aria-label", t("loginDomainLabel"));
-    idHint.textContent = t("loginIdHint");
     sendButton.textContent = busy && step === "id" ? t("loginSending") : t("loginSend");
     codeIntro.textContent = t("loginCodeIntro");
     codeNote.textContent = t("loginCodeNote");
@@ -130,11 +154,15 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     updateMessage();
   };
 
-  // 학번이 9자리 숫자일 때만 "인증 코드 받기"를 누를 수 있고, 아니면 안내를 보여 줍니다.
+  // 아이디가 규칙에 맞고 학교 도메인일 때만 "인증 코드 받기"를 누를 수 있고, 아니면 이유를 안내합니다.
   const updateId = () => {
-    const valid = isValidStudentId(studentId());
-    idHint.hidden = valid;
-    sendButton.disabled = !valid || busy;
+    const problem = mailIdProblem(mailId());
+    let hint = null;
+    if (idForeign) hint = t("loginForeignDomain", { domains: EMAIL_DOMAINS.map((d) => `@${d}`).join(", ") });
+    else if (problem || idStripped) hint = t("loginIdRule");
+    idHint.textContent = hint ?? "";
+    idHint.hidden = !hint;
+    sendButton.disabled = Boolean(problem) || idForeign || busy;
     idInput.disabled = busy;
     domainSelect.disabled = busy;
   };
@@ -182,29 +210,63 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     devTag.textContent = devCode ? `${t("loginDevCode")}: ${devCode}` : "";
   };
 
-  // 숫자가 아닌 글자(@ 포함)는 입력되기 전에 막습니다. 붙여넣기처럼 미리 막지 못한 것은 아래 input에서 지웁니다.
-  const digitsOnly = (event) => {
-    // 한 글자씩 치는 경우만 막습니다. 여러 글자가 한꺼번에 들어오면(자동 채우기 등) 숫자만 남기도록 input에 맡깁니다.
+  // 코드 칸: 숫자가 아닌 글자는 입력되기 전에 막습니다. 붙여넣기처럼 미리 막지 못한 것은 input에서 지웁니다.
+  codeInput.addEventListener("beforeinput", (event) => {
     if (event.inputType?.startsWith("insert") && event.data?.length === 1 && /\D/.test(event.data)) event.preventDefault();
-  };
-  idInput.addEventListener("beforeinput", digitsOnly);
-  codeInput.addEventListener("beforeinput", digitsOnly);
+  });
 
-  // 학번 칸에는 숫자만, 최대 9자리까지 남깁니다(붙여넣기·@ 입력도 여기서 지워짐).
-  idInput.addEventListener("input", () => {
-    const clean = onlyDigits(idInput.value).slice(0, STUDENT_ID_LENGTH);
-    if (clean !== idInput.value) idInput.value = clean;
+  // 아이디 칸에 들어온 글자를 정리합니다. "아이디@도메인" 전체가 들어오면 아이디만 남기고 드롭다운을 그 도메인으로 맞춥니다.
+  const applyIdInput = (raw, { pasted = false } = {}) => {
+    const parsed = splitMailInput(raw);
+    if (parsed.domain) domainSelect.value = parsed.domain;
+    // "아이디@"까지만 들어왔으면 도메인은 드롭다운에서 고르도록 그쪽으로 옮겨 갑니다.
+    const typedAt = raw.trim().endsWith("@") && !pasted;
+    idForeign = parsed.foreign;
+    const local = raw.includes("@") ? raw.slice(0, raw.indexOf("@")) : raw;
+    idStripped = local.trim() !== parsed.id;
+    if (pasted) {
+      // 붙여넣기는 칸 전체를 붙여 넣은 아이디로 바꾸고 커서를 끝에 둡니다.
+      idInput.value = parsed.id;
+      idInput.setSelectionRange(parsed.id.length, parsed.id.length);
+    } else if (idInput.value !== parsed.id) {
+      // 지운 글자만큼 커서가 끝으로 튀지 않게, 커서 앞부분을 같은 규칙으로 정리한 길이로 맞춥니다.
+      const caret = normalizeMailId(idInput.value.slice(0, idInput.selectionStart ?? idInput.value.length)).length;
+      idInput.value = parsed.id;
+      if (document.activeElement === idInput) idInput.setSelectionRange(caret, caret);
+    }
     idError.textContent = "";
     updateId();
+    if (typedAt) domainSelect.focus();
+  };
+
+  // 한 글자씩 칠 때 @를 누르면 도메인은 드롭다운에서 고르도록 그쪽으로 옮겨 갑니다.
+  idInput.addEventListener("beforeinput", (event) => {
+    if (event.inputType === "insertText" && event.data === "@") {
+      event.preventDefault();
+      domainSelect.focus();
+    }
   });
+  // 붙여넣기는 64자 제한(maxlength)에 잘리기 전에 직접 처리합니다(긴 전체 주소도 도메인을 알아볼 수 있게).
+  idInput.addEventListener("paste", (event) => {
+    const text = event.clipboardData?.getData("text") ?? "";
+    if (!text) return;
+    event.preventDefault();
+    applyIdInput(text, { pasted: true });
+  });
+  // 한글 입력(조합) 중에는 건드리지 않고, 조합이 끝나면 정리합니다.
+  idInput.addEventListener("input", (event) => {
+    if (event.isComposing) return;
+    applyIdInput(idInput.value);
+  });
+  idInput.addEventListener("compositionend", () => applyIdInput(idInput.value));
 
   idForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (busy || !isValidStudentId(studentId())) return;
+    if (busy || idForeign || mailIdProblem(mailId())) return;
     idError.textContent = "";
     setBusy(true);
     try {
-      const result = await sendCode(studentId(), domain());
+      const result = await sendCode(mailId(), domain());
       if (!open) return;
       sentAt = result.sentAt;
       rememberDevCode(result);
@@ -267,7 +329,7 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     message = null;
     setBusy(true);
     try {
-      const result = await sendCode(studentId(), domain());
+      const result = await sendCode(mailId(), domain());
       if (!open) return;
       sentAt = result.sentAt;
       rememberDevCode(result);
@@ -283,7 +345,7 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     }
   });
 
-  // 창을 닫으면 입력한 학번과 코드를 지웁니다.
+  // 창을 닫으면 입력한 아이디와 코드를 지웁니다.
   const reset = () => {
     clearInterval(timer);
     timer = null;
@@ -292,6 +354,9 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     devCode = null;
     message = null;
     idInput.value = "";
+    idStripped = false;
+    idForeign = false;
+    domainSelect.selectedIndex = 0;
     codeInput.value = "";
     idError.textContent = "";
     devTag.hidden = true;
