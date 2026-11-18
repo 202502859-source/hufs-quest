@@ -41,7 +41,7 @@ function errorText(error) {
 
 /*
  * 학교 이메일 6자리 인증 코드 로그인 창입니다. 한글·숫자 입력과 휴대폰 키보드 때문에 HTML로 게임 위에 띄웁니다.
- * 1단계: [학교 메일 아이디] + [도메인 목록] → "인증 코드 받기"
+ * 1단계: [학교 메일 아이디] + [도메인 목록] + 개인정보 안내 4줄 · [동의 체크박스] → "인증 코드 받기"(동의해야 켜짐)
  *   아이디는 영문(대 · 소문자)과 숫자만, 최대 64자. 친 그대로 보여 주고(소문자 변환은 이메일을 만들 때), 다른 글자는 바로 지웁니다.
  * 2단계: [코드 6자리] (붙여넣기 가능, 6자리면 자동 확인) · "아이디 다시 입력" · "코드 다시 받기"(60초 뒤)
  * 아이디는 이 창 안에서만 잠깐 들고 있고, 창을 닫으면 지웁니다. 콘솔 · 오류 메시지에도 남기지 않습니다.
@@ -87,13 +87,26 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
   });
   idRow.append(idInput, domainSelect);
   const idHint = el("p", "login-hint");
+  // 개인정보 안내 4줄(OPERATIONS 8장)과 동의 체크박스. 체크해야 "인증 코드 받기"를 누를 수 있습니다.
+  const privacy = el("section", "login-privacy");
+  const privacyTitle = el("h3");
+  const privacyList = el("ul");
+  const privacyKeys = ["loginPrivacyCollect", "loginPrivacyPurpose", "loginPrivacyRetention", "loginPrivacyNoQuestions"];
+  const privacyItems = privacyKeys.map(() => el("li"));
+  privacyList.append(...privacyItems);
+  privacy.append(privacyTitle, privacyList);
+  const agreeLabel = el("label", "login-agree");
+  const agreeBox = el("input");
+  Object.assign(agreeBox, { type: "checkbox", id: "login-privacy-agree" });
+  const agreeText = el("span");
+  agreeLabel.append(agreeBox, agreeText);
   const idError = el("p", "login-error");
   idError.setAttribute("role", "alert");
   const idActions = el("div", "login-actions");
   const sendButton = el("button", "login-primary");
   sendButton.type = "submit";
   idActions.append(sendButton);
-  idForm.append(idIntro, idLabel, idRow, idHint, idError, idActions);
+  idForm.append(idIntro, idLabel, idRow, idHint, privacy, agreeLabel, idError, idActions);
 
   // 2단계: 인증 코드
   const codeForm = el("form", "login-step");
@@ -144,6 +157,9 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     idLabel.textContent = t("loginIdLabel");
     domainSelect.setAttribute("aria-label", t("loginDomainLabel"));
     sendButton.textContent = busy && step === "id" ? t("loginSending") : t("loginSend");
+    privacyTitle.textContent = t("loginPrivacyTitle");
+    privacyItems.forEach((item, i) => (item.textContent = t(privacyKeys[i])));
+    agreeText.textContent = t("loginPrivacyAgree");
     codeIntro.textContent = t("loginCodeIntro");
     codeNote.textContent = t("loginCodeNote");
     codeInput.setAttribute("aria-label", t("loginCodeLabel"));
@@ -162,9 +178,10 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     else if (problem || idStripped) hint = t("loginIdRule");
     idHint.textContent = hint ?? "";
     idHint.hidden = !hint;
-    sendButton.disabled = Boolean(problem) || idForeign || busy;
+    sendButton.disabled = Boolean(problem) || idForeign || busy || !agreeBox.checked;
     idInput.disabled = busy;
     domainSelect.disabled = busy;
+    agreeBox.disabled = busy;
   };
 
   const updateResend = () => {
@@ -259,10 +276,11 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     applyIdInput(idInput.value);
   });
   idInput.addEventListener("compositionend", () => applyIdInput(idInput.value));
+  agreeBox.addEventListener("change", updateId);
 
   idForm.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (busy || idForeign || mailIdProblem(mailId())) return;
+    if (busy || idForeign || mailIdProblem(mailId()) || !agreeBox.checked) return;
     idError.textContent = "";
     setBusy(true);
     try {
@@ -356,6 +374,7 @@ export function createLoginOverlay(game, { onSuccess, onClose }) {
     idInput.value = "";
     idStripped = false;
     idForeign = false;
+    agreeBox.checked = false; // 창을 다시 열면 동의도 다시 받습니다.
     domainSelect.selectedIndex = 0;
     codeInput.value = "";
     idError.textContent = "";

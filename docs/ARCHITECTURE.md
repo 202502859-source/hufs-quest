@@ -99,12 +99,13 @@ class mapInfo,newApi,supaAuth todo                  ← 만들 것
 | 건물 정보 · 맵 기준일 | 새로 만듦 `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태), 맵 기준일과 신고 버튼은 `src/ui/` | 이종헌(형식·화면) · 임현규(내용) |
 | 사용량 제한 · 답변 캐시 | `api/_lib/usageLimit.js` (한도 상수 분당 10 · 하루 50 · 전체 하루 500, IP 해시 = SHA-256(`ASK_IP_SALT` + 한국 날짜 + IP), 1차 메모리 제한 → 2차 `ask_hit`, Supabase 실패 시 메모리 제한으로 대체, eval 토큰은 IP 한도만 건너뜀) ← `api/ask.js`가 첫 AI 호출 전에 호출(429 `{ error, reason, retryAfter }`, 200자 초과 400). DB는 `supabase/003_usage_limits.sql`(11/18 실행). 화면 안내 `src/data/askApi.js`(`busy` · `limit`), 테스트 `tests/usageLimit.test.js`. **사용량 제한은 Preview 확인 전, 답변 캐시는 아직** | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
-| 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **가짜 모드 완료, 진짜 메일은 아직 시험 안 함** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
+| 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창, 1단계에 개인정보 안내 4줄 + 동의 체크박스 · 문구는 `state.js` `loginPrivacy*`) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **가짜 모드 완료, 진짜 메일은 아직 시험 안 함** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
 | 로그인 · 진행 저장 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
 | Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단), `supabase/003_usage_limits.sql` (사용량 카운터, 11/18 실행) | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
 | 서버 함수 실행 지역 | 저장소 루트 `vercel.json`의 `"regions": ["icn1"]`(서울). Supabase(ap-northeast-2 서울) · CLOVA Studio가 한국에 있고 개인정보 처리 위치도 한국으로 두기 위함. Vercel 문서상 `vercel.json` 값이 대시보드 Function Regions 설정보다 우선 | 이종헌 |
+| 범위 밖 기능 숨김 | `src/data/features.js`의 `SHOW_OUT_OF_SCOPE`(지금 `false`). false면 HUD "수강신청 추천 서비스" 버튼(`HudScene.renderPlannerButton`)을 만들지 않고, 퀘스트 목록(`state.js` `QUEST_LIST`)에서 `outOfScope` 퀘스트(`mockReg`)를 빼고, `CampusScene.openPlanner` · `openMockReg` 진입을 막음. 숨김 대상 파일(`public/planner/`, `plannerOverlay.js`, `MockRegScene.js`, `teammate/`)과 `main.js` 장면 등록은 그대로 | 이종헌 |
 | 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` | 신중혁 |
 | 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` | 이종헌 (검색창 개선 1~4단계) |
 
@@ -150,3 +151,5 @@ class mapInfo,newApi,supaAuth todo                  ← 만들 것
 | 2026-11-18 | 파일 표에 `supabase/003_usage_limits.sql`(검색창 공용 사용량 카운터) 추가, 같은 날 대시보드 실행. 사용량 제한 상자는 `api/ask.js` 연결 전이라 "만들 것" 그대로 | 이종헌 |
 | 2026-11-19 | `api/_lib/usageLimit.js`로 `api/ask.js`와 `ask_hit` 연결, 사용량 제한 상자를 "일부 구현"으로(Preview 확인 · 답변 캐시 남음) | 이종헌 |
 | 2026-11-19 | 서버 함수 실행 지역을 iad1(미국)에서 icn1(서울)로(`vercel.json`), 파일 표에 추가 | 이종헌 |
+| 2026-11-19 | 범위 밖 기능(수강신청 추천 버튼 · 모의 수강신청 퀘스트)을 `src/data/features.js` 설정 하나로 숨김, 파일 표에 추가 | 이종헌 |
+| 2026-11-19 | 로그인 창 1단계에 개인정보 안내 4줄과 동의 체크박스 추가(파일 표 로그인 줄) | 이종헌 |

@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { QUEST_LIST, getLang, isGuest, onLangChange, session, t } from "../state.js";
+import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
 import { MAP_HEIGHT, MAP_WIDTH } from "../data/campus.js";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
@@ -315,6 +316,11 @@ export class HudScene extends Phaser.Scene {
   }
 
   renderPlannerButton() {
+    // 본선 범위 밖이라 숨깁니다(src/data/features.js). 버튼을 만들지 않으면 updatePlannerButton도 아무것도 하지 않습니다.
+    if (!SHOW_OUT_OF_SCOPE) {
+      this.plannerButton = null;
+      return;
+    }
     // 화면에서 너무 작아지지 않게 글자 크기를 정하고, 두 줄 글자 높이에 맞춰 버튼 높이를 정합니다.
     const size = Math.max(14, Math.round(this.touchSize(40) * 0.36));
     const probe = addLabel(this, 0, 0, t("plannerButton"), { size, lineSpacing: PLANNER_LINE_GAP, align: "center" });

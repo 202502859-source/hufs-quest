@@ -1,6 +1,7 @@
 // 게임 상태입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답(progress)으로만 바뀝니다(applyProgress).
 // 서버와 주고받는 것은 src/data/progressApi.js가 맡고, 게스트는 지금처럼 메모리에서만 동작합니다.
 import { REWARD_QUESTS } from "../shared/progressRules.js";
+import { SHOW_OUT_OF_SCOPE } from "./data/features.js";
 
 const listeners = new Set();
 let lang = "ko";
@@ -114,6 +115,16 @@ const STRINGS = {
   loginIdRule: { ko: "영문과 숫자만 쓸 수 있어요", en: "Only letters and numbers" },
   loginForeignDomain: { ko: "학교 메일({domains})만 사용할 수 있어요", en: "Only school email ({domains}) can be used" },
   loginSend: { ko: "인증 코드 받기", en: "Get code" },
+  // 개인정보 안내(docs/OPERATIONS.md 8장). 문구를 바꾸면 OPERATIONS 8장과 같이 고칩니다.
+  loginPrivacyTitle: { ko: "개인정보 안내", en: "Privacy notice" },
+  loginPrivacyCollect: {
+    ko: "모으는 것: 학교 이메일 주소, 게임 진행 기록(경험치·포인트·퀴즈·퀘스트)",
+    en: "What we collect: your school email and game progress (EXP, points, quizzes, quests)",
+  },
+  loginPrivacyPurpose: { ko: "목적: 로그인과 진행 저장", en: "Why: to log you in and save your progress" },
+  loginPrivacyRetention: { ko: "보관 기간: 대회가 끝난 뒤 2026-12-31까지 모두 삭제", en: "How long: all deleted by Dec 31, 2026, after the contest" },
+  loginPrivacyNoQuestions: { ko: "검색창에 입력한 질문 내용은 저장하지 않아요.", en: "Questions you type in the search bar are not stored." },
+  loginPrivacyAgree: { ko: "위 내용을 확인했고 동의해요", en: "I have read and agree to the above" },
   loginSending: { ko: "보내는 중…", en: "Sending…" },
   loginCodeTitle: { ko: "인증 코드 입력", en: "Enter Code" },
   loginCodeIntro: { ko: "학교 메일로 보낸 6자리 인증 코드를 입력해 주세요.", en: "Enter the 6-digit code we sent to your school email." },
@@ -224,7 +235,8 @@ export const t = (key, vars) => {
   return vars ? text.replace(/\{(\w+)\}/g, (match, name) => (name in vars ? String(vars[name]) : match)) : text;
 };
 
-export const QUEST_LIST = [
+// outOfScope: true인 퀘스트는 src/data/features.js의 SHOW_OUT_OF_SCOPE가 false면 목록에서 빠집니다.
+const ALL_QUESTS = [
   {
     id: "doubleMajor",
     name: { ko: "이중전공 요건 알아보기", en: "Double major requirements" },
@@ -241,6 +253,7 @@ export const QUEST_LIST = [
     studentOnly: true,
     destination: "cyber",
     minigame: true,
+    outOfScope: true, // 모의 수강신청: 본선 범위 밖(PRD 3장)
     description: {
       ko: "30초 안에 가상 과목을 담아 보는 미니게임이에요.\n빨리 누를수록 성공 확률이 높아요.",
       en: "A minigame where you add fictional courses within 30 seconds.\nThe faster you click, the better your odds.",
@@ -257,3 +270,6 @@ export const QUEST_LIST = [
     },
   },
 ];
+
+// 화면(퀘스트 목록 · 안내 창 · 지도)이 쓰는 퀘스트 목록입니다.
+export const QUEST_LIST = SHOW_OUT_OF_SCOPE ? ALL_QUESTS : ALL_QUESTS.filter((q) => !q.outOfScope);

@@ -9,6 +9,7 @@ import { resetProgressCache } from "../data/progressApi.js";
 import { onLangChange, resetSession, t } from "../state.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
+import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
 import { createDeadlineOverlay } from "../ui/deadlineOverlay.js";
 import { startDeadlineRefresh } from "../data/deadlinesApi.js";
 import { createSearchBar } from "../ui/searchBar.js";
@@ -160,6 +161,7 @@ export class CampusScene extends Phaser.Scene {
 
   // 본관 근처에서 HUD의 "수강 설계" 버튼으로 엽니다. 지도·퀘스트 창과 같은 방식이고, 창 자체는 HTML입니다.
   openPlanner() {
+    if (!SHOW_OUT_OF_SCOPE) return; // 본선 범위 밖(src/data/features.js)
     if (this.dialog.isOpen || this.plannerOverlay?.isOpen()) return;
     this.stopPlayer();
     this.searchBar.setVisible(false);
@@ -203,6 +205,7 @@ export class CampusScene extends Phaser.Scene {
   }
 
   openMockReg() {
+    if (!SHOW_OUT_OF_SCOPE) return; // 본선 범위 밖(src/data/features.js)
     if (this.dialog.isOpen) return;
     this.stopPlayer();
     this.searchBar.setVisible(false);
