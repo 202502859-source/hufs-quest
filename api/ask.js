@@ -39,6 +39,8 @@ const MIN_SIMILARITY = 0.5;
 const SIMILARITY_GAP = 0.08; // 1등 조각과 유사도 차이가 이보다 크면 근거에서 뺌
 const MAX_DOCS = 4;
 const RATE_LIMIT = { windowMs: 60_000, max: 10 };
+// 답변 출력 토큰 상한. Vercel 로그의 completionTokens · finishReason("length"면 잘림)을 보고 조정합니다.
+const ANSWER_MAX_TOKENS = 1000;
 const UPSTREAM_TIMEOUT_MS = 20_000;
 
 const SYSTEM = {
@@ -100,9 +102,11 @@ async function postJson(url, headers, body) {
   return response.json();
 }
 
-// 0단계: 구어체 질문을 학사 용어 검색어로 정리합니다. 실패하거나 이상한 결과면 null을 돌려줍니다.
+// 0단계: 구어체 질문을 학사 용어 검색어로 정리합니다. 실패하거나 이상한 결과면 query가 null입니다.
+// usage는 이 호출에 쓴 토큰 수와 종료 이유(로그용). 호출하지 못했으면 null입니다.
 async function rewriteQuery(question) {
-  if (!process.env.CLOVA_API_KEY) return null;
+  if (!process.env.CLOVA_API_KEY) return { query: null, usage: null };
+  let usage = null;
   try {
     const data = await postJson(
       REWRITE_URL,
@@ -117,11 +121,12 @@ async function rewriteQuery(question) {
         topP: 0.8,
       },
     );
+    usage = usageOf(data);
     const query = contentText(data?.result?.message?.content).replace(/["'`\n]/g, " ").replace(/\s+/g, " ").trim();
-    return query && query.length <= MAX_QUERY ? query : null;
+    return { query: query && query.length <= MAX_QUERY ? query : null, usage };
   } catch (err) {
     console.error("query rewrite failed:", err.message);
-    return null;
+    return { query: null, usage };
   }
 }
 
@@ -167,6 +172,16 @@ function contentText(content) {
   return "";
 }
 
+// 실제로 쓴 토큰 수와 생성이 멈춘 이유(CLOVA Studio Chat Completions v3 응답의 result.usage · result.finishReason).
+// finishReason이 "length"면 상한에 걸려 잘린 것입니다. 응답에 없으면 null로 남깁니다.
+function usageOf(data) {
+  return {
+    finishReason: data?.result?.finishReason ?? null,
+    promptTokens: data?.result?.usage?.promptTokens ?? null,
+    completionTokens: data?.result?.usage?.completionTokens ?? null,
+  };
+}
+
 async function generate(question, lang, docs) {
   const label = lang === "en" ? "Sources" : "자료";
   const evidence = docs.map((d, i) => `[${i + 1}] ${d.title}\n${d.text}`).join("\n\n");
@@ -178,8 +193,9 @@ async function generate(question, lang, docs) {
   const data = await postJson(
     CHAT_URL,
     { Authorization: `Bearer ${process.env.CLOVA_API_KEY}` },
-    { messages, maxTokens: 1000, temperature: 0, topP: 0.8, repetitionPenalty: 1.1 },
+    { messages, maxTokens: ANSWER_MAX_TOKENS, temperature: 0, topP: 0.8, repetitionPenalty: 1.1 },
   );
+  const usage = usageOf(data);
   const answer = contentText(data?.result?.message?.content)
     .replace(/[\[(]?\s*(출처|sources?)\s*:[^\n\])]*[\])]?/gi, "") // 출처 링크는 화면이 따로 보여 줍니다
     .replace(/https?:\/\/\S+/g, "")
@@ -188,8 +204,8 @@ async function generate(question, lang, docs) {
     .replace(/^#+\s*/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  if (!answer) throw new Error("empty answer");
-  return answer;
+  if (!answer) throw Object.assign(new Error("empty answer"), { usage });
+  return { answer, usage };
 }
 
 // 답변에 실제로 인용된 번호의 출처만 남깁니다. 같은 페이지에서 나온 근거는 한 줄로 묶고 인용 번호를 함께 보여 줍니다.
@@ -244,7 +260,13 @@ export default async function handler(req, res) {
 
   const started = Date.now();
   // 검색에는 정리한 검색어를 쓰고, 답변 생성에는 학생의 원래 질문을 씁니다.
-  const rewritten = await rewriteQuery(question);
+  const { query: rewritten, usage: rewriteUsage } = await rewriteQuery(question);
+  // 검색어 정리 호출의 토큰 수 · 종료 이유. 질문과 검색어 내용은 로그에 남기지 않습니다.
+  const rewriteLog = {
+    rewritePromptTokens: rewriteUsage?.promptTokens ?? null,
+    rewriteCompletionTokens: rewriteUsage?.completionTokens ?? null,
+    rewriteFinishReason: rewriteUsage?.finishReason ?? null,
+  };
   const searchText = rewritten || question;
   let docs = [];
   let retrieval = "vector";
@@ -260,20 +282,26 @@ export default async function handler(req, res) {
   }
 
   if (!docs.length) {
-    console.log(JSON.stringify({ mode: "none", retrieval, rewritten: Boolean(rewritten), ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "none", retrieval, rewritten: Boolean(rewritten), ...rewriteLog, ms: Date.now() - started }));
     return res.status(200).json({ mode: "none", answer: null, sources: [] });
   }
 
+  // 출력 토큰 상한을 정하려고 답변 언어 · 글자 수 · 토큰 수만 로그에 남깁니다. 질문과 답변 내용은 남기지 않습니다.
+  // 답변 생성 쪽 이름(promptTokens 등)에는 접두어가 없고, 검색어 정리 쪽은 rewrite로 시작합니다.
+  let usage = {};
   try {
-    const answer = await generate(question, lang, docs);
+    const result = await generate(question, lang, docs);
+    usage = { maxTokens: ANSWER_MAX_TOKENS, ...result.usage, chars: result.answer.length };
+    const { answer } = result;
     if (hasUnsupportedNumbers(answer, docs)) throw new Error("answer has numbers not in sources");
-    console.log(JSON.stringify({ mode: "ai", retrieval, rewritten: Boolean(rewritten), docs: docs.length, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "ai", retrieval, rewritten: Boolean(rewritten), docs: docs.length, lang, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({ mode: "ai", answer, sources: citedSources(answer, docs) });
   } catch (err) {
     console.error("generation failed:", err.message);
+    if (err.usage) usage = { maxTokens: ANSWER_MAX_TOKENS, ...err.usage };
     // AI 연결이 안 되면 근거 원문을 그대로 보여 줍니다. 추측한 답은 만들지 않습니다.
     const top = docs.slice(0, 2);
-    console.log(JSON.stringify({ mode: "evidence", retrieval, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "evidence", retrieval, lang, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({
       mode: "evidence",
       answer: top.map((d) => d.text).join("\n"),
