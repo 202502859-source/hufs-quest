@@ -44,7 +44,7 @@
 | 에러 | Vercel → Logs (`/api/ask`, 진행 API) | 5xx 증가, 같은 에러 반복 |
 | 남용 | Vercel 로그의 429 개수 | 특정 시간대 급증 |
 | AI 비용 | CLOVA Studio 사용량, NCP 콘솔 비용 · **Budgets 알림** | 하루 토큰이 평소(약 11만)의 2배 이상 |
-| 답 길이 | Vercel 로그 `/api/ask`의 `{"mode":"ai", …}` 줄: `completionTokens`(답에 쓴 토큰), `finishReason`, `chars`(답 글자 수). 질문 · 답 내용은 남기지 않음 | `finishReason`이 `"length"`(상한에 걸려 답이 잘림), `completionTokens`가 `maxTokens`에 가까움 |
+| 답 길이 | Vercel 로그 `/api/ask`의 `{"mode":"ai", …}` 줄: `completionTokens`(답에 쓴 토큰), `finishReason`, `chars`(답 글자 수), 검색어 정리 쪽은 `rewrite`로 시작하는 같은 값. 질문 · 검색어 · 답 내용은 남기지 않음 | `finishReason`이 `"length"`(상한에 걸려 답이 잘림), `completionTokens`가 `maxTokens`에 가까움 |
 | DB · 메일 | Supabase 대시보드 사용량, Auth 메일 발송 수 | 메일 한도 도달, 용량 급증 |
 
 **NCP Budgets 알림:** NCP 콘솔에서 예산 50만 원 기준 50% · 80% · 100%에 알림을 겁니다(메인 계정 주인, 11/19까지).

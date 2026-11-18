@@ -1,4 +1,6 @@
--- 작성: 이종헌 (2026-11-18). 실행: 아직 안 함 — Supabase SQL Editor에서 실행하면 실행자 · 시각을 이 줄에 적어 주세요.
+-- 작성 · 실행: 이종헌 (2026-11-18 밤, Supabase SQL Editor). 아래 확인 쿼리 결과:
+--   ②분당 초과 · ③전체 초과 테스트 통과 / ④권한 확인 통과(anon · authenticated 실행 불가, service_role만 가능)
+--   / RLS 확인(ask_usage_ip · ask_usage_global 둘 다 켜짐) / ⑤시험 행 정리 완료(IP 하루 9건, 전체 1행 · 9건 삭제).
 -- HUFS Quest: 검색창(api/ask.js) 공용 사용량 카운터
 -- 이유: api/ask.js의 1분 제한은 메모리 Map이라 Vercel 인스턴스마다 따로 셉니다. 모든 인스턴스가 같은 수를 보도록 DB에서 셉니다.
 -- Supabase Dashboard > SQL Editor 에 전체 내용을 붙여넣고 Run 하세요. 기존 테이블 · 함수는 건드리지 않습니다.
@@ -163,6 +165,18 @@ GRANT EXECUTE ON FUNCTION public.ask_hit(text, integer, integer, integer) TO ser
 --   select relname, relrowsecurity from pg_class where relname in ('ask_usage_ip', 'ask_usage_global');
 --   select count(*) from pg_policies where tablename in ('ask_usage_ip', 'ask_usage_global');
 --
--- ⑤ 시험 행 지우기. api/ask.js가 ask_hit를 부르기 **전에만** 실행합니다(연결 후에는 오늘 전체 카운트가 지워짐).
---   delete from public.ask_usage_ip where ip_hash in (repeat('a', 64), repeat('b', 64), repeat('c', 64));
---   delete from public.ask_usage_global where day = (now() at time zone 'Asia/Seoul')::date;
+-- ⑤ 시험 행 지우기. 날짜는 시험한 한국 날짜로 고정합니다(자정을 넘겨 실행해도 다른 날 행을 지우지 않게).
+-- 전체 카운트 행은 시험 횟수(2026-11-18은 9)와 정확히 같을 때만 지웁니다. 실제 요청이 섞였으면 지우지 않고 0행으로 끝납니다.
+--   with ip as (
+--     delete from public.ask_usage_ip
+--     where ip_hash in (repeat('a', 64), repeat('b', 64), repeat('c', 64))
+--     returning period, hits
+--   ), g as (
+--     delete from public.ask_usage_global
+--     where day = date '2026-11-18' and hits = 9
+--     returning hits
+--   )
+--   select (select count(*) from ip) as ip_rows_deleted,
+--          (select coalesce(sum(hits), 0) from ip where period = 'day') as ip_day_hits_deleted,
+--          (select count(*) from g) as global_rows_deleted,
+--          (select coalesce(sum(hits), 0) from g) as global_hits_deleted;
