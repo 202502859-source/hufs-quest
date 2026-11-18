@@ -1,7 +1,7 @@
 # 🧩 HUFS Quest 기능 구조도
 
 > 기능이 어디에 있고 무엇과 연결되는지 한눈에 보는 문서입니다. **기능 상태가 바뀌면 이 파일도 같은 PR에서 고칩니다.**
-> 마지막 수정: 2026-11-18 · 일정과 담당자는 [ROADMAP.md](ROADMAP.md)
+> 마지막 수정: 2026-11-18 · 일정과 담당자는 [ROADMAP.md](ROADMAP.md) · 만들지 않는 것은 [PRD.md](PRD.md)
 
 ## 구조도
 
@@ -14,8 +14,7 @@ flowchart LR
         search["빠른 검색창<br/>공식 문서 근거 답변"]
         quiz["O/X 퀴즈<br/>60문항 · 경험치"]
         notice["마감 임박 공지<br/>D-day 정렬"]
-        interior["건물 내부 진입<br/>Tiled 맵 1곳"]
-        eventMarker["행사 마커<br/>실시간 반영"]
+        mapInfo["건물 정보 · 맵 기준일<br/>buildingInfo.js · 실제와 달라요 신고"]
         progress["진행 저장 연결<br/>progressApi.js · 지금은 가짜 모드"]
         login["학교 이메일 로그인<br/>메일 아이디 · 6자리 코드 · 가짜 모드 완료"]
     end
@@ -25,14 +24,15 @@ flowchart LR
     subgraph server["서버 함수 · api/ (Vercel)"]
         ask["ask.js<br/>검색 · 답변 생성"]
         deadlines["deadlines.js<br/>공지 D-day 계산"]
-        newApi["로그인 · 저장 · 행사<br/>새 서버 함수"]
+        newApi["로그인 · 진행 저장<br/>새 서버 함수"]
+        limiter["사용량 제한 · 답변 캐시<br/>IP 해시 · 하루 상한"]
     end
 
     subgraph external["외부 서비스"]
         clova["CLOVA Studio<br/>질문 정제 · 임베딩 · 답변"]
         supaAuth["Supabase Auth<br/>이메일 OTP · 학교 메일만"]
         vector["Supabase 벡터 DB<br/>학사 문서 242조각"]
-        userDb["Supabase 사용자 DB<br/>진행 · 포인트 · 행사"]
+        userDb["Supabase 사용자 DB<br/>진행 · 포인트 · 사용량 카운터"]
     end
 
     collect["학사 페이지 수집<br/>scripts/ · 공개 페이지 27곳 · 표 정리 4곳"]
@@ -47,7 +47,9 @@ flowchart LR
     progress -.->|"서버 완성 후 real 모드"| newApi
     rules --> progress
     rules --> newApi
-    eventMarker --> newApi
+    explore --> mapInfo
+    ask --> limiter
+    limiter --> userDb
     ask --> clova
     ask --> vector
     newApi --> userDb
@@ -59,7 +61,7 @@ flowchart LR
 
     class search,ask,deadlines,clova,vector,collect done
     class explore,quiz,notice,progress,rules,userDb,login partial
-    class interior,eventMarker,newApi,supaAuth todo
+    class mapInfo,newApi,limiter,supaAuth todo
 ```
 
 | 색 | 상태 |
@@ -77,10 +79,11 @@ flowchart LR
 ```
 class search,ask,deadlines,clova,vector,collect done      ← 동작 중
 class explore,quiz,notice,progress,rules,userDb,login partial    ← 일부 구현
-class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
+class mapInfo,newApi,limiter,supaAuth todo                  ← 만들 것
 ```
 
-- 예: 행사 마커가 완성되면 `eventMarker`를 `todo` 줄에서 지우고 `done` 줄에 넣습니다.
+- 예: 건물 정보 분리가 완성되면 `mapInfo`를 `todo` 줄에서 지우고 `done` 줄에 넣습니다.
+- 건물 내부 진입과 행사 마커는 PRD '하지 않을 것'에 따라 11/18 구조도에서 뺐습니다.
 - 새 기능을 추가하면 알맞은 `subgraph` 안에 `이름["제목<br/>한 줄 설명"]` 한 줄을 넣고, 연결선(`A --> B`)과 `class` 줄도 추가합니다.
 - 점선(`-.->`)은 아직 실제로 오가지 않는 연결입니다. 진행 저장은 서버가 생기면 `VITE_PROGRESS_MODE=real`로, 로그인은 Supabase 메일 설정 후 `VITE_AUTH_MODE=real`로 전환해 실선이 됩니다. 두 값은 따로 고릅니다([AUTH_SETUP.md](AUTH_SETUP.md) 0장).
 - GitHub에서 파일을 열면 바로 그림으로 보입니다. 그림이 깨지면 따옴표나 괄호가 빠졌는지 확인하세요.
@@ -93,13 +96,13 @@ class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
 | 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` | 신중혁 |
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`, `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
-| 건물 내부 진입 | 새로 만듦. `campus-map/js/game.js`, `campus-map/js/tiles.js` 참고 | 이종헌 |
-| 행사 마커 | 새로 만듦. `campus-map/js/state.js`의 행사 로직 참고 | 이종헌(화면) · 임현규(데이터) |
+| 건물 정보 · 맵 기준일 | 새로 만듦 `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태), 맵 기준일과 신고 버튼은 `src/ui/` | 이종헌(형식·화면) · 임현규(내용) |
+| 사용량 제한 · 답변 캐시 | 새로 만듦 `supabase/003_usage_limits.sql`, `api/_lib/`, `api/ask.js`에서 호출. 지금은 `api/ask.js` 안 메모리 제한(1분 10회, 인스턴스별)만 있음 | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
 | 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **가짜 모드 완료, 진짜 메일은 아직 시험 안 함** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
-| 로그인 · 저장 · 행사 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
-| Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단). 행사 테이블은 아직 없음 | 임현규 |
+| 로그인 · 진행 저장 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
+| Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단). 사용량 카운터 테이블은 1주차에 추가 | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
 | 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` | 신중혁 |
 | 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` | 이종헌 (검색창 개선 1~4단계) |
@@ -141,4 +144,5 @@ class interior,eventMarker,newApi,supaAuth todo                  ← 만들 것
 | 2026-11-17 | 진행 저장 연결(`progressApi.js`, 가짜 모드)과 진행 규칙(`shared/progressRules.js`) 상자 추가, 일부 구현으로 표시 | 이종헌 |
 | 2026-11-18 | Supabase 사용자 DB를 일부 구현으로 표시(진행 저장 스키마 실행, `supabase/`에 SQL 기록) | 이종헌 |
 | 2026-11-18 | 학교 이메일 로그인 상자(일부 구현: 가짜 모드 완료, 진짜 메일 미시험)와 Supabase Auth 상자 추가, 파일 표에 로그인 파일 추가 | 이종헌 |
+| 2026-11-18 | 사전교육 피드백 반영: 건물 내부 진입 · 행사 마커 상자 제외, 건물 정보 · 맵 기준일과 사용량 제한 · 답변 캐시 상자 추가 | 이종헌 |
 | 2026-11-18 | 로그인 아이디를 학번 9자리에서 학교 메일 아이디(영문 대 · 소문자와 숫자, 최대 64자)로 고침 | 이종헌 |
