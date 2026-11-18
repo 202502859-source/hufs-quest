@@ -104,6 +104,7 @@ class mapInfo,newApi,supaAuth todo                  ← 만들 것
 | 로그인 · 진행 저장 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
 | Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단), `supabase/003_usage_limits.sql` (사용량 카운터, 11/18 실행) | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
+| 서버 함수 실행 지역 | 저장소 루트 `vercel.json`의 `"regions": ["icn1"]`(서울). Supabase(ap-northeast-2 서울) · CLOVA Studio가 한국에 있고 개인정보 처리 위치도 한국으로 두기 위함. Vercel 문서상 `vercel.json` 값이 대시보드 Function Regions 설정보다 우선 | 이종헌 |
 | 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` | 신중혁 |
 | 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` | 이종헌 (검색창 개선 1~4단계) |
 
@@ -148,3 +149,4 @@ class mapInfo,newApi,supaAuth todo                  ← 만들 것
 | 2026-11-18 | 로그인 아이디를 학번 9자리에서 학교 메일 아이디(영문 대 · 소문자와 숫자, 최대 64자)로 고침 | 이종헌 |
 | 2026-11-18 | 파일 표에 `supabase/003_usage_limits.sql`(검색창 공용 사용량 카운터) 추가, 같은 날 대시보드 실행. 사용량 제한 상자는 `api/ask.js` 연결 전이라 "만들 것" 그대로 | 이종헌 |
 | 2026-11-19 | `api/_lib/usageLimit.js`로 `api/ask.js`와 `ask_hit` 연결, 사용량 제한 상자를 "일부 구현"으로(Preview 확인 · 답변 캐시 남음) | 이종헌 |
+| 2026-11-19 | 서버 함수 실행 지역을 iad1(미국)에서 icn1(서울)로(`vercel.json`), 파일 표에 추가 | 이종헌 |
