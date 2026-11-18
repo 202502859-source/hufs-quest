@@ -97,12 +97,12 @@ class mapInfo,newApi,limiter,supaAuth todo                  ← 만들 것
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`, `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
 | 건물 정보 · 맵 기준일 | 새로 만듦 `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태), 맵 기준일과 신고 버튼은 `src/ui/` | 이종헌(형식·화면) · 임현규(내용) |
-| 사용량 제한 · 답변 캐시 | 새로 만듦 `supabase/003_usage_limits.sql`, `api/_lib/`, `api/ask.js`에서 호출. 지금은 `api/ask.js` 안 메모리 제한(1분 10회, 인스턴스별)만 있음 | 임현규 · 신중혁 |
+| 사용량 제한 · 답변 캐시 | `supabase/003_usage_limits.sql` (IP 해시 1분 · 하루 + 전체 하루 카운터, `ask_hit` 함수, **작성만 하고 아직 실행 안 함**), 새로 만듦 `api/_lib/`, `api/ask.js`에서 호출. 지금은 `api/ask.js` 안 메모리 제한(1분 10회, 인스턴스별)만 있음 | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
 | 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **가짜 모드 완료, 진짜 메일은 아직 시험 안 함** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
 | 로그인 · 진행 저장 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
-| Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단). 사용량 카운터 테이블은 1주차에 추가 | 임현규 |
+| Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단), `supabase/003_usage_limits.sql` (사용량 카운터, 실행 전) | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
 | 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` | 신중혁 |
 | 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` | 이종헌 (검색창 개선 1~4단계) |
@@ -146,3 +146,4 @@ class mapInfo,newApi,limiter,supaAuth todo                  ← 만들 것
 | 2026-11-18 | 학교 이메일 로그인 상자(일부 구현: 가짜 모드 완료, 진짜 메일 미시험)와 Supabase Auth 상자 추가, 파일 표에 로그인 파일 추가 | 이종헌 |
 | 2026-11-18 | 사전교육 피드백 반영: 건물 내부 진입 · 행사 마커 상자 제외, 건물 정보 · 맵 기준일과 사용량 제한 · 답변 캐시 상자 추가 | 이종헌 |
 | 2026-11-18 | 로그인 아이디를 학번 9자리에서 학교 메일 아이디(영문 대 · 소문자와 숫자, 최대 64자)로 고침 | 이종헌 |
+| 2026-11-18 | 파일 표에 `supabase/003_usage_limits.sql`(검색창 공용 사용량 카운터, 실행 전) 추가. 사용량 제한 상자는 서버 연결 전이라 "만들 것" 그대로 | 이종헌 |
