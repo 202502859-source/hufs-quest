@@ -1,6 +1,6 @@
 // 1단계: 학교 공개 학사 페이지를 모아 data/chunks.json으로 저장합니다.
 // 실행: npm run collect   (네트워크만 필요, API 키는 필요 없음)
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { extractPage, toChunks } from "./lib/hufsPage.mjs";
 import { buildTableChunks } from "./lib/tableSentences.mjs";
 import { renderTableCheck } from "./lib/tableCheck.mjs";
@@ -45,6 +45,14 @@ for (const [i, url] of urls.entries()) {
     console.warn(`✗ ${url}: ${err.message}`);
   }
   if (i < urls.length - 1) await new Promise((r) => setTimeout(r, DELAY_MS));
+}
+
+// 웹페이지가 아닌 공식 문서(PDF 등)에서 손으로 옮긴 조각을 붙입니다. data/manual/README.md 참고.
+const MANUAL_DIR = new URL("data/manual/", ROOT);
+for (const name of (await readdir(MANUAL_DIR).catch(() => [])).filter((n) => n.endsWith(".json")).sort()) {
+  const manual = JSON.parse(await readFile(new URL(name, MANUAL_DIR), "utf8"));
+  all.push(...manual);
+  console.log(`✓ 손으로 옮긴 조각 ${name} (${manual.length}조각)`);
 }
 
 await mkdir(new URL("data/", ROOT), { recursive: true });

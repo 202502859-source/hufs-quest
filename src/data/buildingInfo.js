@@ -39,7 +39,7 @@ export const REPORT_FORM_URL =
 export const REPORT_FORM_PLACE_ENTRY = "entry.1318155621";
 
 // 근거 목록입니다. offices의 src가 이 키를 가리킵니다. 모두 2026-11-19에 확인했습니다.
-// url이 null인 것은 팀이 현장에서 직접 확인한 내용입니다(공식 페이지끼리 다르거나 옛 정보일 때만 씀).
+// url이 null인 것: team은 팀 현장 확인(공식 페이지끼리 다르거나 옛 정보일 때만), doc: true는 공개 주소를 아직 모르는 학교 공식 문서(PDF)입니다.
 export const SOURCES = {
   phone: { title: "전화안내", url: "https://www.hufs.ac.kr/hufs/11159/subview.do" },
   welfare: { title: "시설이용 > 복지", url: "https://www.hufs.ac.kr/hufs/11316/subview.do" },
@@ -49,6 +49,7 @@ export const SOURCES = {
   onestop: { title: "원스톱서비스센터 > 위치 및 연락처", url: "https://dep.hufs.ac.kr/onestop/13394/subview.do" },
   iei: { title: "교육혁신원", url: "https://iei.hufs.ac.kr/" },
   team: { title: "팀 현장 확인(이종헌, 2026-11-19)", url: null },
+  guide2026: { title: "2026학년도 신입생 대학생활안내(교무처 학사종합지원센터, 2026.2.20) 서울캠퍼스 표기 부분", url: null, doc: true },
   counseling: { title: "학생상담센터", url: "https://sccs.hufs.ac.kr/" },
   disability: { title: "장애학생지원센터", url: "http://support.hufs.ac.kr/" },
 };
@@ -100,7 +101,17 @@ export const BUILDING_INFO = {
     ],
     checkedAt: CHECKED,
   },
-  tlc: { ...empty, name: "교수학습개발원", mapName: "교수학습 개발원", nameEn: "Teaching Center" },
+  tlc: {
+    ...empty,
+    name: "교수학습개발원",
+    mapName: "교수학습 개발원",
+    nameEn: "Teaching Center",
+    use: { ko: "301호에 정보지원팀(강의실 기자재 · 교내 컴퓨터 민원)이 있어요.", en: "The IT Support Team (classroom equipment, campus computer help) is in Room 301." },
+    offices: [
+      o("정보지원팀", "IT Support Team", null, "301호", "강의실 기자재 관리 · 행사 장비 지원 · 교내 컴퓨터 민원", "Classroom equipment, event AV support and campus computer help", "guide2026"),
+    ],
+    checkedAt: CHECKED,
+  },
   social: {
     ...empty,
     name: "사회과학관",
@@ -172,6 +183,9 @@ export const BUILDING_INFO = {
       o("학술연구자료실", "Research collection", "4F", null, "정보봉사파트 자료실", "Information services collection", "phone"),
       o("매점", "Snack shop", "6F", null, "간식 · 음료 판매", "Snacks and drinks", "phone"),
       o("빵명장", "Bbang Myeongjang bakery", null, null, "건물 뒤 베이커리 카페", "Bakery café behind the building", "welfare"),
+      o("자료실 이용시간", "Collection hours", null, null, "학기 중 평일 09:00~21:00 · 토 09:00~17:00, 방학 중 평일 · 토 09:00~17:00, 공휴일 폐실", "Semester: weekdays 09:00-21:00, Sat 09:00-17:00; vacation: weekdays and Sat 09:00-17:00; closed on holidays", "guide2026"),
+      o("제1 · 제2자유열람실", "Reading Rooms 1 & 2", null, null, "24시간 개방", "Open 24 hours", "guide2026"),
+      o("제3 · 제4자유열람실", "Reading Rooms 3 & 4", null, null, "06:00~23:00", "06:00-23:00", "guide2026"),
     ],
     checkedAt: CHECKED,
   },
