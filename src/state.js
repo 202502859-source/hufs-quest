@@ -227,6 +227,9 @@ const STRINGS = {
   quizClose: { ko: "닫기 (ESC)", en: "Close (ESC)" },
   quizMapLegend: { ko: "퀴즈 상자", en: "Quiz boxes" },
   mapNote: { ko: "조감도를 위에서 본 형태로 옮긴 근사치이며, 길은 단순화했습니다.", en: "An approximation of the aerial map seen from above. Roads are simplified." },
+  mapBaseDate: { ko: "{year}년 {month}월 기준 캠퍼스", en: "Campus as of {month}/{year}" },
+  mapOfficial: { ko: "공식 캠퍼스 지도 ↗", en: "Official campus map ↗" },
+  mapReport: { ko: "실제와 달라요 (신고) ↗", en: "Report a difference ↗" },
 };
 
 // 문구 안의 {이름}은 vars 값으로 바꿉니다. 예: t("quizCap", { cap: 50 })

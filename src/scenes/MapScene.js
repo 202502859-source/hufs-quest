@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { MAP_BASE_DATE, OFFICIAL_MAP_URL, REPORT_FORM_URL } from "../data/buildingInfo.js";
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, OPEN_SPACES } from "../data/campus.js";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { getLang, t } from "../state.js";
@@ -32,6 +33,8 @@ export class MapScene extends Phaser.Scene {
     this.drawQuizBoxes();
     this.drawDestinationMarker();
     this.drawPlayerMarker();
+
+    this.drawMapBasis();
 
     addLabel(this, INFO.x, 410, t("mapNote"), { size: 12, color: "#a9b6cf", wordWrap: { width: INFO.width, useAdvancedWrap: true } });
     addButton(this, 772, 464, 136, 42, t("mapClose"), () => this.closeMap(), { size: 16, color: "#f2c94c" });
@@ -101,6 +104,17 @@ export class MapScene extends Phaser.Scene {
     this.currentPlace = near.id;
     addLabel(this, INFO.x, 72, t("mapHere"), { size: 14, color: "#ffe14d" });
     addLabel(this, INFO.x, 92, `${placeName(near)} ${t("mapNear")}`, { size: 16, wordWrap: { width: INFO.width, useAdvancedWrap: true } });
+  }
+
+  // 맵 기준일, 공식 캠퍼스 지도 링크, "실제와 달라요" 신고 버튼입니다. 신고는 외부 폼으로만 받고 개인정보는 받지 않습니다.
+  drawMapBasis() {
+    const [year, month] = MAP_BASE_DATE.split("-");
+    addLabel(this, INFO.x, 272, t("mapBaseDate", { year, month: Number(month) }), { size: 14, color: "#a9b6cf" });
+    const openLink = (url) => window.open(url, "_blank", "noopener,noreferrer");
+    addButton(this, INFO.x, 298, INFO.width, 34, t("mapOfficial"), () => openLink(OFFICIAL_MAP_URL), { size: 14 });
+    if (REPORT_FORM_URL) {
+      addButton(this, INFO.x, 342, INFO.width, 34, t("mapReport"), () => openLink(REPORT_FORM_URL), { size: 14, color: "#ff8f92" });
+    }
   }
 
   closeMap() {

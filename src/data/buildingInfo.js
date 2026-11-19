@@ -20,6 +20,13 @@
 // 화면에 보여 줄 맵 기준일입니다. 맵을 다시 현행화하면 이 값을 고칩니다.
 export const MAP_BASE_DATE = "2026-11";
 
+// 전체 지도 화면의 링크입니다. 학교 공식 캠퍼스 안내 페이지(서울캠퍼스 탭 선택)입니다.
+export const OFFICIAL_MAP_URL = "https://www.hufs.ac.kr/campusMap/hufs/view.do";
+
+// "실제와 달라요" 신고 폼(외부 구글 폼) 주소입니다. 폼에는 건물 이름과 다른 점만 묻고 이메일·이름은 받지 않습니다.
+// 비어 있으면 신고 버튼을 숨깁니다.
+export const REPORT_FORM_URL = "";
+
 const empty = { use: null, floors: [], source: null, checkedAt: null, status: "open" };
 
 export const BUILDING_INFO = {
