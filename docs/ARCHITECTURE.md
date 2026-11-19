@@ -24,7 +24,7 @@ flowchart LR
     subgraph server["서버 함수 · api/ (Vercel)"]
         ask["ask.js<br/>검색 · 답변 생성"]
         deadlines["deadlines.js<br/>공지 D-day 계산"]
-        newApi["로그인 · 진행 저장<br/>새 서버 함수"]
+        newApi["진행 저장 서버 함수<br/>progress · quiz · quest · check-in"]
         limiter["사용량 제한 · 답변 캐시<br/>IP 해시 · 하루 상한"]
     end
 
@@ -60,8 +60,7 @@ flowchart LR
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect,supaAuth done
-    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo partial
-    class newApi todo
+    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi partial
 ```
 
 | 색 | 상태 |
@@ -78,8 +77,8 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect,supaAuth done      ← 동작 중
-class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo partial    ← 일부 구현
-class newApi todo                  ← 만들 것
+class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi partial    ← 일부 구현
+(만들 것 todo: 11/19 기준 없음. 새로 만들 기능이 생기면 `class 이름 todo` 줄을 다시 추가)
 ```
 
 - 예: 건물 정보 분리가 완성되면 `mapInfo`를 `todo` 줄에서 지우고 `done` 줄에 넣습니다.
@@ -101,7 +100,7 @@ class newApi todo                  ← 만들 것
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
 | 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창, 1단계에 개인정보 안내 4줄 + 동의 체크박스 · 문구는 `state.js` `loginPrivacy*`) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **진짜 메일 로그인 완료(11/19, 임현규)** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
-| 로그인 · 진행 저장 서버 함수 | 새 `api/*` (형식은 `docs/PROGRESS_API.md`) | 임현규 |
+| 진행 저장 서버 함수 | `api/progress.js`, `api/quiz-answer.js`, `api/quest-complete.js`, `api/check-in.js`, `api/_lib/progressServer.js`, 테스트 `tests/progressApiServer.test.js` (**구현 완료, Preview 확인 전**) | 임현규 |
 | Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단), `supabase/003_usage_limits.sql` (사용량 카운터, 11/18 실행) | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
 | 서버 함수 실행 지역 | 저장소 루트 `vercel.json`의 `"regions": ["icn1"]`(서울). Supabase(ap-northeast-2 서울) · CLOVA Studio가 한국에 있고 개인정보 처리 위치도 한국으로 두기 위함. Vercel 문서상 `vercel.json` 값이 대시보드 Function Regions 설정보다 우선 | 이종헌 |
@@ -155,3 +154,4 @@ class newApi todo                  ← 만들 것
 | 2026-11-19 | 로그인 창 1단계에 개인정보 안내 4줄과 동의 체크박스 추가(파일 표 로그인 줄) | 이종헌 |
 | 2026-11-19 | 신고 폼 연결 완료, 근처 건물 미리 채움(파일 표 건물 정보 줄에 `scripts/report-form/` · 테스트 추가) | 이종헌 |
 | 2026-11-19 | 진짜 메일 로그인 적용·확인 완료(supaAuth 완료로 이동, 004_auth_hook_hufs_only.sql 정리, 설정 기록 추가) | 임현규 |
+| 2026-11-19 | 진행 저장 서버 함수 4종(progress, quiz-answer, quest-complete, check-in) 및 공통 모듈·단위 테스트 구현(newApi 일부 구현으로 이동, todo 줄 비움) | 임현규 |

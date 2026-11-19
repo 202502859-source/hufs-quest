@@ -41,7 +41,7 @@
 | 볼 것 | 어디서 | 이상 신호 |
 | --- | --- | --- |
 | 접속 | https://hufs-quest.vercel.app 를 PC와 휴대폰에서 열기 | 빈 화면, 로딩 멈춤 |
-| 에러 | Vercel → Logs (`/api/ask`, 진행 API) | 5xx 증가, 같은 에러 반복 |
+| 에러 | Vercel → Logs (`/api/ask`, 진행 API). 진행 API는 `{"mode":"error","api":…,"code":…}` 줄로 남음(이메일 · 토큰 · user_id는 남기지 않음) | 5xx 증가, 같은 `api` · `code` 반복 |
 | 남용 | Vercel 로그 `/api/ask`의 `{"mode":"limited","reason":…}` 줄(429) 개수와 `reason`(`minute` · `day` · `global`) | 특정 시간대 급증, `global`이 나옴(오늘 전체 500 소진), `day`가 많음(학교 와이파이처럼 IP를 같이 쓰는 곳이면 하루 50 조정 검토) |
 | 공용 카운터 | 같은 로그의 `"limit":"memory"`와 `usage limit unavailable` 줄 | 계속 나오면 Supabase 호출 실패 → 메모리 제한(인스턴스별 1분 10회)만 동작 중이라 하루 · 전체 상한이 꺼진 상태 |
 | AI 비용 | CLOVA Studio 사용량, NCP 콘솔 비용 · **Budgets 알림**. 예산 화면은 크레딧을 쓰는 동안 0%로 보일 수 있으므로 **CLOVA Studio 사용량과 크레딧 잔액도 같이** 봄 | 하루 토큰이 평소(약 11만)의 2배 이상, 크레딧 잔액이 예상보다 빨리 줄어듦 |
