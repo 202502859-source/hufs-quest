@@ -3,7 +3,7 @@
  * - 한국 시간(Asia/Seoul) 자정 기준 하루 1회만 포인트 5 지급
  */
 import { CHECKIN_POINTS } from "../shared/progressRules.js";
-import { authenticateStudent, buildProgress } from "./_lib/progressServer.js";
+import { authenticateStudent, logServerError, buildProgress } from "./_lib/progressServer.js";
 
 export function createCheckInHandler(deps = {}) {
   return async function handler(req, res) {
@@ -35,7 +35,8 @@ export function createCheckInHandler(deps = {}) {
         },
         progress,
       });
-    } catch {
+    } catch (error) {
+      logServerError("check-in", error);
       return res.status(500).json({ error: "checkin_save_failed" });
     }
   };

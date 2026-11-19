@@ -29,6 +29,20 @@ export function getServiceSupabase(env = process.env) {
   return cachedAdminClient;
 }
 
+// 서버 오류를 Vercel 로그에 남깁니다(매일 5분 점검용). 개인정보 규칙에 따라 이메일 · 토큰 · user_id · 오류 메시지 본문은 남기지 않고
+// 어느 API에서 어떤 종류의 오류가 났는지(Postgres/PostgREST 오류 코드, HTTP 상태)만 남깁니다.
+export function logServerError(api, error) {
+  console.error(
+    JSON.stringify({
+      mode: "error",
+      api,
+      code: typeof error?.code === "string" ? error.code : null,
+      status: Number.isInteger(error?.status) ? error.status : null,
+      name: typeof error?.name === "string" ? error.name : null,
+    }),
+  );
+}
+
 export function setNoStore(res) {
   res.setHeader("Cache-Control", "no-store");
 }
@@ -83,6 +97,7 @@ export async function readJsonBody(req) {
 export async function authenticateStudent(req, res, { supabase = getServiceSupabase(), now = () => new Date() } = {}) {
   setNoStore(res);
   if (!supabase) {
+    logServerError("auth", { code: "server_not_configured" });
     res.status(500).json({ error: "server_not_configured" });
     return null;
   }

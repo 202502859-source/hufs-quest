@@ -5,7 +5,7 @@
  */
 import { QUIZ } from "../src/data/quiz.js";
 import { QUIZ_DAILY_CAP, QUIZ_REWARD_EXP, levelFromTotalExp } from "../shared/progressRules.js";
-import { authenticateStudent, buildProgress, getCurrentTotalExp, readJsonBody } from "./_lib/progressServer.js";
+import { authenticateStudent, logServerError, buildProgress, getCurrentTotalExp, readJsonBody } from "./_lib/progressServer.js";
 
 const ANSWER_MAP = new Map(QUIZ.map((q) => [q.id, q.answer]));
 
@@ -54,7 +54,8 @@ export function createQuizAnswerHandler(deps = {}) {
         leveledUp,
         progress,
       });
-    } catch {
+    } catch (error) {
+      logServerError("quiz-answer", error);
       return res.status(500).json({ error: "quiz_save_failed" });
     }
   };

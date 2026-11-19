@@ -3,7 +3,7 @@
  * - 허용된 퀘스트 목록(REWARD_QUESTS)만 인정하며, 범위 밖(mockReg)은 400으로 거절합니다.
  */
 import { QUEST_REWARD, REWARD_QUESTS, levelFromTotalExp } from "../shared/progressRules.js";
-import { authenticateStudent, buildProgress, getCurrentTotalExp, readJsonBody } from "./_lib/progressServer.js";
+import { authenticateStudent, logServerError, buildProgress, getCurrentTotalExp, readJsonBody } from "./_lib/progressServer.js";
 
 export function createQuestCompleteHandler(deps = {}) {
   return async function handler(req, res) {
@@ -47,7 +47,8 @@ export function createQuestCompleteHandler(deps = {}) {
         leveledUp,
         progress,
       });
-    } catch {
+    } catch (error) {
+      logServerError("quest-complete", error);
       return res.status(500).json({ error: "quest_save_failed" });
     }
   };
