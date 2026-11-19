@@ -87,7 +87,7 @@ revoke execute on function public.hook_hufs_only(jsonb) from public, anon, authe
 
 그다음:
 1. **Authentication → Hooks → Before User Created** → **Postgres** 선택 → `public.hook_hufs_only` 지정 → 켜기
-2. 실행한 SQL은 원문 그대로 `supabase/003_auth_hook_hufs_only.sql`에 기록하고 PR "작업 기록"에 적습니다(테이블 구조·함수 변경 규칙).
+2. 실행한 SQL은 원문 그대로 `supabase/004_auth_hook_hufs_only.sql`에 기록하고 PR "작업 기록"에 적습니다(테이블 구조·함수 변경 규칙).
 3. 확인: 학교 메일이 아닌 주소로 시험할 때(예: 개인 메일을 브라우저 개발자 도구로 억지로 넣어 보기) 화면에 "학교 메일로만 로그인할 수 있어요."가 나오고 **Authentication → Users**에 계정이 생기지 않으면 성공입니다.
 
 ## 5. Supabase: 사이트 주소 등록
@@ -115,6 +115,17 @@ revoke execute on function public.hook_hufs_only(jsonb) from public, anon, authe
 5. 팀원 학교 메일로 받아 보고, 스팸함으로 가지 않는지 확인합니다.
 
 SMTP 비밀번호는 Supabase 대시보드에만 넣습니다. 저장소 · `.env.example` · PR에 적지 않습니다.
+
+### 실제 설정 (11/19, 임현규)
+
+| 항목 | 실제 설정 내용 |
+| --- | --- |
+| SMTP 서비스 | Gmail SMTP (개인 계정 앱 비밀번호) · 무료 한도 하루 500통(월 약 15,000통) · 도메인 `gmail.com` · 별도 커스텀 도메인 SPF·DKIM 미등록(Google 기본 인증 사용) |
+| 보내는 이름 | `HUFS Quest` |
+| Rate Limits | 시간당 60통 (베타 20명 × 1인당 3회 기준) |
+| Email OTP Expiration | `600`초 (`src/data/authRules.js`의 `OTP_EXPIRY_SECONDS = 600`과 일치) |
+| 템플릿 | `Confirm signup`, `Magic Link` 둘 다 `{{ .Token }}` 6자리 코드로 변경 완료 |
+| Hook | `Before User Created` → `public.hook_hufs_only` 활성화 완료 |
 
 ## 7. Vercel 환경 변수
 
