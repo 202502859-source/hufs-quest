@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { MAP_BASE_DATE, OFFICIAL_MAP_URL, REPORT_FORM_URL } from "../data/buildingInfo.js";
+import { MAP_BASE_DATE, OFFICIAL_MAP_URL, REPORT_FORM_URL, reportFormUrl } from "../data/buildingInfo.js";
 import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, OPEN_SPACES } from "../data/campus.js";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { getLang, t } from "../state.js";
@@ -113,7 +113,8 @@ export class MapScene extends Phaser.Scene {
     const openLink = (url) => window.open(url, "_blank", "noopener,noreferrer");
     addButton(this, INFO.x, 298, INFO.width, 34, t("mapOfficial"), () => openLink(OFFICIAL_MAP_URL), { size: 14 });
     if (REPORT_FORM_URL) {
-      addButton(this, INFO.x, 342, INFO.width, 34, t("mapReport"), () => openLink(REPORT_FORM_URL), { size: 14, color: "#ff8f92" });
+      // 지금 플레이어 근처 장소(drawPlayerMarker에서 정함)를 폼 1번 문항에 미리 채웁니다. 못 찾으면 폼 주소만 엽니다.
+      addButton(this, INFO.x, 342, INFO.width, 34, t("mapReport"), () => openLink(reportFormUrl(this.currentPlace)), { size: 14, color: "#ff8f92" });
     }
   }
 

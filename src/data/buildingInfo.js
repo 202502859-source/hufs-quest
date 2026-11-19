@@ -23,9 +23,13 @@ export const MAP_BASE_DATE = "2026-11";
 // 전체 지도 화면의 링크입니다. 학교 공식 캠퍼스 안내 페이지(서울캠퍼스 탭 선택)입니다.
 export const OFFICIAL_MAP_URL = "https://www.hufs.ac.kr/campusMap/hufs/view.do";
 
-// "실제와 달라요" 신고 폼(외부 구글 폼) 주소입니다. 폼에는 건물 이름과 다른 점만 묻고 이메일·이름은 받지 않습니다.
-// 비어 있으면 신고 버튼을 숨깁니다.
-export const REPORT_FORM_URL = "";
+// "실제와 달라요" 신고 폼(외부 구글 폼) 응답 주소입니다. 폼에는 건물 이름과 다른 점만 묻고 이메일·이름은 받지 않습니다.
+// 비어 있으면 신고 버튼을 숨깁니다. 폼은 scripts/report-form/createReportForm.gs로 만들었습니다(응답 확인: 이종헌).
+export const REPORT_FORM_URL =
+  "https://docs.google.com/forms/d/e/1FAIpQLSflRuhX1PZp05LIotk9WIhYKX4pVasef7ZUcH_ZMF7dINSFEA/viewform";
+
+// 폼 1번 문항(어느 건물·공간인가요?)의 미리 채우기 이름입니다. 폼을 새로 만들면 바뀝니다.
+export const REPORT_FORM_PLACE_ENTRY = "entry.1318155621";
 
 const empty = { use: null, floors: [], source: null, checkedAt: null, status: "open" };
 
@@ -64,6 +68,20 @@ export function buildingInfo(id) {
     return { ...UNKNOWN };
   }
   return info;
+}
+
+// 신고 폼 주소를 만듭니다. 근처 장소를 알면 1번 문항에 그 건물 이름을 미리 채웁니다.
+// 폼에 보내는 값은 건물 이름 하나뿐입니다(좌표·로그인 정보·이메일은 붙이지 않음).
+// 장소를 모르거나 목록에 없는 ID면 미리 채우기 없이 폼 주소만 돌려줍니다. 폼 주소가 비어 있으면 "".
+export function reportFormUrl(placeId, { formUrl = REPORT_FORM_URL, entry = REPORT_FORM_PLACE_ENTRY } = {}) {
+  if (!formUrl) return "";
+  const url = new URL(formUrl);
+  const name = placeId ? BUILDING_INFO[placeId]?.name : null;
+  if (name && entry) {
+    url.searchParams.set("usp", "pp_url");
+    url.searchParams.set(entry, name);
+  }
+  return url.toString();
 }
 
 // 공식 페이지와 대조해 용도가 확인된 건물인지 알려 줍니다.
