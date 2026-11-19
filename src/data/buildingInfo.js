@@ -39,7 +39,7 @@ export const REPORT_FORM_URL =
 export const REPORT_FORM_PLACE_ENTRY = "entry.1318155621";
 
 // 근거 목록입니다. offices의 src가 이 키를 가리킵니다. 모두 2026-11-19에 확인했습니다.
-// url이 null인 것: team은 팀 현장 확인(공식 페이지끼리 다르거나 옛 정보일 때만), doc: true는 공개 주소를 아직 모르는 학교 공식 문서(PDF)입니다.
+// url이 null인 것은 팀이 현장에서 직접 확인한 내용입니다(공식 페이지끼리 다르거나 옛 정보일 때만 씀).
 export const SOURCES = {
   phone: { title: "전화안내", url: "https://www.hufs.ac.kr/hufs/11159/subview.do" },
   welfare: { title: "시설이용 > 복지", url: "https://www.hufs.ac.kr/hufs/11316/subview.do" },
@@ -49,7 +49,7 @@ export const SOURCES = {
   onestop: { title: "원스톱서비스센터 > 위치 및 연락처", url: "https://dep.hufs.ac.kr/onestop/13394/subview.do" },
   iei: { title: "교육혁신원", url: "https://iei.hufs.ac.kr/" },
   team: { title: "팀 현장 확인(이종헌, 2026-11-19)", url: null },
-  guide2026: { title: "2026학년도 신입생 대학생활안내(교무처 학사종합지원센터, 2026.2.20) 서울캠퍼스 표기 부분", url: null, doc: true },
+  guide2026: { title: "2026학년도 신입생 대학생활안내(교무처 학사종합지원센터, 2026.2.20) 서울캠퍼스 표기 부분", url: "https://www.hufs.ac.kr/sites/hufs/download/studentlifeguide2026.pdf" },
   counseling: { title: "학생상담센터", url: "https://sccs.hufs.ac.kr/" },
   disability: { title: "장애학생지원센터", url: "http://support.hufs.ac.kr/" },
 };
