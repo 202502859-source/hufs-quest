@@ -1,0 +1,6 @@
+# 줄바꿈을 LF로 통일합니다(Windows에서 CRLF로 저장돼 파일 전체가 바뀐 것처럼 보이는 문제 방지, 11/19).
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary

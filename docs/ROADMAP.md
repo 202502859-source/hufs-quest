@@ -170,7 +170,7 @@ gantt
   - 11/19: 공용 카운터 연결 코드 완료(`api/_lib/usageLimit.js`, 분당 10 · 하루 50 · 전체 500, Supabase 실패 시 메모리 제한으로 대체, eval 토큰 `ASK_EVAL_TOKEN`). **Preview 확인 · 토큰 상한 결정은 아직**
 
 **임현규 (백엔드)**
-- [x] 진짜 메일 로그인: 무료 외부 SMTP 연결, 메일 발송 한도를 베타 20명에 맞게 조정, 학교 메일만 허용하는 Auth Hook ([AUTH_SETUP.md](AUTH_SETUP.md) 4·6장) (11/19)
+- [x] 진짜 메일 로그인: 무료 외부 SMTP 연결, 메일 발송 한도를 베타 20명에 맞게 조정, 학교 메일만 허용하는 Auth Hook ([AUTH_SETUP.md](AUTH_SETUP.md) 4·6장) (11/19)
 - [ ] 진행 저장·불러오기 서버 함수, 퀴즈 중복 보상과 하루 상한을 서버에서 검증
 - [x] `supabase/003_usage_limits.sql`: 검색창 사용량 카운터(IP 해시 · 1분 · 하루 · 전체 하루 상한), RLS 켜기, `anon` 실행 권한 회수
   - 11/18: SQL 작성 · 대시보드 실행 완료(`ask_hit` 함수, 분당 · 전체 초과 · 권한 · RLS 확인, 시험 행 정리). 11/19 `api/ask.js` 연결 코드 완료(위 신중혁 항목)
