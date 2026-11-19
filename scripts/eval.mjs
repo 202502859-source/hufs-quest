@@ -123,6 +123,20 @@ const CASES = [
 
 ];
 
+const unreviewedCases = CASES.filter(
+  (c) => c.set === "tricky" && (
+    c.reviewed !== true ||
+    !(c.must?.length || c.any?.length)
+  )
+);
+
+if (unreviewedCases.length > 0) {
+  console.error(
+    `미검증 까다로운 질문 ${unreviewedCases.length}개: 공식 원문 확인 및 채점 조건 설정이 필요합니다.`
+  );
+  process.exit(1);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const cut = (text, n) => {
   const s = String(text ?? "").replace(/\s+/g, " ").trim();
