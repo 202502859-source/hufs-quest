@@ -84,11 +84,12 @@ test("Supabase 실패(오류 · 500 · 설정 없음)면 메모리 제한으로 
     for (let n = 1; n <= 10; n++) {
       const r = await checkAskLimit(req(ip), { env: c.env, fetchImpl: c.fetchImpl, now: NOW });
       assert.equal(r.allowed, true, `case ${i} #${n}`);
-      assert.equal(r.source, "memory");
+      assert.equal(r.source, "memory-fallback", "DB를 못 써서 메모리로 통과시킨 요청은 memory-fallback");
     }
     const r11 = await checkAskLimit(req(ip), { env: c.env, fetchImpl: c.fetchImpl, now: NOW });
     assert.equal(r11.allowed, false);
     assert.equal(r11.reason, "minute");
+    assert.equal(r11.source, "memory-first", "11번째는 1차 메모리 제한에서 끊김");
     assert.ok(r11.retryAfter >= 1 && r11.retryAfter <= 60);
   }
 });
@@ -99,7 +100,7 @@ test("1차 메모리 제한에 걸리면 Supabase를 부르지 않음, 다른 IP
   const before = calls.length;
   const blocked = await checkAskLimit(req("203.0.113.30"), { env: ENV, fetchImpl, now: NOW });
   assert.equal(blocked.allowed, false);
-  assert.equal(blocked.source, "memory");
+  assert.equal(blocked.source, "memory-first");
   assert.equal(calls.length, before);
   const other = await checkAskLimit(req("203.0.113.31"), { env: ENV, fetchImpl, now: NOW });
   assert.equal(other.allowed, true);
