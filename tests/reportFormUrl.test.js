@@ -24,7 +24,7 @@ test("한글 · 공백 이름은 퍼센트 인코딩되어 원래 이름으로 �
   const href = reportFormUrl("union", { formUrl: FORM, entry: ENTRY });
   assert.equal(/[가-힣]/.test(href), false); // 주소 문자열에 한글이 그대로 남지 않음
   assert.ok(href.includes("%ED%95%99%EC%83%9D%ED%9A%8C%EA%B4%80")); // "학생회관"
-  assert.equal(new URL(href).searchParams.get(ENTRY), "학생회관 및 기숙사");
+  assert.equal(new URL(href).searchParams.get(ENTRY), "국제학사 및 학생회관");
 });
 
 test("장소를 모르거나 목록에 없는 ID면 미리 채우기 없이 폼 주소만", () => {

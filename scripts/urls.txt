@@ -2,6 +2,9 @@
 # robots.txt 확인: /hufs/<번호>/subview.do 는 허용, ?enc= 주소와 /bbs/ 게시판은 금지라 넣지 않습니다.
 # 한 줄에 하나. '#' 뒤는 메모입니다. 식당 메뉴처럼 매주 바뀌는 페이지는 넣지 않습니다.
 
+# 학사일정 (11/19 추가) — 대학 학사일정. 서울 · 글로벌 구분 없는 공통 일정, 2026학년도 전체와 2027년 초 날짜가 있음
+https://www.hufs.ac.kr/hufs/11360/subview.do  # 학사일정(대학)
+
 # 교육과정
 https://www.hufs.ac.kr/hufs/11371/subview.do  # 전공과정
 https://www.hufs.ac.kr/hufs/11372/subview.do  # 교양과정

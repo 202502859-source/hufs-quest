@@ -18,7 +18,7 @@
  *
  * 규칙
  * - use · offices를 채우면 checkedAt도 같이 채웁니다. 모든 offices 줄에는 src가 있어야 합니다(근거 없는 내용 금지).
- * - 근거는 학교 공식 사이트(*.hufs.ac.kr)만 씁니다. 두 공식 페이지가 서로 다르면 넣지 않고 PENDING에 적어 둡니다.
+ * - 근거는 학교 공식 사이트(*.hufs.ac.kr)만 씁니다. 공식 페이지가 옛 정보일 때만 팀 현장 확인(SOURCES.team)을 씁니다. 두 공식 페이지가 서로 다르면 넣지 않고 PENDING에 적어 둡니다.
  * - 이름은 2026-11 서울캠퍼스 조감도의 범례를 따랐습니다(이전 campus.js에서 옮김).
  * - 키 · 개인 연락처(담당자 이름 · 개인 전화)는 넣지 않습니다(공개 저장소).
  * - 위 규칙은 tests/buildingInfo.test.js가 확인합니다(npm test).
@@ -38,7 +38,8 @@ export const REPORT_FORM_URL =
 // 폼 1번 문항(어느 건물·공간인가요?)의 미리 채우기 이름입니다. 폼을 새로 만들면 바뀝니다.
 export const REPORT_FORM_PLACE_ENTRY = "entry.1318155621";
 
-// 근거 페이지 목록입니다. offices의 src가 이 키를 가리킵니다. 모두 2026-11-19에 확인했습니다.
+// 근거 목록입니다. offices의 src가 이 키를 가리킵니다. 모두 2026-11-19에 확인했습니다.
+// url이 null인 것은 팀이 현장에서 직접 확인한 내용입니다(공식 페이지끼리 다르거나 옛 정보일 때만 씀).
 export const SOURCES = {
   phone: { title: "전화안내", url: "https://www.hufs.ac.kr/hufs/11159/subview.do" },
   welfare: { title: "시설이용 > 복지", url: "https://www.hufs.ac.kr/hufs/11316/subview.do" },
@@ -46,14 +47,15 @@ export const SOURCES = {
   parking: { title: "시설이용 > 주차시설", url: "https://www.hufs.ac.kr/hufs/11323/subview.do" },
   cert: { title: "학생지원 > 증명서", url: "https://www.hufs.ac.kr/hufs/11304/subview.do" },
   onestop: { title: "원스톱서비스센터 > 위치 및 연락처", url: "https://dep.hufs.ac.kr/onestop/13394/subview.do" },
+  iei: { title: "교육혁신원", url: "https://iei.hufs.ac.kr/" },
+  team: { title: "팀 현장 확인(이종헌, 2026-11-19)", url: null },
   counseling: { title: "학생상담센터", url: "https://sccs.hufs.ac.kr/" },
   disability: { title: "장애학생지원센터", url: "http://support.hufs.ac.kr/" },
 };
 
 // 공식 페이지끼리 다르거나 건물이 분명하지 않아 아직 넣지 않은 것입니다. 확인되면 offices로 옮기고 여기서 지웁니다.
 export const PENDING = [
-  "학사종합지원센터: 학사종합지원센터 사이트 하단은 '사이버관 105호', 2026학년도 신입생 대학생활안내(2026.2)는 '본관 1층' — 어느 쪽이 지금 위치인지 확인 필요",
-  "교육혁신원: iei.hufs.ac.kr 하단 '대학본부 303호' — 대학본부가 우리 맵의 본관과 같은 건물인지 확인 필요",
+  "학사종합지원센터 호수: 위치(국제학사 및 학생회관 1층)는 팀 현장 확인. 공식 페이지(학사 사이트 '사이버관 105호', 2026 신입생 대학생활안내 '본관 1층')는 옛 정보로 보임 — 11/20 학사종합지원센터 통화 때 호수 확인",
   "전화안내의 '1층안내데스크 · 2층안내데스크': 건물 이름이 적혀 있지 않음",
   "진로취업지원센터 · 국제교류팀 · 학생지원팀: 공식 페이지에서 위치를 찾지 못함",
 ];
@@ -67,10 +69,14 @@ export const BUILDING_INFO = {
     ...empty,
     name: "본관",
     nameEn: "Main Hall",
-    use: { ko: "1층 안내실에 자동심장충격기(AED)가 있어요.", en: "An AED is kept at the 1st-floor information desk." },
+    use: {
+      ko: "1층 안내실(AED 비치)과 교육혁신원(303호)이 있어요.",
+      en: "Home to the 1st-floor information desk (with an AED) and the Institute for Educational Innovation (Room 303).",
+    },
     offices: [
       o("안내실", "Information desk", "1F", null, "건물 안내, 자동심장충격기(AED) 비치", "Building information; AED on site", "health"),
       o("4층 안내실", "4th-floor information desk", "4F", null, "층 안내", "Floor information", "phone"),
+      o("교육혁신원", "Institute for Educational Innovation", null, "303호", "교육과정 개선 · 원격교육 지원", "Curriculum improvement and remote-learning support", "iei"),
     ],
     checkedAt: CHECKED,
   },
@@ -103,16 +109,18 @@ export const BUILDING_INFO = {
     offices: [o("복사실", "Copy room", "1F", null, "인쇄 · 복사 · 제본", "Printing, copying and binding", "welfare")],
     checkedAt: CHECKED,
   },
-  // 공식 페이지는 이 건물을 "국제학사(기숙사 및 학생회관)"로 부릅니다(장애학생지원 > 주요시설 및 설비).
+  // 공식 페이지는 이 건물을 "국제학사(기숙사 및 학생회관)"로 부릅니다(장애학생지원 > 주요시설 및 설비). 이름은 11/19 이종헌 결정.
+  // 이름을 바꾸면 "실제와 달라요" 구글 폼 1번 드롭다운 항목도 같은 이름으로 고쳐야 미리 채우기가 됩니다.
   union: {
     ...empty,
-    name: "학생회관 및 기숙사",
-    nameEn: "Student Union & Dorm",
+    name: "국제학사 및 학생회관",
+    nameEn: "GlobeeDorm & Student Union",
     use: {
-      ko: "원스톱서비스센터(증명서) · 보건실 · 학생상담센터가 있어요.",
-      en: "Home to the One-Stop Service Center (certificates), health room and counseling center.",
+      ko: "1층에 학사종합지원센터와 원스톱서비스센터(증명서)가 있어요.",
+      en: "The Academic Support Center and One-Stop Service Center (certificates) are on the 1st floor.",
     },
     offices: [
+      o("학사종합지원센터", "Academic Support Center", "1F", null, "학사 · 학적 업무(수강 · 휴복학 · 졸업 등)", "Academic records, registration, leave and graduation", "team"),
       o("원스톱서비스센터", "One-Stop Service Center", "1F", "118호", "증명서 발급", "Certificates", "onestop"),
       o("무인 증명서 발급기", "Certificate kiosk", "1F", null, "원스톱서비스센터 앞, 08:00~20:00", "In front of the One-Stop Service Center, 08:00-20:00", "cert"),
       o("CU 편의점", "CU convenience store", "1F", null, "간식 · 생필품, 택배", "Snacks, daily goods and parcels", "welfare"),
