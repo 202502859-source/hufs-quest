@@ -255,7 +255,7 @@ export default async function handler(req, res) {
 
   // 첫 AI 호출 전에 사용량 한도를 확인합니다. 걸리면 AI를 부르지 않습니다.
   const limit = await checkAskLimit(req);
-  const limitLog = { limit: limit.source, ...(limit.eval ? { eval: true } : {}) };
+  const limitLog = { limit: limit.source, who: limit.who, ...(limit.eval ? { eval: true } : {}) };
   if (!limit.allowed) {
     console.log(JSON.stringify({ mode: "limited", reason: limit.reason, ...limitLog }));
     res.setHeader("Retry-After", String(limit.retryAfter));
