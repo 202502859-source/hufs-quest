@@ -168,6 +168,7 @@ gantt
 - [ ] `api/ask.js` 출력 토큰 상한을 실제 답 길이에 맞게 줄이기(지금 1000), 임현규의 공용 카운터 연결
   - 11/18: 1000으로 올린 뒤 eval `20261118-2306` 정답 43/45(변화 없음), 한국어 답 중앙값 86자 · 최대 522자, 잘린 답 없음. CLOVA 문서에 글자↔토큰 환산이 없어 **Vercel 로그에 `completionTokens` · `finishReason` · 답 글자 수를 남기도록 함** → eval 한 번 더 돌려 최댓값을 보고 상한 결정
   - 11/19: 공용 카운터 연결 코드 완료(`api/_lib/usageLimit.js`, 분당 10 · 하루 50 · 전체 500, Supabase 실패 시 메모리 제한으로 대체, eval 토큰 `ASK_EVAL_TOKEN`). **Preview 확인 · 토큰 상한 결정은 아직**
+  - 11/19 실서비스 확인: 화면 입력 200자 차단 · 1분 제한(`reason: minute`) · 하루 제한(`reason: day`) · 429 응답(신중혁), 서버 201자 요청 400 "question too long"(이종헌). 로그 `limit` 값을 `db` / `memory-first`(1차 제한, 정상) / `memory-fallback`(공용 카운터 장애)으로 나눔 → 판독은 [OPERATIONS.md 3장](OPERATIONS.md#3-매일-5분-점검-담당-임현규-바쁜-날은-다른-사람이-대신)
 
 **임현규 (백엔드)**
 - [x] 진짜 메일 로그인: 무료 외부 SMTP 연결, 메일 발송 한도를 베타 20명에 맞게 조정, 학교 메일만 허용하는 Auth Hook ([AUTH_SETUP.md](AUTH_SETUP.md) 4·6장) (11/19)

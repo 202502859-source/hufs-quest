@@ -91,24 +91,28 @@ async function askHit(hash, limits, env, fetchImpl) {
 
 /*
  * 이번 질문을 받아도 되는지 판단합니다.
- * → { allowed, reason: null | "minute" | "day" | "global", retryAfter(초), source: "db" | "memory", eval }
- *   source가 "memory"면 공용 카운터 없이 메모리 제한만으로 판단한 것입니다(설정 없음 · 호출 실패 · 1차에서 끊음).
+ * → { allowed, reason: null | "minute" | "day" | "global", retryAfter(초), source, eval }
+ *   source(로그의 limit 값)는 누가 판단했는지입니다.
+ *   - "db"              공용 카운터(Supabase)가 판단. 정상
+ *   - "memory-first"    1차 메모리 제한(인스턴스별 1분 10회)에서 끊음. DB를 부르지 않은 것이며 정상
+ *   - "memory-fallback" 공용 카운터를 쓸 수 없어(설정 없음 · 호출 실패 · 시간 초과) 메모리 제한만으로 판단. ⚠️ 하루 · 전체 상한이 꺼진 상태
+ *   (11/19 이전에는 앞의 둘을 모두 "memory"로 남겨 로그만으로 정상과 장애를 구분할 수 없었음)
  */
 export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch, now = new Date() } = {}) {
   const evalMode = isEvalRequest(req, env.ASK_EVAL_TOKEN);
   const salt = env.ASK_IP_SALT || "";
   const subject = evalMode ? "eval" : clientIp(req);
   const hash = ipHash(subject, salt, kstToday(now));
-  const memoryDecision = () => {
+  const memoryDecision = (source) => {
     const wait = memoryHit(hash, now.getTime());
     return wait
-      ? { allowed: false, reason: "minute", retryAfter: wait, source: "memory", eval: evalMode }
-      : { allowed: true, reason: null, retryAfter: 0, source: "memory", eval: evalMode };
+      ? { allowed: false, reason: "minute", retryAfter: wait, source, eval: evalMode }
+      : { allowed: true, reason: null, retryAfter: 0, source, eval: evalMode };
   };
 
   // eval이 아니면 1차 메모리 제한부터. 여기서 끊기면 Supabase를 부르지 않습니다.
   if (!evalMode) {
-    const first = memoryDecision();
+    const first = memoryDecision("memory-first");
     if (!first.allowed) return first;
   }
 
@@ -127,5 +131,7 @@ export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch,
     }
   }
   // 공용 카운터를 쓸 수 없으면 메모리 제한만으로 판단합니다. eval이 아니면 위에서 이미 셌으므로 통과입니다.
-  return evalMode ? memoryDecision() : { allowed: true, reason: null, retryAfter: 0, source: "memory", eval: false };
+  return evalMode
+    ? memoryDecision("memory-fallback")
+    : { allowed: true, reason: null, retryAfter: 0, source: "memory-fallback", eval: false };
 }

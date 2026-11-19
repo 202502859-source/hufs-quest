@@ -43,7 +43,7 @@
 | 접속 | https://hufs-quest.vercel.app 를 PC와 휴대폰에서 열기 | 빈 화면, 로딩 멈춤 |
 | 에러 | Vercel → Logs (`/api/ask`, 진행 API). 진행 API는 `{"mode":"error","api":…,"code":…}` 줄로 남음(이메일 · 토큰 · user_id는 남기지 않음) | 5xx 증가, 같은 `api` · `code` 반복 |
 | 남용 | Vercel 로그 `/api/ask`의 `{"mode":"limited","reason":…}` 줄(429) 개수와 `reason`(`minute` · `day` · `global`) | 특정 시간대 급증, `global`이 나옴(오늘 전체 500 소진), `day`가 많음(학교 와이파이처럼 IP를 같이 쓰는 곳이면 하루 50 조정 검토) |
-| 공용 카운터 | 같은 로그의 `"limit":"memory"`와 `usage limit unavailable` 줄 | 계속 나오면 Supabase 호출 실패 → 메모리 제한(인스턴스별 1분 10회)만 동작 중이라 하루 · 전체 상한이 꺼진 상태 |
+| 공용 카운터 | 같은 로그의 `limit` 값. `"db"` = 공용 카운터가 판단(정상), `"memory-first"` = 1분 10회 1차 제한에서 DB 호출 없이 끊음(정상, 연타 시 `"reason":"minute"`와 함께 나옴), **`"memory-fallback"`** = 공용 카운터를 못 씀. 원인은 바로 앞의 `usage limit unavailable: …` 줄(timeout · ask_hit 상태 코드 · network) | `"memory-fallback"`이나 `usage limit unavailable`이 나옴 → Supabase 호출 실패로 메모리 제한(인스턴스별 1분 10회)만 동작 중이라 하루 · 전체 상한이 꺼진 상태. `"reason":"day"`는 공용 카운터만 낼 수 있으므로, 이것이 보이면 공용 카운터는 동작 중 |
 | AI 비용 | CLOVA Studio 사용량, NCP 콘솔 비용 · **Budgets 알림**. 예산 화면은 크레딧을 쓰는 동안 0%로 보일 수 있으므로 **CLOVA Studio 사용량과 크레딧 잔액도 같이** 봄 | 하루 토큰이 평소(약 11만)의 2배 이상, 크레딧 잔액이 예상보다 빨리 줄어듦 |
 | 답 길이 | Vercel 로그 `/api/ask`의 `{"mode":"ai", …}` 줄: `completionTokens`(답에 쓴 토큰), `finishReason`, `chars`(답 글자 수), 검색어 정리 쪽은 `rewrite`로 시작하는 같은 값. 질문 · 검색어 · 답 내용은 남기지 않음 | `finishReason`이 `"length"`(상한에 걸려 답이 잘림), `completionTokens`가 `maxTokens`에 가까움 |
 | DB · 메일 | Supabase 대시보드 사용량, Auth 메일 발송 수 | 메일 한도 도달, 용량 급증 |
