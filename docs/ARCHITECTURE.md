@@ -25,7 +25,7 @@ flowchart LR
         ask["ask.js<br/>검색 · 답변 생성"]
         deadlines["deadlines.js<br/>공지 D-day 계산"]
         newApi["진행 저장 서버 함수<br/>progress · quiz · quest · check-in"]
-        limiter["사용량 제한 · 답변 캐시<br/>IP 해시 · 하루 상한"]
+        limiter["사용량 제한 · 답변 캐시<br/>학생 계정 · 게스트 IP 해시 · 하루 상한"]
     end
 
     subgraph external["외부 서비스"]
@@ -96,7 +96,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`, `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
 | 건물 정보 · 맵 기준일 | `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태, `MAP_BASE_DATE` · `OFFICIAL_MAP_URL` · `REPORT_FORM_URL` · `REPORT_FORM_PLACE_ENTRY` · `reportFormUrl()`) → `src/data/campus.js`(ID·위치만, 이름은 여기서 붙여 내보냄) · `src/data/npcs.js`(대사 없는 건물은 확인된 용도 표시) · `src/scenes/MapScene.js` `drawMapBasis`(기준일 · 공식 지도 · 신고 버튼, 폼 주소가 비면 신고 버튼 숨김) · `scripts/report-form/`(구글 폼 생성 Apps Script, 건물 이름 목록은 `buildPlaceList.mjs`가 `buildingInfo.js`에서 만듦) · `tests/reportFormUrl.test.js`. **형식·화면 완료, 신고 폼 연결 완료, 근처 건물 미리 채움**(폼에는 건물 이름 하나만 보냄). 용도·층별 사무실 내용은 아직 | 이종헌(형식·화면) · 임현규(내용) |
-| 사용량 제한 · 답변 캐시 | `api/_lib/usageLimit.js` (한도 상수 분당 10 · 하루 50 · 전체 하루 500, IP 해시 = SHA-256(`ASK_IP_SALT` + 한국 날짜 + IP), 1차 메모리 제한 → 2차 `ask_hit`, Supabase 실패 시 메모리 제한으로 대체, eval 토큰은 IP 한도만 건너뜀) ← `api/ask.js`가 첫 AI 호출 전에 호출(429 `{ error, reason, retryAfter }`, 200자 초과 400). DB는 `supabase/003_usage_limits.sql`(11/18 실행). 화면 안내 `src/data/askApi.js`(`busy` · `limit`), 테스트 `tests/usageLimit.test.js`. **사용량 제한은 Preview 확인 전, 답변 캐시는 아직** | 임현규 · 신중혁 |
+| 사용량 제한 · 답변 캐시 | `api/_lib/usageLimit.js` (한도 상수 분당 10 · 학생 하루 50 · 게스트 IP 하루 150 · 전체 하루 500. **11/19~ 로그인 학생은 계정 기준**: 요청의 로그인 토큰을 Supabase `/auth/v1/user`로 확인해 `@hufs.ac.kr`이면 "user:<id>" 해시로, 아니면(게스트 · 토큰 오류 · 확인 실패) IP 해시로 셈. 해시 = SHA-256(`ASK_IP_SALT` + 한국 날짜 + 계정 또는 IP), 화면 `src/data/askApi.js`가 로그인 토큰을 붙여 보냄, 1차 메모리 제한 → 2차 `ask_hit`, Supabase 실패 시 메모리 제한으로 대체, eval 토큰은 IP 한도만 건너뜀) ← `api/ask.js`가 첫 AI 호출 전에 호출(429 `{ error, reason, retryAfter }`, 200자 초과 400). DB는 `supabase/003_usage_limits.sql`(11/18 실행). 화면 안내 `src/data/askApi.js`(`busy` · `limit`), 테스트 `tests/usageLimit.test.js`. **사용량 제한은 Preview 확인 전, 답변 캐시는 아직** | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
 | 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창, 1단계에 개인정보 안내 4줄 + 동의 체크박스 · 문구는 `state.js` `loginPrivacy*`) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **진짜 메일 로그인 완료(11/19, 임현규)** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
@@ -155,3 +155,4 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 | 2026-11-19 | 신고 폼 연결 완료, 근처 건물 미리 채움(파일 표 건물 정보 줄에 `scripts/report-form/` · 테스트 추가) | 이종헌 |
 | 2026-11-19 | 진짜 메일 로그인 적용·확인 완료(supaAuth 완료로 이동, 004_auth_hook_hufs_only.sql 정리, 설정 기록 추가) | 임현규 |
 | 2026-11-19 | 진행 저장 서버 함수 4종(progress, quiz-answer, quest-complete, check-in) 및 공통 모듈·단위 테스트 구현(newApi 일부 구현으로 이동, todo 줄 비움) | 임현규 |
+| 2026-11-19 | 검색창 사용량 제한을 로그인 학생은 계정 기준, 게스트는 IP 기준으로 변경(같은 와이파이 사용자끼리 한도를 나눠 쓰던 버그, 임현규 제보). 사용량 제한 상자 · 파일 표 갱신 | 이종헌 |
