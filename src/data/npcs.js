@@ -1,3 +1,4 @@
+import { buildingInfo, isChecked } from "./buildingInfo.js";
 import { BUILDINGS, doorTile } from "./campus.js";
 import { isTouchDevice } from "../device.js";
 import { getLang, isGuest } from "../state.js";
@@ -54,10 +55,20 @@ const LINES = {
   },
 };
 
-const basicLines = (b) => ({
-  ko: [`여기는 ${b.name}입니다.\n건물 안내는 아직 준비 중이에요.`],
-  en: [`This is ${b.nameEn}.\nBuilding information is coming soon.`],
-});
+// 대사가 따로 없는 건물은 buildingInfo.js의 용도를 보여 줍니다. 공식 페이지와 대조하기 전에는 '준비 중'으로 둡니다.
+const basicLines = (b) => {
+  const info = buildingInfo(b.id);
+  if (!isChecked(info)) {
+    return {
+      ko: [`여기는 ${b.name}입니다.\n건물 안내는 아직 준비 중이에요.`],
+      en: [`This is ${b.nameEn}.\nBuilding information is coming soon.`],
+    };
+  }
+  return {
+    ko: [`여기는 ${b.name}입니다.\n${info.use.ko}`],
+    en: [`This is ${b.nameEn}.\n${info.use.en ?? info.use.ko}`],
+  };
+};
 
 export function npcName(npc) {
   return getLang() === "en" ? `${npc.building.nameEn} Guide` : `${npc.building.name} 안내원`;

@@ -1,4 +1,5 @@
 import { TILE } from "../gfx/textures.js";
+import { buildingInfo } from "./buildingInfo.js";
 
 export const MAP_WIDTH = 80;
 export const MAP_HEIGHT = 72;
@@ -8,33 +9,42 @@ export const SPAWN = { x: 57, y: 57 };
 /*
  * 사용자가 제공한 서울캠퍼스 조감도의 번호와 범례를 따른 배치입니다.
  * 조감도를 위에서 본 형태로 옮겨 위치 관계만 맞췄으므로 크기와 모양은 근사치입니다.
- * no는 조감도와 대조하기 위한 지도 번호로 화면에는 표시하지 않습니다. mapName은 전체 지도에서 줄바꿈할 이름입니다. x, y, w, h는 타일 단위입니다. notch는 왼쪽 위를 잘라 ㄱ자 건물을 만듭니다.
+ * 이 파일에는 건물 ID와 위치만 둡니다. 이름·용도·층별 사무실·출처는 buildingInfo.js에 있습니다.
+ * no는 조감도와 대조하기 위한 지도 번호로 화면에는 표시하지 않습니다. x, y, w, h는 타일 단위입니다. notch는 왼쪽 위를 잘라 ㄱ자 건물을 만듭니다.
  */
-export const BUILDINGS = [
-  { id: "main", no: "0", name: "본관", nameEn: "Main Hall", x: 24, y: 10, w: 13, h: 15, roof: "BLUE" },
-  { id: "humanities", no: "1", name: "인문과학관", mapName: "인문 과학관", nameEn: "Humanities Hall", x: 37, y: 5, w: 7, h: 7, roof: "RED" },
-  { id: "tlc", no: "2", name: "교수학습개발원", mapName: "교수학습 개발원", nameEn: "Teaching Center", x: 45, y: 4, w: 9, h: 7, roof: "RED" },
-  { id: "social", no: "3", name: "사회과학관", mapName: "사회과학관", nameEn: "Social Sciences Hall", x: 6, y: 32, w: 12, h: 8, roof: "GRAY" },
-  { id: "union", no: "4", name: "학생회관 및 기숙사", mapName: "학생회관 및 기숙사", nameEn: "Student Union & Dorm", x: 4, y: 17, w: 13, h: 11, roof: "GRAY" },
-  { id: "law", no: "5", name: "법학관", nameEn: "Law Hall", x: 18, y: 15, w: 6, h: 11, roof: "GRAY" },
-  { id: "grad", no: "6", name: "대학원", nameEn: "Graduate School", x: 66, y: 28, w: 9, h: 13, roof: "GRAY" },
-  { id: "flc", no: "7", name: "외국어연수평가원", mapName: "외국어 연수평가원", nameEn: "Language Center", x: 54, y: 11, w: 8, h: 6, roof: "GRAY" },
-  { id: "intl", no: "8", name: "국제관", nameEn: "International Hall", x: 62, y: 18, w: 8, h: 7, roof: "GRAY" },
-  { id: "library", no: "9", name: "도서관", nameEn: "Library", x: 12, y: 46, w: 14, h: 10, roof: "BLUE" },
-  { id: "faculty", no: "10", name: "교수연구동", nameEn: "Faculty Research", x: 15, y: 61, w: 8, h: 6, roof: "RED" },
-  { id: "club", no: "11", name: "교수회관", nameEn: "Faculty Club", x: 24, y: 58, w: 13, h: 9, roof: "GRAY" },
-  { id: "press", no: "12", name: "출판부", nameEn: "Univ. Press", x: 66, y: 46, w: 7, h: 5, roof: "RED" },
-  { id: "gatehouse", no: "13", name: "정문안내실", mapName: "정문 안내실", nameEn: "Gate Office", x: 53, y: 52, w: 5, h: 4, roof: "BLUE" },
-  { id: "history", no: "14", name: "역사관", nameEn: "History Hall", x: 38, y: 20, w: 6, h: 5, roof: "RED" },
-  { id: "minerva", no: "B", name: "Minerva Complex", nameEn: "Minerva Complex", x: 45, y: 21, w: 7, h: 5, roof: "BLUE" },
-  { id: "cyber", no: "C", name: "사이버관", nameEn: "Cyber Hall", x: 39, y: 48, w: 12, h: 11, roof: "GRAY", notch: { w: 4, h: 4 } },
+const BUILDING_LAYOUT = [
+  { id: "main", no: "0", x: 24, y: 10, w: 13, h: 15, roof: "BLUE" },
+  { id: "humanities", no: "1", x: 37, y: 5, w: 7, h: 7, roof: "RED" },
+  { id: "tlc", no: "2", x: 45, y: 4, w: 9, h: 7, roof: "RED" },
+  { id: "social", no: "3", x: 6, y: 32, w: 12, h: 8, roof: "GRAY" },
+  { id: "union", no: "4", x: 4, y: 17, w: 13, h: 11, roof: "GRAY" },
+  { id: "law", no: "5", x: 18, y: 15, w: 6, h: 11, roof: "GRAY" },
+  { id: "grad", no: "6", x: 66, y: 28, w: 9, h: 13, roof: "GRAY" },
+  { id: "flc", no: "7", x: 54, y: 11, w: 8, h: 6, roof: "GRAY" },
+  { id: "intl", no: "8", x: 62, y: 18, w: 8, h: 7, roof: "GRAY" },
+  { id: "library", no: "9", x: 12, y: 46, w: 14, h: 10, roof: "BLUE" },
+  { id: "faculty", no: "10", x: 15, y: 61, w: 8, h: 6, roof: "RED" },
+  { id: "club", no: "11", x: 24, y: 58, w: 13, h: 9, roof: "GRAY" },
+  { id: "press", no: "12", x: 66, y: 46, w: 7, h: 5, roof: "RED" },
+  { id: "gatehouse", no: "13", x: 53, y: 52, w: 5, h: 4, roof: "BLUE" },
+  { id: "history", no: "14", x: 38, y: 20, w: 6, h: 5, roof: "RED" },
+  { id: "minerva", no: "B", x: 45, y: 21, w: 7, h: 5, roof: "BLUE" },
+  { id: "cyber", no: "C", x: 39, y: 48, w: 12, h: 11, roof: "GRAY", notch: { w: 4, h: 4 } },
 ];
 
-export const OPEN_SPACES = [
-  { id: "square", no: "16", name: "Minerva Square", nameEn: "Minerva Square", x: 29, y: 30, w: 13, h: 8, tile: "PLAZA" },
-  { id: "field", no: "17", name: "대운동장", nameEn: "Main Field", x: 47, y: 31, w: 17, h: 15, tile: "FIELD" },
-  { id: "rest", no: "18", name: "휴게공간 오디", mapName: "휴게공간 오디", nameEn: "Odi Lounge", x: 6, y: 58, w: 6, h: 5, tile: "PLAZA" },
+const OPEN_SPACE_LAYOUT = [
+  { id: "square", no: "16", x: 29, y: 30, w: 13, h: 8, tile: "PLAZA" },
+  { id: "field", no: "17", x: 47, y: 31, w: 17, h: 15, tile: "FIELD" },
+  { id: "rest", no: "18", x: 6, y: 58, w: 6, h: 5, tile: "PLAZA" },
 ];
+
+// 배치에 buildingInfo.js의 이름(name · mapName · nameEn)을 붙여 내보냅니다. 화면 코드는 지금처럼 place.name을 씁니다.
+const withNames = (place) => {
+  const { name, mapName, nameEn } = buildingInfo(place.id);
+  return { ...place, name, mapName, nameEn };
+};
+export const BUILDINGS = BUILDING_LAYOUT.map(withNames);
+export const OPEN_SPACES = OPEN_SPACE_LAYOUT.map(withNames);
 
 const GATE_PLAZA = { x: 51, y: 47, w: 13, h: 14 };
 const LAWN = { x: 20, y: 31, w: 9, h: 12 };
