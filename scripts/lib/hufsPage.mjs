@@ -34,17 +34,34 @@ export function isPersonalContact(line) {
   return nameHits(line).length > 0;
 }
 
+// 개인 메일 아이디: 이름 표시가 없어도 이 아이디의 메일만 가립니다(같은 줄의 다른 내용은 그대로).
+// 11/20 확인: 전공 문의 줄의 개인 이름형 메일. 새로 발견되면 여기에 추가
+export const PERSONAL_MAIL_IDS = ["sanghoon", "ywlee"];
+
+function maskPersonalMailIds(line) {
+  const emails = [];
+  const out = line.replace(EMAIL, (mail, id) => {
+    if (!PERSONAL_MAIL_IDS.includes(id.toLowerCase())) return mail;
+    emails.push(id);
+    return MASK;
+  });
+  return { line: out, emails };
+}
+
 // 반환: { line: 가린 줄, masked: 가렸는지, emails: 가린 메일 아이디(@ 앞) }
 // " / "로 나뉜 줄은 이름이 있는 구간만 가립니다.
 //   예: "문의 : 생협 사무국 031-330-4192 / 담당자 : 홍길동 팀장" → 사무국 번호는 남기고 이름만 가림
 export function maskPersonalContact(line) {
-  if (!isPersonalContact(line)) return { line, masked: false, emails: [] };
+  if (!isPersonalContact(line)) {
+    const listed = maskPersonalMailIds(line);
+    return { line: listed.line, masked: listed.emails.length > 0, emails: listed.emails };
+  }
   const parts = line.split(/(\s\/\s)/);
   if (parts.length > 1) {
     const emails = [];
     const out = parts.map((part, i) => {
-      if (i % 2 || !isPersonalContact(part)) return part;
-      const r = maskSegment(part);
+      if (i % 2) return part;
+      const r = isPersonalContact(part) ? maskSegment(part) : maskPersonalMailIds(part);
       emails.push(...r.emails);
       return r.line;
     });

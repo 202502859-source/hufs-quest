@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact, maskPersonalContact, isGlobalOnly, dropGlobalOnly } from "./hufsPage.mjs";
+import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact, maskPersonalContact, PERSONAL_MAIL_IDS, isGlobalOnly, dropGlobalOnly } from "./hufsPage.mjs";
 
 const page = (body) => `<html><head><title>t</title></head><body>
 <div class="menu-title">휴·복학</div><div id="subContent">${body}</div></body></html>`;
@@ -46,6 +46,22 @@ test("가린 메일 아이디만 돌려줌(이름 표시 없는 줄의 메일은
   assert.deepEqual(personalEmails, ["hong.gd"]);
   assert.ok(lines.includes("E-MAIL : gildong@hufs.ac.kr"));
   assert.ok(lines.includes("E-MAIL : haksamil@hufs.ac.kr"));
+});
+
+test("개인 메일 아이디 목록(PERSONAL_MAIL_IDS): 이름 표시가 없어도 그 메일만 가리고 줄의 나머지는 남김", () => {
+  const M = "(개인 연락처 생략)";
+  assert.deepEqual(PERSONAL_MAIL_IDS, ["sanghoon", "ywlee"]);
+  assert.deepEqual(maskPersonalContact("지역경제개발협력전공 e-mail : sanghoon@hufs.ac.kr"), { line: `지역경제개발협력전공 e-mail : ${M}`, masked: true, emails: ["sanghoon"] });
+  assert.deepEqual(maskPersonalContact("TEL : 02-2173-2109, E-mail : YWLee@hufs.ac.kr"), { line: `TEL : 02-2173-2109, E-mail : ${M}`, masked: true, emails: ["YWLee"] });
+  // 목록에 없는 메일 · 아이디가 일부만 같은 메일은 그대로
+  assert.equal(maskPersonalContact("e-mail: sanghoon2@hufs.ac.kr").masked, false);
+  assert.equal(maskPersonalContact("e-mail: haksaseoul@hufs.ac.kr").masked, false);
+  // 이름 표시와 함께 있으면 둘 다 가림
+  assert.equal(maskPersonalContact("담당자 홍길동 ywlee@hufs.ac.kr").line, `담당자 ${M}`);
+  const { lines, personalMasked, personalEmails } = extractPage(page("<p>문의 : sanghoon@hufs.ac.kr</p><p>문의 : brics@hufs.ac.kr</p>"));
+  assert.deepEqual(lines, [`문의 : ${M}`, "문의 : brics@hufs.ac.kr"]);
+  assert.equal(personalMasked, 1);
+  assert.deepEqual(personalEmails, ["sanghoon"]);
 });
 
 test("전공 · 부서 메일은 그대로 남음(11/20 2차 collect에서 잘못 지워졌던 14개 형태)", () => {
