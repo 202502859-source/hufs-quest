@@ -3,7 +3,7 @@
 // 아래 줄은 11/19 collect 결과(이종헌 PC 화면)에서 옮긴 실제 순서입니다(중간 일부 생략, 12월은 공식 페이지 일정으로 채움).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { calendarChunks, parseCalendar } from "./calendarPage.mjs";
+import { calendarChunks, calendarNotes, parseCalendar } from "./calendarPage.mjs";
 
 const LINES = [
   "2026", "2025년", "2027년", "달력으로 보기", "목록으로 보기",
@@ -45,9 +45,23 @@ test("조각 4개(1학기 · 여름 · 2학기 · 겨울), 줄마다 연도 포�
   assert.match(fall, /^\[학사일정\(대학\) > 2026학년도 제2학기 \(2026년 9~12월\)\]/);
   assert.match(fall, /2026\.12\.15 ~ 2026\.12\.21: 제2학기 기말시험/);
   assert.match(chunks[3].text, /2027\.02\.10 ~ 2027\.02\.12: 수강신청\(2~4학년\)/);
-  for (const c of chunks) {
-    for (const line of c.text.split("\n").slice(2)) assert.match(line, /^20\d{2}\.\d{2}\.\d{2}/, `연도 없는 줄: ${line}`);
+  const keys = ["spring", "summer", "fall", "winter"];
+  for (const [i, c] of chunks.entries()) {
+    const skip = 1 + calendarNotes(2026, keys[i]).length; // 머리글 + 안내 줄
+    for (const line of c.text.split("\n").slice(skip)) assert.match(line, /^20\d{2}\.\d{2}\.\d{2}/, `연도 없는 줄: ${line}`);
   }
+});
+
+test("조각마다 적용 학년도 범위 문장, 겨울방학 조각에만 다음 학년도 개강일 없음 문장", () => {
+  const chunks = calendarChunks({ pageId: "11360", title: "대학", url: "u", lines: LINES, minItems: 5 });
+  for (const c of chunks) {
+    assert.equal(c.text.split("\n")[2], "2026학년도(2026.03~2027.02) 일정만 담음");
+  }
+  const note = "2027학년도 제1학기 개강일은 이 일정표에 없음(2027학년도 학사일정 게시 후 확인)";
+  assert.equal(chunks[3].text.split("\n")[3], note);
+  assert.equal(chunks.filter((c) => c.text.includes(note)).length, 1);
+  // 2차 보류 원인이던 2027.02.22 수강신청 줄은 그대로 남되, 같은 조각에 '개강일 없음' 문장이 함께 있음
+  assert.match(chunks[3].text, /2027\.02\.22 ~ 2027\.02\.23: 수강신청\(1학년, 전체\)/);
 });
 
 test("일정이 너무 적게 읽히면 null(collect가 기존 방식으로 자름)", () => {
