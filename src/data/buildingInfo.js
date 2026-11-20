@@ -64,6 +64,7 @@ export const PENDING = [
   "출판부: 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
   "역사관(역사기념관): 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
   "교수연구동: 전화안내에 '제1교수연구동 안내실'로 표기되어 있으나 맵 건물이 제1교수연구동인지 확인 근거가 없어 PENDING 이동",
+  "원스톱서비스센터 호수: 원스톱 사이트(dep.hufs.ac.kr/onestop)는 118호, 증명서 페이지(학생지원 > 증명서)는 국제학사 1층 114호 → 114호로 확정(이종헌 확인, 2026-11-20). 원스톱 사이트는 옛 정보",
 ];
 
 const CHECKED = "2026-11-19";
@@ -136,7 +137,7 @@ export const BUILDING_INFO = {
       en: "The One-Stop Service Center (certificates) is on the 1st floor.",
     },
     offices: [
-      o("원스톱서비스센터", "One-Stop Service Center", "1F", "118호", "증명서 발급", "Certificates", "onestop"),
+      o("원스톱서비스센터", "One-Stop Service Center", "1F", "114호", "증명서 발급", "Certificates", "cert"),
       o("무인 증명서 발급기", "Certificate kiosk", "1F", null, "원스톱서비스센터 앞, 08:00~20:00", "In front of the One-Stop Service Center, 08:00-20:00", "cert"),
       o("CU 편의점", "CU convenience store", "1F", null, "간식 · 생필품, 택배", "Snacks, daily goods and parcels", "welfare"),
       o("STN 커피", "STN Coffee", "1F", null, "커피 · 음료 · 베이커리", "Coffee, drinks and bakery", "welfare"),
@@ -146,7 +147,7 @@ export const BUILDING_INFO = {
       o("장애학생지원센터", "Disability Support Center", null, "101호", "장애 학생 지원", "Support for students with disabilities", "disability"),
       o("학생상담센터", "Student Counseling Center", null, "345호", "학생 상담", "Student counseling", "counseling"),
     ],
-    checkedAt: CHECKED,
+    checkedAt: "2026-11-20",
   },
   law: {
     ...empty,
