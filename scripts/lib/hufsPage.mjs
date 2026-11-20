@@ -58,15 +58,28 @@ export function extractPage(html) {
   main.find("p, div, li, br, dt, dd, h5, h6").each((_, el) => { $(el).append("\n"); });
 
   let personalRemoved = 0;
+  const personalEmails = []; // 지운 줄에 있던 메일 아이디(@ 앞)만. 부서 메일이 잘못 지워졌는지 사람이 확인하는 용도
   const lines = main.text().split("\n").map(clean).map(stripFootnotes).filter((line) => {
     if (!line || NOISE.some((re) => re.test(line))) return false;
     if (isPersonalContact(line)) {
       personalRemoved += 1;
+      for (const [, id] of line.matchAll(EMAIL)) personalEmails.push(id);
       return false;
     }
     return true;
   });
-  return { title, lines, personalRemoved };
+  return { title, lines, personalRemoved, personalEmails };
+}
+
+// 머리글에 [글로벌] 표시가 붙은 조각(글로벌캠퍼스 전용 기준). 서울캠퍼스 서비스라 collect가 저장하지 않습니다.
+// (11/20 eval: 2025학번 졸업학점 질문에 글로벌 기준이 섞여 오답) [서울]과 표시 없는 조각은 그대로.
+export function isGlobalOnly(chunk) {
+  return chunk.text.startsWith("[글로벌] ");
+}
+
+export function dropGlobalOnly(chunks) {
+  const kept = chunks.filter((c) => !isGlobalOnly(c));
+  return { kept, dropped: chunks.length - kept.length };
 }
 
 // 각주 기호(*, **, ***)를 지웁니다. 지운 뒤 남는 빈 괄호 "()"도 함께 정리.

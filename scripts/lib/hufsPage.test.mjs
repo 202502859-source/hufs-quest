@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact } from "./hufsPage.mjs";
+import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact, isGlobalOnly, dropGlobalOnly } from "./hufsPage.mjs";
 
 const page = (body) => `<html><head><title>t</title></head><body>
 <div class="menu-title">휴·복학</div><div id="subContent">${body}</div></body></html>`;
@@ -22,6 +22,29 @@ test("개인 연락처 줄 제거: 사람 이름이 붙은 연락처 · 개인 �
   `));
   assert.equal(personalRemoved, 5);
   assert.deepEqual(lines.slice(1), ["서울 학사종합지원센터"]);
+});
+
+test("지운 줄의 메일 아이디만 돌려줌(부서 메일 · 남은 줄의 메일은 없음)", () => {
+  const { personalEmails } = extractPage(page(`
+    <p>E-MAIL : gildong@hufs.ac.kr</p>
+    <p>홍길동 선생님 hong.gd@hufs.ac.kr</p>
+    <p>E-MAIL : haksamil@hufs.ac.kr</p>
+    <p>담당자 홍길동</p>
+  `));
+  assert.deepEqual(personalEmails, ["gildong", "hong.gd"]);
+});
+
+test("글로벌 전용 조각 제외: 머리글이 [글로벌]인 조각만 빼고 [서울] · 표시 없음은 그대로", () => {
+  const chunks = toChunks({
+    pageId: "11373", title: "졸업이수학점", url: "u",
+    lines: ["\u0000H2서울", `서울캠퍼스 ${LONG}`, "\u0000H2글로벌", `글로벌캠퍼스 ${LONG}`, "\u0000H2공통", LONG, "\u0000H2양쪽", `서울캠퍼스와 글로벌캠퍼스 ${LONG}`],
+  });
+  assert.deepEqual(chunks.map(isGlobalOnly), [false, true, false, false]);
+  const { kept, dropped } = dropGlobalOnly(chunks);
+  assert.equal(dropped, 1);
+  assert.deepEqual(kept.map((c) => c.section), ["서울", "공통", "양쪽"]);
+  // 본문 중간에 [글로벌]이 나오는 조각은 빼지 않음
+  assert.equal(isGlobalOnly({ text: "[졸업 > 안내]\n[글로벌] 기준은 별도" }), false);
 });
 
 test("부서 대표 전화 · 부서 공용 메일 · 직책만 있는 줄은 남김", () => {

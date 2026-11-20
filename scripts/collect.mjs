@@ -2,7 +2,7 @@
 // 실행: npm run collect   (네트워크만 필요, API 키는 필요 없음)
 import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { extractPage, toChunks } from "./lib/hufsPage.mjs";
+import { extractPage, toChunks, dropGlobalOnly } from "./lib/hufsPage.mjs";
 import { buildTableChunks } from "./lib/tableSentences.mjs";
 import { renderTableCheck } from "./lib/tableCheck.mjs";
 import { calendarChunks } from "./lib/calendarPage.mjs";
@@ -22,6 +22,7 @@ const all = [];
 const failed = [];
 const tablePages = []; // 표 정리 조각을 만든 페이지 (검수 파일용)
 let personalRemoved = 0; // 지운 개인 연락처 줄 수(사람 이름이 붙은 연락처 · 개인 메일)
+const personalEmails = new Set(); // 지운 줄의 메일 아이디(@ 앞)만. 줄 내용은 출력하지 않음
 
 for (const [i, url] of urls.entries()) {
   const pageId = url.match(/\/(\d+)\/subview\.do/)?.[1] ?? `p${i + 1}`;
@@ -29,8 +30,9 @@ for (const [i, url] of urls.entries()) {
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
-    const { title, lines, personalRemoved: removed } = extractPage(html);
+    const { title, lines, personalRemoved: removed, personalEmails: mails } = extractPage(html);
     personalRemoved += removed;
+    for (const id of mails) personalEmails.add(id);
     if (!lines.length) throw new Error("본문 없음");
     // 학사일정 페이지는 날짜마다 연도를 붙인 줄로 바꿉니다(scripts/lib/calendarPage.mjs). 구조가 바뀌어 못 읽으면 기존 방식.
     const calendar = pageId === "11360" ? calendarChunks({ pageId, title, url, lines }) : null;
@@ -62,22 +64,27 @@ for (const name of (await readdir(MANUAL_DIR).catch(() => [])).filter((n) => n.e
   console.log(`✓ 손으로 옮긴 조각 ${name} (${manual.length}조각)`);
 }
 
+// [글로벌] 표시 조각(글로벌캠퍼스 전용)은 저장하지 않습니다. 중복 제거보다 먼저 해야
+// 글로벌 조각이 먼저 나와 같은 본문의 서울 · 공통 조각을 지우는 일이 없습니다.
+const { kept: seoulOrCommon, dropped: globalDropped } = dropGlobalOnly(all);
+
 // 본문(머리글 줄 · 캠퍼스 표시를 뺀 부분)이 똑같은 조각은 해시로 하나만 남깁니다(먼저 나온 조각 유지).
 // 여러 메뉴가 같은 안내문을 함께 쓰는 경우 검색 결과가 같은 내용으로 채워지지 않게 하려는 것.
 const seen = new Set();
-const unique = all.filter((chunk) => {
+const unique = seoulOrCommon.filter((chunk) => {
   const body = chunk.text.slice(chunk.text.indexOf("\n") + 1).trim();
   const hash = createHash("sha256").update(body).digest("hex");
   if (seen.has(hash)) return false;
   seen.add(hash);
   return true;
 });
-const duplicates = all.length - unique.length;
+const duplicates = seoulOrCommon.length - unique.length;
 
 await mkdir(new URL("data/", ROOT), { recursive: true });
 await writeFile(new URL("data/chunks.json", ROOT), `${JSON.stringify(unique, null, 2)}\n`);
 console.log(`\n${unique.length}개 조각 저장 → data/chunks.json (실패 ${failed.length}페이지)`);
-console.log(`중복 제거 ${duplicates}개, 개인 연락처 줄 제거 ${personalRemoved}개`);
+console.log(`글로벌 전용 조각 제외 ${globalDropped}개, 중복 제거 ${duplicates}개, 개인 연락처 줄 제거 ${personalRemoved}개`);
+console.log(`지운 메일 아이디: ${[...personalEmails].join(", ") || "없음"}  (부서 메일이 있으면 hufsPage.mjs SHARED_MAIL에 추가)`);
 if (tablePages.length) {
   await writeFile(new URL("data/table-check.md", ROOT), renderTableCheck(tablePages, { collectedAt }));
   const n = tablePages.reduce((sum, p) => sum + p.chunks.length, 0);
