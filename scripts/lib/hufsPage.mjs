@@ -94,7 +94,14 @@ function maskSegment(line) {
 function hasContact(body) {
   return body.split("\n").some((line) => PHONE.test(line) || EXTENSION.test(line) || /@/.test(line));
 }
-const MIN_BODY_CHARS = 40; // 머리글을 뺀 본문이 이보다 짧은 조각은 버림(연락처 조각은 예외)
+// 숫자 · 기간 · 학점 · 인원 같은 규칙이 들어 있는 조각도 40자 미만이어도 남깁니다. 머리글에 항목 제목이 붙어 있어 짧아도 뜻이 통합니다.
+// (11/20 eval: "[계절학기 > 수강학점] 매 계절학기에 … 6학점까지로 한다.", "[이중전공 > 후기 이중전공 > 신청시기] 매년 4월 중 (연1회)"가
+//  40자 미만이라 빠져 계절학기 최대 학점 · 후기 이중전공 신청 시기 질문이 틀림)
+const RULE_WORDS = /\d|학점|학기|학년|기간|인원|이상|이하|이내|미만|초과|까지/;
+export function hasRule(body) {
+  return RULE_WORDS.test(body);
+}
+const MIN_BODY_CHARS = 40; // 머리글을 뺀 본문이 이보다 짧은 조각은 버림(연락처 · 규칙 조각은 예외)
 
 export function extractPage(html) {
   const $ = cheerio.load(html);
@@ -168,7 +175,7 @@ export function campusTag(text) {
 }
 
 // 소제목 기준으로 묶은 뒤, 긴 구간은 maxChars 안에서 줄 단위로 자르고 앞 조각 끝을 조금 겹칩니다.
-// 머리글을 뺀 본문이 MIN_BODY_CHARS 미만인 조각은 버리고(부서 연락처 조각은 남김), 캠퍼스 표시([서울] · [글로벌])를 머리글 앞에 붙입니다.
+// 머리글을 뺀 본문이 MIN_BODY_CHARS 미만인 조각은 버리고(부서 연락처 · 숫자/학점/기간 같은 규칙 조각은 남김), 캠퍼스 표시([서울] · [글로벌])를 머리글 앞에 붙입니다.
 export function toChunks({ pageId, title, url, lines, maxChars = 700, overlapChars = 120 }) {
   const sections = [];
   let h2 = "";
@@ -224,7 +231,7 @@ export function toChunks({ pageId, title, url, lines, maxChars = 700, overlapCha
   return chunks
     .filter((chunk) => {
       const body = chunk.text.slice(chunk.text.indexOf("\n") + 1);
-      return body.length >= MIN_BODY_CHARS || hasContact(body);
+      return body.length >= MIN_BODY_CHARS || hasContact(body) || hasRule(body);
     })
     .map((chunk, i) => ({
       id: `${pageId}-${String(i + 1).padStart(2, "0")}`,

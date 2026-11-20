@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact, maskPersonalContact, PERSONAL_MAIL_IDS, isGlobalOnly, dropGlobalOnly } from "./hufsPage.mjs";
+import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact, maskPersonalContact, PERSONAL_MAIL_IDS, isGlobalOnly, dropGlobalOnly, hasRule } from "./hufsPage.mjs";
 
 const page = (body) => `<html><head><title>t</title></head><body>
 <div class="menu-title">휴·복학</div><div id="subContent">${body}</div></body></html>`;
@@ -153,6 +153,25 @@ test("머리글을 뺀 본문이 40자 미만인 조각은 버리고(연락처 �
   const forty = "가".repeat(40);
   assert.equal(toChunks({ pageId: "1", title: "t", url: "u", lines: [forty] }).length, 1);
   assert.equal(toChunks({ pageId: "1", title: "t", url: "u", lines: [forty.slice(1)] }).length, 0);
+});
+
+test("40자 미만이어도 숫자 · 학점 · 기간 · 인원 같은 규칙이 있는 조각은 항목 제목을 붙여 남김(11/20 eval 퇴보)", () => {
+  const chunks = toChunks({
+    pageId: "11378", title: "계절학기", url: "u",
+    lines: [
+      "\u0000H2개설교과목", LONG,
+      "\u0000H2수강학점", "매 계절학기에 수강신청을 할 수 있는 학점은 6학점까지로 한다.",
+      "\u0000H2참고", "자세한 내용은 아래를 보세요",
+      "\u0000H2신청시기", "매년 4월 중 (연1회)",
+      "\u0000H2대상", "직전 학기 성적 우수자 이상",
+    ],
+  });
+  assert.deepEqual(chunks.map((c) => c.section), ["개설교과목", "수강학점", "신청시기", "대상"]);
+  assert.equal(chunks[1].text, "[계절학기 > 수강학점]\n매 계절학기에 수강신청을 할 수 있는 학점은 6학점까지로 한다.");
+  assert.equal(chunks[2].text, "[계절학기 > 신청시기]\n매년 4월 중 (연1회)");
+  assert.deepEqual(chunks.map((c) => c.id), ["11378-01", "11378-02", "11378-03", "11378-04"]);
+  assert.equal(hasRule("자세한 내용은 아래를 보세요"), false);
+  assert.equal(hasRule("30명 미만"), true);
 });
 
 test("각주 기호(* · ** · ***) 정리", () => {
