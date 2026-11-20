@@ -7,6 +7,7 @@
 
 ## 작업 전에 반드시 읽을 것
 
+- **`docs/STATUS.md`를 가장 먼저 읽는다** — 지금 실서비스와 Preview가 각각 어떤 상태인지, 열린 PR, 전환 전까지 지킬 것, 사람별 다음 작업. 사용자가 "이어서 해 줘", "내 다음 일"이라고 하면 이 문서의 해당 사람 칸부터 본다.
 - **`docs/ROADMAP.md`** — 본선 우선순위, 담당자, 마감, 범위 밖 기능. 작업이 로드맵의 어느 항목인지 확인하고 시작한다.
 - **`docs/PRD.md`** — 문제 정의 한 문장, '한 사람', **하지 않을 것**, 완성 기준. 요청이 '하지 않을 것'에 해당하면 만들지 말고 사용자에게 알린다.
 - **`docs/OPERATIONS.md`** — 키 관리, 배포 전 5분 점검, 질문표 운영, 개인정보. 서버·입력창·DB를 고치는 작업이면 먼저 읽는다.
@@ -46,9 +47,10 @@ Phaser 3 + Vite, JavaScript. 서버 함수는 Vercel(`api/`), DB는 Supabase, AI
 
 - 실행: `npm run dev` → http://localhost:5173 (Windows PowerShell에서는 `npm.cmd run dev`)
 - 로컬에는 서버 함수가 없어 검색창은 "AI 연결 없이 찾은 원문" 모드로만 동작한다. AI 답변은 PR의 Vercel Preview 링크에서 확인한다.
-- 학사 페이지 추가: `scripts/urls.txt`에 한 줄 추가 → `npm run collect` → `npm run ingest`
-- 정확도 테스트: `npm run eval`
-- **`npm run ingest`는 실제 서비스 DB를 바꾼다.** 누가 하든 사용자가 명시적으로 요청할 때만 실행하고, 실행했다는 사실과 조각 수 변화를 PR에 적는다. Supabase 테이블 구조 변경, Vercel 환경 변수 변경도 같은 규칙을 따른다.
+- 학사 페이지 추가: `scripts/urls.txt`에 한 줄 추가 → `npm run collect` → 조각 점검 → `npm run ingest -- --target next`(시험 DB) → Preview에서 eval → 통과하면 실서비스 `npm run ingest`
+- 정확도 테스트: `npm run eval`(실서비스) 또는 `npm run eval -- <Preview 주소>`. 62문항(학사 47 · 범위 밖 3 · 까다로운 12). 11/24까지 하루 1회(11/21만 기준선 + 비교 2회 예외). 기대 답은 사람이 원문을 보고 정하고, 미검증 문항이 있으면 스크립트가 멈춘다.
+- 시험 DB: Supabase `chunks_next` · `match_chunks_next`(`supabase/005_chunks_next.sql`). Preview는 Vercel 환경 변수 `CHUNKS_RPC=match_chunks_next`로 시험 DB를, 실서비스는 `chunks`를 본다. 지우거나 바꾸지 않는다(`docs/STATUS.md` 3장).
+- **`npm run ingest`(대상 지정 없음)는 실제 서비스 DB를 바꾼다.** 누가 하든 사용자가 명시적으로 요청할 때만 실행하고, 실행했다는 사실과 조각 수 변화를 PR에 적는다. Supabase 테이블 구조 변경, Vercel 환경 변수 변경도 같은 규칙을 따른다.
 
 ## 규칙
 
@@ -57,7 +59,9 @@ Phaser 3 + Vite, JavaScript. 서버 함수는 Vercel(`api/`), DB는 Supabase, AI
 - 서버 비밀 값(`CLOVA_API_KEY`, `SUPABASE_SERVICE_KEY`, 서버용 `SUPABASE_URL`)은 Vercel 환경 변수와 `.env`에만 둔다. `src/` 코드나 `VITE_` 변수에 절대 넣지 않는다. `.env`는 읽거나 고치거나 커밋하지 않는다.
 - 예외: 원래 공개용인 Supabase 주소와 Publishable(anon) 키만 `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`로 브라우저에 둘 수 있다(학교 이메일 로그인용). 이 키가 공개돼도 안전하려면 **모든 public 테이블에 RLS가 켜져 있어야 하고** 브라우저가 부를 필요 없는 함수는 `anon` 실행 권한을 회수해야 한다. 새 테이블·함수를 만들 때도 같은 규칙을 지킨다. Secret 키(`sb_secret_…`)는 이 예외에 해당하지 않는다.
 - 저장소는 공개 상태다. 키, 개인 연락처, 학번을 코드·문서·커밋에 넣지 않는다.
-- 학교 홈페이지는 robots.txt가 허용하는 페이지만 수집한다. 공지 게시판은 자동 수집하지 않는다.
+- 학교 홈페이지는 robots.txt가 허용하는 페이지만 수집한다. 공지 게시판(`/bbs/`)과 `?enc=` 주소는 자동 수집하지 않는다. 학교 답신(11/19)에 따라 사람 이름이 붙은 연락처는 가리고, 부서 대표 전화 · 부서 메일은 남긴다(`docs/OPERATIONS.md` 7장).
+- 이 서비스는 서울캠퍼스 기준이다. 글로벌캠퍼스 전용 자료는 검색창 DB · 건물 정보에 넣지 않는다.
+- 마감 임박 공지(`shared/deadlines.js`)와 건물 정보(`src/data/buildingInfo.js`)의 내용은 사람이 원문을 열어 보고 옮긴다. AI가 공지 · 건물 내용을 만들거나 추측해 채우지 않는다. 공지는 Merge 전에 다른 팀원이 1건씩 원문과 대조한다.
 - 학사 정보를 화면이나 퀴즈에 넣을 때는 항상 원문 출처 URL을 함께 둔다. 근거 없는 숫자·날짜를 지어내지 않는다.
 - `main`에 직접 커밋·push하지 않는다. 기능별 브랜치(`feat/...`, `fix/...`)에서 작업한다.
 - 한 번에 한 기능씩 만들고, 끝나면 확인 방법을 알려준다.
