@@ -1,9 +1,10 @@
 // 1단계: 학교 공개 학사 페이지를 모아 data/chunks.json으로 저장합니다.
 // 실행: npm run collect   (네트워크만 필요, API 키는 필요 없음)
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
 import { extractPage, toChunks } from "./lib/hufsPage.mjs";
 import { buildTableChunks } from "./lib/tableSentences.mjs";
 import { renderTableCheck } from "./lib/tableCheck.mjs";
+import { calendarChunks } from "./lib/calendarPage.mjs";
 import { TABLE_PAGES } from "./tablePages.mjs";
 
 const ROOT = new URL("../", import.meta.url);
@@ -28,7 +29,10 @@ for (const [i, url] of urls.entries()) {
     const html = await res.text();
     const { title, lines } = extractPage(html);
     if (!lines.length) throw new Error("본문 없음");
-    const chunks = toChunks({ pageId, title, url, lines }).map((c) => ({ ...c, collected_at: collectedAt }));
+    // 학사일정 페이지는 날짜마다 연도를 붙인 줄로 바꿉니다(scripts/lib/calendarPage.mjs). 구조가 바뀌어 못 읽으면 기존 방식.
+    const calendar = pageId === "11360" ? calendarChunks({ pageId, title, url, lines }) : null;
+    if (pageId === "11360" && !calendar) console.warn("주의: 학사일정 페이지를 일정으로 읽지 못해 기존 방식으로 자릅니다. 연도가 빠지니 확인하세요.");
+    const chunks = (calendar ?? toChunks({ pageId, title, url, lines })).map((c) => ({ ...c, collected_at: collectedAt }));
     all.push(...chunks);
     let extra = "";
     const config = TABLE_PAGES[pageId];
@@ -45,6 +49,14 @@ for (const [i, url] of urls.entries()) {
     console.warn(`✗ ${url}: ${err.message}`);
   }
   if (i < urls.length - 1) await new Promise((r) => setTimeout(r, DELAY_MS));
+}
+
+// 웹페이지가 아닌 공식 문서(PDF 등)에서 손으로 옮긴 조각을 붙입니다. data/manual/README.md 참고.
+const MANUAL_DIR = new URL("data/manual/", ROOT);
+for (const name of (await readdir(MANUAL_DIR).catch(() => [])).filter((n) => n.endsWith(".json")).sort()) {
+  const manual = JSON.parse(await readFile(new URL(name, MANUAL_DIR), "utf8"));
+  all.push(...manual);
+  console.log(`✓ 손으로 옮긴 조각 ${name} (${manual.length}조각)`);
 }
 
 await mkdir(new URL("data/", ROOT), { recursive: true });
