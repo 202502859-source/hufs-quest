@@ -9,7 +9,8 @@
  * 3. 근거가 하나도 없으면 AI를 부르지 않고 "찾지 못함"을 돌려줍니다(비용 절약, 추측 방지).
  * 4. 근거만 넘겨 HyperCLOVA X(HCX-005)가 답하게 하고, 답변에 실제로 인용된 번호의 출처만 돌려줍니다.
  *    지시문에는 한국 시간 기준 오늘 날짜 · 현재 학기를 붙이고(shared/academicDate.js),
- *    답변의 연·월·일 날짜가 근거에 없으면 "찾지 못함"으로 바꿉니다(로그 mode "guard", reason "ungrounded-date").
+ *    답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거에 없으면 "찾지 못함"으로 바꿉니다
+ *    (로그 mode "guard", reason "ungrounded-date" 또는 "ungrounded-year").
  * 5. AI 호출이 실패하면 근거 원문을 그대로 돌려줍니다.
  *
  * 환경 변수(Vercel 설정에만 두고 코드·브라우저에는 절대 넣지 않습니다)
@@ -303,9 +304,12 @@ export default async function handler(req, res) {
     const result = await generate(question, lang, docs);
     usage = { maxTokens: ANSWER_MAX_TOKENS, ...result.usage, chars: result.answer.length };
     const { answer } = result;
-    // 근거 조각 어디에도 없는 연·월·일 날짜를 말하면(예: 2026년 일정만 있는데 "2027년 3월 2일") 원문도 보여 주지 않고 "찾지 못함"으로 답합니다.
-    if (ungroundedDates(answer, docs).length) {
-      console.log(JSON.stringify({ mode: "guard", reason: "ungrounded-date", retrieval, docs: docs.length, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    // 근거 조각 어디에도 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)를 말하면
+    // (예: 2026학년도 일정만 있는데 "2027년 3월 2일", "2027학년도 1학기 개강은 3월 2일") 원문도 보여 주지 않고 "찾지 못함"으로 답합니다.
+    const ungrounded = ungroundedDates(answer, docs);
+    if (ungrounded.length) {
+      const reason = ungrounded.some((x) => x.includes("-")) ? "ungrounded-date" : "ungrounded-year";
+      console.log(JSON.stringify({ mode: "guard", reason, retrieval, docs: docs.length, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
       return res.status(200).json({ mode: "none", answer: null, sources: [] });
     }
     if (hasUnsupportedNumbers(answer, docs)) throw new Error("answer has numbers not in sources");

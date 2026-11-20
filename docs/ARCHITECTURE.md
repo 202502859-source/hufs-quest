@@ -92,7 +92,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 | 상자 | 주요 파일 | 담당 |
 | --- | --- | --- |
 | 캠퍼스 탐험 | `src/scenes/CampusScene.js`, `src/scenes/MapScene.js`, `src/data/campus.js`, `src/gfx/textures.js` | 이종헌 |
-| 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` (11/20~ `shared/academicDate.js`: 한국 시간 오늘 날짜 · 현재 학기를 지시문에 붙이고, 답변의 연·월·일 날짜가 근거 조각에 없으면 "찾지 못함"으로 바꿈. 테스트 `tests/academicDate.test.js`) | 신중혁 |
+| 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` (11/20~ `shared/academicDate.js`: 한국 시간 오늘 날짜 · 현재 학기를 지시문에 붙이고, 답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거 조각에 없으면 "찾지 못함"으로 바꿈. 테스트 `tests/academicDate.test.js`) | 신중혁 |
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`, `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
 | 건물 정보 · 맵 기준일 | `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태, `MAP_BASE_DATE` · `OFFICIAL_MAP_URL` · `REPORT_FORM_URL` · `REPORT_FORM_PLACE_ENTRY` · `reportFormUrl()`) → `src/data/campus.js`(ID·위치만, 이름은 여기서 붙여 내보냄) · `src/data/npcs.js`(대사 없는 건물은 확인된 용도 표시) · `src/scenes/MapScene.js` `drawMapBasis`(기준일 · 공식 지도 · 신고 버튼, 폼 주소가 비면 신고 버튼 숨김) · `scripts/report-form/`(구글 폼 생성 Apps Script, 건물 이름 목록은 `buildPlaceList.mjs`가 `buildingInfo.js`에서 만듦) · `tests/reportFormUrl.test.js`. **형식·화면 완료, 신고 폼 연결 완료, 근처 건물 미리 채움**(폼에는 건물 이름 하나만 보냄). 용도·층별 사무실 내용은 아직 | 이종헌(형식·화면) · 임현규(내용) |
@@ -117,7 +117,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 2. CLOVA 임베딩 v2로 벡터화해 Supabase에서 비슷한 조각을 찾습니다. 실패하면 `shared/kb.js` 키워드 검색으로 넘어갑니다.
 3. 근거가 없으면 AI를 부르지 않고 "찾지 못했다"고 답합니다.
 4. 근거만 넘겨 `HCX-005`가 답하고, 실제 인용된 출처 링크만 보여 줍니다. 지시문에는 한국 시간 오늘 날짜 · 현재 학기가 붙습니다.
-5. 답변에 근거 조각에 없는 연·월·일 날짜가 있으면 "찾지 못했다"로 바꾸고(로그 `mode: guard`), 근거에 없는 숫자가 있으면 근거 원문을 대신 보여 줍니다(`mode: evidence`).
+5. 답변에 근거 조각에 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 있으면 "찾지 못했다"로 바꾸고(로그 `mode: guard`), 근거에 없는 숫자가 있으면 근거 원문을 대신 보여 줍니다(`mode: evidence`).
 
 **재학생 퀴즈 답 하나가 저장되기까지**
 1. `QuizScene`이 고른 답(O/X)을 `quizProgress.recordAnswer` → `progressApi.answerQuiz`로 보냅니다. 화면은 경험치를 계산하지 않습니다.

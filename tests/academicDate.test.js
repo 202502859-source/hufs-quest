@@ -52,10 +52,50 @@ test("날짜 표기 맞추기: YYYY.MM.DD · YYYY년 M월 D일 · YYYY-MM-DD", (
 
 test("근거에 2026.03.02만 있을 때: 2027년 3월 2일은 차단, 2026년 3월 2일은 통과, 날짜 없는 답변은 영향 없음", () => {
   const docs = [{ title: "학사일정(대학) > 2026학년도 제1학기", text: "2026.03.02: 2026학년도 제1학기 개강·대체휴업일" }];
-  assert.deepEqual(ungroundedDates("2027년 1학기 개강일은 2027년 3월 2일입니다. [1]", docs), ["2027-03-02"]);
+  assert.deepEqual(ungroundedDates("2027년 1학기 개강일은 2027년 3월 2일입니다. [1]", docs), ["2027-03-02", "2027년"]);
   assert.deepEqual(ungroundedDates("2026학년도 1학기 개강일은 2026년 3월 2일입니다. [1]", docs), []);
   assert.deepEqual(ungroundedDates("개강일은 2026.03.02입니다. [1]", docs), []);
   assert.deepEqual(ungroundedDates("졸업하려면 126학점이 필요합니다. [1]", docs), []);
+});
+
+test("근거 '2026.03.02: 제1학기 개강'만 있을 때: 학년도 · 월일 검사", () => {
+  const docs = [{ title: "학사일정(대학)", text: "2026.03.02: 제1학기 개강" }];
+  assert.deepEqual(ungroundedDates("2027학년도 1학기 개강은 3월 2일입니다. [1]", docs), ["2027학년도"]); // 차단
+  assert.deepEqual(ungroundedDates("3월 2일에 개강해요. [1]", docs), []); // 통과
+  assert.deepEqual(ungroundedDates("2026학년도 1학기 개강은 3월 2일입니다. [1]", docs), []); // 통과: 2026.03.02는 2026학년도
+  assert.deepEqual(ungroundedDates("2027년에 개강해요. [1]", docs), ["2027년"]); // 근거에 없는 연도 단독
+  assert.deepEqual(ungroundedDates("4월 31일까지 신청하세요. [1]", docs), ["04-31"]); // 근거에 없는 월·일
+  assert.deepEqual(ungroundedDates("10.26까지 신청하세요. [1]", docs), ["10-26"]); // MM.DD 표기
+  assert.deepEqual(ungroundedDates("개강은 학기 초에 해요. 평점 3.5 이상, 4.0 이상이면 돼요. [1]", docs), []); // 날짜 · 연도 없음
+});
+
+test("학년도: 1~2월 날짜는 전년도 학년도, 근거에 'YYYY학년도' 글자가 있어도 통과", () => {
+  const winter = [{ title: "학사일정(대학)", text: "2027.02.26: 학위수여식" }];
+  assert.deepEqual(ungroundedDates("2026학년도 학위수여식은 2월 26일이에요. [1]", winter), []);
+  assert.deepEqual(ungroundedDates("2027학년도 학위수여식은 2월 26일이에요. [1]", winter), ["2027학년도"]);
+  const text = [{ title: "졸업이수학점", text: "2025학년도 이후 입학생: 126학점" }];
+  assert.deepEqual(ungroundedDates("2025학년도 이후 입학생은 126학점이에요. [1]", text), []);
+});
+
+// 기존 eval 학사 문항의 실제 답변(data/eval/20261120-1214.json)이 실제 근거 조각(data/chunks.json, 같은 출처 페이지의 조각 전부)으로 잘못 막히지 않는지
+test("실제 조각: 졸업학점 · 최우등 · 휴학 · 조기졸업 · 이중전공 답변은 막히지 않음", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const chunks = JSON.parse(await readFile(new URL("../data/chunks.json", import.meta.url), "utf8"));
+  const page = (n) => chunks.filter((c) => c.url === `https://www.hufs.ac.kr/hufs/${n}/subview.do`);
+  const cases = [
+    ["11373", "2025학년도 이후 입학생이 졸업을 하려면 126학점을 이수해야 합니다. 단 융합 인재 대학에 속한 학생이라면 150학점을 이수해야 합니다. 전공 및 이중 전공: 42학점\n부전공: 21학점\n전공 심화 + 부전공: 54학점, 부전공 21학점\n전공 심화(단일 전공): 54학점 [1][2]"],
+    ["11390", "최우등 졸업 기준은 졸업 성적 평점이 4.25 이상입니다. 이는 2026년 전기(2월) 졸업생부터 적용되며, 학위증 및 학적부에 기재됩니다[1]."],
+    ["11387", "휴학은 최대 3년까지 할 수 있습니다. 단, 2012학년도 제2학기 3학년 편입학생부터는 2년을 초과할 수 없습니다. 또한 일반 휴학 기간은 1년에 1회씩 분할하여 신청해야 합니다[2]."],
+    ["11389", "조기졸업 시 7학기만에 졸업합니다. 다만, 총 평점 평균 4.00 미만이거나 1개 학기라도 3.75 미만인 경우, 7학기까지 졸업요건을 채우지 못하면 조기졸업 자격이 취소되어 8학기를 등록해야 합니다[1]."],
+    ["11384", "25학번부터 이중전공 우선 선발 기준은 32학점입니다. [1]"],
+  ];
+  for (const [n, answer] of cases) {
+    const docs = page(n);
+    assert.ok(docs.length > 0, `${n} 조각 없음`);
+    assert.deepEqual(ungroundedDates(answer, docs), [], n);
+  }
+  // 같은 근거라도 없는 연도를 붙이면 막힘
+  assert.deepEqual(ungroundedDates("2030학년도 이후 입학생은 126학점이에요. [1]", page("11373")), ["2030학년도"]);
 });
 
 // ── api/ask.js: 근거에 없는 날짜를 말하면 "찾지 못함"(mode none)으로, 로그에는 guard만 ──
@@ -106,6 +146,11 @@ test("ask.js: 근거에 없는 날짜 답변은 mode none, 로그 mode guard · 
     const ok = await call("2026년 1학기 개강일이 언제야?", "203.0.113.71");
     assert.equal(ok.body.mode, "ai");
     assert.equal(ok.body.answer, reply);
+
+    reply = "2027학년도 1학기 개강은 3월 2일입니다. [1]";
+    const yearOnly = await call("2027학년도 개강일 알려줘", "203.0.113.72");
+    assert.equal(yearOnly.body.mode, "none");
+    assert.equal(logs.map((l) => JSON.parse(l)).filter((l) => l.mode === "guard").at(-1)?.reason, "ungrounded-year");
   } finally {
     globalThis.fetch = originalFetch;
     console.log = originalLog;

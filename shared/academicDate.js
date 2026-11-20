@@ -67,8 +67,49 @@ export function datesIn(text, { rangeEnds = false } = {}) {
   return found;
 }
 
-// 답변의 날짜 중 근거(docs의 title · text)에 없는 것. 비어 있으면 통과입니다.
+// 연도 없는 월·일: "3월 2일" 또는 "10.26"(점 뒤가 두 자리일 때만. 3.5 · 4.0 같은 평점은 안 셈).
+// 연도가 붙은 날짜의 일부(2026.10.20의 10.20)는 앞의 점 때문에 여기서 따로 세지 않고, 아래에서 연-월-일의 월·일로 넣습니다.
+const MONTH_DAY = /(?<![\d.])(\d{1,2})\s*월\s*(\d{1,2})\s*일|(?<![\d.])(\d{1,2})\.(\d{2})(?![\d.])/g;
+
+export function monthDaysIn(text) {
+  const source = String(text ?? "");
+  const found = new Set();
+  for (const key of datesIn(source, { rangeEnds: true })) found.add(key.slice(5));
+  for (const m of source.matchAll(MONTH_DAY)) {
+    const key = toKey("0000", m[1] ?? m[3], m[2] ?? m[4]);
+    if (key) found.add(key.slice(5));
+  }
+  return found;
+}
+
+// 학년도: 근거에 "2026학년도"라고 쓰여 있거나, 근거의 연-월-일 날짜가 그 학년도(3월~다음 해 2월)에 들면 근거가 있다고 봅니다.
+const ACADEMIC_YEAR = /(?<!\d)(\d{4})\s*학년도/g;
+// 연도 단독: "2027년"(뒤에 월이 와도 같음). 근거에 그 네 자리 숫자가 있어야 합니다.
+const YEAR = /(?<!\d)(\d{4})\s*년/g;
+
+function evidenceYears(evidence) {
+  const academicYears = new Set([...evidence.matchAll(ACADEMIC_YEAR)].map((m) => m[1]));
+  for (const key of datesIn(evidence, { rangeEnds: true })) {
+    const [y, m] = key.split("-").map(Number);
+    academicYears.add(String(m <= 2 ? y - 1 : y));
+  }
+  const years = new Set(evidence.match(/(?<!\d)\d{4}(?!\d)/g) || []);
+  return { academicYears, years };
+}
+
+// 답변의 날짜 · 연도 중 근거(docs의 title · text)에 없는 것. 비어 있으면 통과입니다.
+// 예: "2027-03-02"(연-월-일), "03-02"(월·일), "2027학년도", "2027년"
 export function ungroundedDates(answer, docs) {
-  const evidence = datesIn(docs.map((d) => `${d.title ?? ""}\n${d.text ?? ""}`).join("\n"), { rangeEnds: true });
-  return [...datesIn(answer)].filter((key) => !evidence.has(key));
+  const evidence = docs.map((d) => `${d.title ?? ""}\n${d.text ?? ""}`).join("\n");
+  const fullDates = datesIn(evidence, { rangeEnds: true });
+  const monthDays = monthDaysIn(evidence);
+  const { academicYears, years } = evidenceYears(evidence);
+  const text = String(answer ?? "");
+  const missing = [
+    ...[...datesIn(text)].filter((key) => !fullDates.has(key)),
+    ...[...monthDaysIn(text)].filter((key) => !monthDays.has(key)),
+    ...[...text.matchAll(ACADEMIC_YEAR)].map((m) => m[1]).filter((y) => !academicYears.has(y)).map((y) => `${y}학년도`),
+    ...[...text.matchAll(YEAR)].map((m) => m[1]).filter((y) => !years.has(y)).map((y) => `${y}년`),
+  ];
+  return [...new Set(missing)];
 }
