@@ -22,7 +22,7 @@ flowchart LR
     rules["진행 규칙<br/>shared/progressRules.js · 서버와 화면이 같이 씀"]
 
     subgraph server["서버 함수 · api/ (Vercel)"]
-        ask["ask.js<br/>검색 · 답변 생성"]
+        ask["ask.js<br/>검색 · 답변 생성 · 날짜 근거 검사"]
         deadlines["deadlines.js<br/>공지 D-day 계산"]
         newApi["진행 저장 서버 함수<br/>progress · quiz · quest · check-in"]
         limiter["사용량 제한 · 답변 캐시<br/>학생 계정 · 게스트 IP 해시 · 하루 상한"]
@@ -92,7 +92,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 | 상자 | 주요 파일 | 담당 |
 | --- | --- | --- |
 | 캠퍼스 탐험 | `src/scenes/CampusScene.js`, `src/scenes/MapScene.js`, `src/data/campus.js`, `src/gfx/textures.js` | 이종헌 |
-| 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` | 신중혁 |
+| 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` (11/20~ `shared/academicDate.js`: 한국 시간 오늘 날짜 · 현재 학기를 지시문에 붙이고, 답변의 연·월·일 날짜가 근거 조각에 없으면 "찾지 못함"으로 바꿈. 테스트 `tests/academicDate.test.js`) | 신중혁 |
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`, `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
 | 건물 정보 · 맵 기준일 | `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태, `MAP_BASE_DATE` · `OFFICIAL_MAP_URL` · `REPORT_FORM_URL` · `REPORT_FORM_PLACE_ENTRY` · `reportFormUrl()`) → `src/data/campus.js`(ID·위치만, 이름은 여기서 붙여 내보냄) · `src/data/npcs.js`(대사 없는 건물은 확인된 용도 표시) · `src/scenes/MapScene.js` `drawMapBasis`(기준일 · 공식 지도 · 신고 버튼, 폼 주소가 비면 신고 버튼 숨김) · `scripts/report-form/`(구글 폼 생성 Apps Script, 건물 이름 목록은 `buildPlaceList.mjs`가 `buildingInfo.js`에서 만듦) · `tests/reportFormUrl.test.js`. **형식·화면 완료, 신고 폼 연결 완료, 근처 건물 미리 채움**(폼에는 건물 이름 하나만 보냄). 용도·층별 사무실 내용은 아직 | 이종헌(형식·화면) · 임현규(내용) |
@@ -116,7 +116,8 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 1. `HCX-DASH-002`가 구어체 질문을 공식 학사 용어 검색어로 정리합니다.
 2. CLOVA 임베딩 v2로 벡터화해 Supabase에서 비슷한 조각을 찾습니다. 실패하면 `shared/kb.js` 키워드 검색으로 넘어갑니다.
 3. 근거가 없으면 AI를 부르지 않고 "찾지 못했다"고 답합니다.
-4. 근거만 넘겨 `HCX-005`가 답하고, 실제 인용된 출처 링크만 보여 줍니다.
+4. 근거만 넘겨 `HCX-005`가 답하고, 실제 인용된 출처 링크만 보여 줍니다. 지시문에는 한국 시간 오늘 날짜 · 현재 학기가 붙습니다.
+5. 답변에 근거 조각에 없는 연·월·일 날짜가 있으면 "찾지 못했다"로 바꾸고(로그 `mode: guard`), 근거에 없는 숫자가 있으면 근거 원문을 대신 보여 줍니다(`mode: evidence`).
 
 **재학생 퀴즈 답 하나가 저장되기까지**
 1. `QuizScene`이 고른 답(O/X)을 `quizProgress.recordAnswer` → `progressApi.answerQuiz`로 보냅니다. 화면은 경험치를 계산하지 않습니다.
@@ -156,3 +157,4 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 | 2026-11-19 | 진짜 메일 로그인 적용·확인 완료(supaAuth 완료로 이동, 004_auth_hook_hufs_only.sql 정리, 설정 기록 추가) | 임현규 |
 | 2026-11-19 | 진행 저장 서버 함수 4종(progress, quiz-answer, quest-complete, check-in) 및 공통 모듈·단위 테스트 구현(newApi 일부 구현으로 이동, todo 줄 비움) | 임현규 |
 | 2026-11-19 | 검색창 사용량 제한을 로그인 학생은 계정 기준, 게스트는 IP 기준으로 변경(같은 와이파이 사용자끼리 한도를 나눠 쓰던 버그, 임현규 제보). 사용량 제한 상자 · 파일 표 갱신 | 이종헌 |
+| 2026-11-20 | 검색창 날짜 근거 검사(`shared/academicDate.js`, 오늘 날짜 · 현재 학기 전달, 근거에 없는 날짜 차단): ask.js 상자 · 파일 표 · 주요 흐름 갱신 | 이종헌 |
