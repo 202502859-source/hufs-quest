@@ -117,7 +117,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 2. CLOVA 임베딩 v2로 벡터화해 Supabase에서 비슷한 조각을 찾습니다. 실패하면 `shared/kb.js` 키워드 검색으로 넘어갑니다.
 3. 근거가 없으면 AI를 부르지 않고 "찾지 못했다"고 답합니다.
 4. 근거만 넘겨 `HCX-005`가 답하고, 실제 인용된 출처 링크만 보여 줍니다. 지시문에는 한국 시간 오늘 날짜 · 현재 학기가 붙습니다.
-5. 답변에 근거 조각에 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 있으면 "찾지 못했다"로 바꾸고(로그 `mode: guard`), 근거에 없는 숫자가 있으면 근거 원문을 대신 보여 줍니다(`mode: evidence`. "오후 5시"처럼 바꿔 쓴 시각은 17:00으로 되돌려 비교).
+5. 답변에 근거 조각에 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 있으면 "찾지 못했다"로 바꾸고(로그 `mode: guard`), 근거에 없는 숫자가 있으면 근거 원문을 대신 보여 줍니다(`mode: evidence`).
 
 **재학생 퀴즈 답 하나가 저장되기까지**
 1. `QuizScene`이 고른 답(O/X)을 `quizProgress.recordAnswer` → `progressApi.answerQuiz`로 보냅니다. 화면은 경험치를 계산하지 않습니다.
