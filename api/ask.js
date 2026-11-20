@@ -7,7 +7,8 @@
  *    출력은 {"queries": [...]} JSON이고 api/_lib/decompose.js의 parseQueries로 읽습니다(최대 2개, 각 80자).
  *    주제가 하나면 1개("휴학은 최대 몇 년이야?" → ["휴학 최대 기간"]), 서로 다른 제도 · 일정을 함께 물을 때만 2개
  *    ("이중전공과 부전공은 각각 몇 학점이야?" → ["이중전공 이수 학점", "부전공 이수 학점"]).
- *    JSON을 읽지 못하면 예전처럼 검색어 1개(원래 질문)로 검색합니다.
+ *    JSON을 읽지 못하면 예전 방식처럼 모델 출력이 한 줄 검색어(1~80자, { } 없음)일 때 그 한 줄로, 그것도 아니면 원래 질문으로
+ *    검색합니다(fallbackQuery, 로그 rewriteFormat "json" | "line" | "none").
  * 2. 하위 질문마다 동시에(Promise.all) CLOVA Studio 임베딩 v2로 벡터화해 Supabase RPC(CHUNKS_RPC)에서
  *    비슷한 조각을 하위 질문당 6개까지 찾고, 1등과 유사도 차이(SIMILARITY_GAP) 필터는 하위 질문별로 따로 겁니다.
  *    한 하위 질문의 벡터 검색만 실패하면 그 질문만 shared/kb.js 키워드 검색으로 대신합니다.
@@ -19,6 +20,7 @@
  *    답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거에 없으면 "찾지 못함"으로 바꿉니다
  *    (로그 mode "guard", reason "ungrounded-date" 또는 "ungrounded-year").
  * 5. 근거에 없는 숫자가 있거나 AI 호출이 실패하면 근거 원문을 그대로 돌려줍니다(mode "evidence").
+ *    하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다(evidenceDocs).
  *
  * 환경 변수(Vercel 설정에만 두고 코드·브라우저에는 절대 넣지 않습니다)
  * - CLOVA_API_KEY: CLOVA Studio 테스트 또는 서비스 API 키
@@ -32,7 +34,7 @@
 import { KB, retrieve } from "../shared/kb.js";
 import { checkAskLimit } from "./_lib/usageLimit.js";
 import { todayContext, ungroundedDates } from "../shared/academicDate.js";
-import { parseQueries, mergeDocs } from "./_lib/decompose.js";
+import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
 
 const CLOVA_BASE = "https://clovastudio.stream.ntruss.com";
 const CHAT_URL = `${CLOVA_BASE}/v3/chat-completions/HCX-005`;
@@ -126,10 +128,11 @@ async function postJson(url, headers, body) {
   return response.json();
 }
 
-// 1단계: 구어체 질문을 학사 용어 검색어(하위 질문 1~2개)로 정리합니다. 실패하거나 JSON을 읽지 못하면 queries가 null입니다.
+// 1단계: 구어체 질문을 학사 용어 검색어(하위 질문 1~2개)로 정리합니다.
+// format: "json"(하위 질문 JSON) · "line"(JSON이 아니지만 한 줄 검색어, 예전 방식) · "none"(실패 · 쓸 수 없는 출력 → queries null).
 // usage는 이 호출에 쓴 토큰 수와 종료 이유(로그용). 호출하지 못했으면 null입니다.
 async function rewriteQuery(question) {
-  if (!process.env.CLOVA_API_KEY) return { queries: null, usage: null };
+  if (!process.env.CLOVA_API_KEY) return { queries: null, format: "none", usage: null };
   let usage = null;
   try {
     const data = await postJson(
@@ -146,10 +149,15 @@ async function rewriteQuery(question) {
       },
     );
     usage = usageOf(data);
-    return { queries: parseQueries(contentText(data?.result?.message?.content)), usage };
+    const text = contentText(data?.result?.message?.content);
+    const queries = parseQueries(text);
+    if (queries) return { queries, format: "json", usage };
+    const line = fallbackQuery(text);
+    if (line) return { queries: [line], format: "line", usage };
+    return { queries: null, format: "none", usage };
   } catch (err) {
     console.error("query rewrite failed:", err.message);
-    return { queries: null, usage };
+    return { queries: null, format: "none", usage };
   }
 }
 
@@ -302,14 +310,15 @@ export default async function handler(req, res) {
 
   const started = Date.now();
   // 검색에는 정리한 검색어를 쓰고, 답변 생성에는 학생의 원래 질문을 씁니다.
-  const { queries, usage: rewriteUsage } = await rewriteQuery(question);
+  const { queries, format: rewriteFormat, usage: rewriteUsage } = await rewriteQuery(question);
   // 검색어 정리 호출의 토큰 수 · 종료 이유. 질문과 검색어 내용은 로그에 남기지 않습니다.
   const rewriteLog = {
+    rewriteFormat,
     rewritePromptTokens: rewriteUsage?.promptTokens ?? null,
     rewriteCompletionTokens: rewriteUsage?.completionTokens ?? null,
     rewriteFinishReason: rewriteUsage?.finishReason ?? null,
   };
-  // JSON을 읽지 못했으면 예전처럼 원래 질문 하나로 검색합니다.
+  // 검색어를 얻지 못했으면(rewriteFormat "none") 원래 질문 하나로 검색합니다.
   const rewritten = Boolean(queries);
   const searchTexts = queries || [question];
   const rpc = chunksRpc();
@@ -364,7 +373,8 @@ export default async function handler(req, res) {
     console.error("generation failed:", err.message);
     if (err.usage) usage = { maxTokens: ANSWER_MAX_TOKENS, ...err.usage };
     // AI 연결이 안 되면 근거 원문을 그대로 보여 줍니다. 추측한 답은 만들지 않습니다.
-    const top = docs.slice(0, 2);
+    // 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다.
+    const top = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
     console.log(JSON.stringify({ mode: "evidence", retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({
       mode: "evidence",

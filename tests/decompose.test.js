@@ -1,7 +1,7 @@
 // 검색창 질문 쪼개기 도우미(api/_lib/decompose.js)를 확인합니다. 네트워크는 부르지 않습니다. 실행: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseQueries, mergeDocs } from "../api/_lib/decompose.js";
+import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "../api/_lib/decompose.js";
 
 // ── parseQueries ──
 test("parseQueries: 정상 JSON은 문자열 배열로", () => {
@@ -37,6 +37,22 @@ test("parseQueries: 빈 값 · 중복은 빼고, 각 80자까지 자름", () => 
   const long = "가".repeat(120);
   const [first] = parseQueries(`{"queries": ["${long}"]}`);
   assert.equal(first.length, 80);
+});
+
+// ── fallbackQuery (JSON이 아닐 때 예전 방식의 한 줄 검색어) ──
+test("fallbackQuery: 한 줄 검색어는 그대로", () => {
+  assert.equal(fallbackQuery("이중전공 신청 시기 신청 방법"), "이중전공 신청 시기 신청 방법");
+  assert.equal(fallbackQuery('"휴학 최대 기간"\n'), "휴학 최대 기간"); // 따옴표 · 줄바꿈 정리
+});
+
+test("fallbackQuery: 깨진 JSON · 81자 이상 · 빈 문자열은 null", () => {
+  assert.equal(fallbackQuery('{"queries": ["휴학 최대 기간"'), null);
+  assert.equal(fallbackQuery("휴학 최대 기간}"), null);
+  assert.equal(fallbackQuery("가".repeat(81)), null);
+  assert.equal(fallbackQuery("가".repeat(80)), "가".repeat(80));
+  assert.equal(fallbackQuery(""), null);
+  assert.equal(fallbackQuery("   \n "), null);
+  assert.equal(fallbackQuery(null), null);
 });
 
 // ── mergeDocs ──
@@ -96,6 +112,7 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
   Object.assign(process.env, ENV);
   let rewriteReply = "";
   let failEmbedFor = null;
+  let failAnswer = false;
   const embedTexts = [];
   const rpcUrls = [];
   let userPrompt = "";
@@ -122,6 +139,7 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
     }
     if (u.includes("HCX-005")) {
       userPrompt = body.messages[1].content;
+      if (failAnswer) return { ok: false, status: 500, json: async () => ({}) };
       return json({ result: { message: { content: "이중전공은 42학점입니다. [1]" }, finishReason: "stop", usage: { promptTokens: 10, completionTokens: 5 } } });
     }
     throw new Error(`unexpected fetch ${u}`);
@@ -153,6 +171,7 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
     assert.deepEqual(log.subQueryDocs, [1, 1]); // 유사도 차이 필터를 하위 질문별로 적용(0.6 조각 제외)
     assert.equal(log.rpc, "match_chunks");
     assert.equal(log.retrieval, "vector");
+    assert.equal(log.rewriteFormat, "json");
 
     // 2) 한쪽 벡터 검색만 실패 → 그쪽만 키워드 검색, 허용된 RPC 이름은 그대로
     process.env.CHUNKS_RPC = "match_chunks_next";
@@ -167,14 +186,33 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
     assert.equal(log.rpc, "match_chunks_next");
     assert.equal(log.subQueryDocs[0], 1);
 
-    // 3) JSON이 아니면 예전처럼 원래 질문 하나로 검색
+    // 3) JSON이 아니지만 한 줄 검색어면 예전 방식처럼 그 한 줄로 검색(rewriteFormat "line")
+    process.env.CHUNKS_RPC = "";
     failEmbedFor = null;
     embedTexts.length = 0;
     rewriteReply = "이중전공 이수 학점";
     await call("이중전공은 몇 학점이야?", "203.0.113.82");
-    assert.deepEqual(embedTexts, ["이중전공은 몇 학점이야?"]);
+    assert.deepEqual(embedTexts, ["이중전공 이수 학점"]);
     assert.equal(lastLog().subQueries, 1);
+    assert.equal(lastLog().rewritten, true);
+    assert.equal(lastLog().rewriteFormat, "line");
+
+    // 4) 깨진 JSON이면 원래 질문 하나로 검색(rewriteFormat "none")
+    embedTexts.length = 0;
+    rewriteReply = '{"queries": ["이중전공 이수 학점"';
+    await call("이중전공은 몇 학점이야?", "203.0.113.83");
+    assert.deepEqual(embedTexts, ["이중전공은 몇 학점이야?"]);
     assert.equal(lastLog().rewritten, false);
+    assert.equal(lastLog().rewriteFormat, "none");
+
+    // 5) AI 호출 실패 + 하위 질문 2개 → 각 하위 질문의 1등 근거를 하나씩 원문으로
+    failAnswer = true;
+    rewriteReply = '{"queries": ["이중전공 이수 학점", "부전공 이수 학점"]}';
+    const evidence = await call("이중전공과 부전공은 각각 몇 학점이야?", "203.0.113.84");
+    assert.equal(evidence.body.mode, "evidence");
+    assert.equal(evidence.body.answer, "이중전공은 42학점 10\n이중전공은 42학점 9");
+    assert.equal(lastLog().mode, "evidence");
+    failAnswer = false;
 
     // 질문 · 검색어 내용은 로그에 없음
     assert.equal(/이수 학점|몇 학점이야/.test(logs.join("\n")), false);
@@ -187,4 +225,28 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
       else process.env[k] = v;
     }
   }
+});
+
+// ── evidenceDocs (AI 실패 시 보여 줄 근거 원문) ──
+test("evidenceDocs: 하위 질문이 둘이면 각 1등을 하나씩", () => {
+  const a = [doc("a1", 0.9), doc("a2", 0.85)];
+  const b = [doc("b1", 0.7), doc("b2", 0.65)];
+  assert.deepEqual(evidenceDocs([a, b], mergeDocs([a, b])).map((d) => d.title), ["a1", "b1"]);
+});
+
+test("evidenceDocs: 한쪽이 비었거나 1등이 같으면 합친 근거 앞쪽으로 채움", () => {
+  const a = [doc("a1", 0.9), doc("a2", 0.85)];
+  assert.deepEqual(evidenceDocs([a, []], mergeDocs([a, []])).map((d) => d.title), ["a1", "a2"]);
+  const shared = doc("공통", 0.9);
+  const b = [{ ...shared }, doc("b1", 0.7)];
+  const c = [{ ...shared }, doc("c1", 0.6)];
+  assert.deepEqual(evidenceDocs([b, c], mergeDocs([b, c])).map((d) => d.title), ["공통", "b1"]);
+  // 하위 질문별 결과가 모두 비고 키워드 검색으로 다시 찾은 경우
+  const kw = [doc("k1", 0), doc("k2", 0), doc("k3", 0)];
+  assert.deepEqual(evidenceDocs([[], []], kw).map((d) => d.title), ["k1", "k2"]);
+});
+
+test("evidenceDocs: 하위 질문이 하나면 앞의 2개", () => {
+  const a = [doc("a1", 0.9), doc("a2", 0.85), doc("a3", 0.8)];
+  assert.deepEqual(evidenceDocs([a], mergeDocs([a])).map((d) => d.title), ["a1", "a2"]);
 });

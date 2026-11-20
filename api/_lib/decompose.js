@@ -2,7 +2,9 @@
  * 검색창 질문 쪼개기 도우미 (api/ask.js에서 씀). 네트워크를 부르지 않는 순수 함수만 둡니다.
  *
  * - parseQueries(text): 검색어 정리 모델의 출력 {"queries": [...]}를 읽어 하위 질문(검색어) 배열로 바꿉니다.
+ * - fallbackQuery(text): JSON이 아닐 때 모델 출력이 한 줄 검색어면 그 한 줄을 씁니다(예전 방식).
  * - mergeDocs(lists, opts): 하위 질문별 검색 결과를 중복 없이 하나의 근거 목록으로 합칩니다.
+ * - evidenceDocs(lists, merged): AI 호출 실패 시 보여 줄 근거 원문을 고릅니다(하위 질문마다 1등 하나씩).
  *
  * 테스트: tests/decompose.test.js (npm test)
  */
@@ -82,4 +84,32 @@ export function mergeDocs(lists, { perQuery = 3, max = 6 } = {}) {
   return [...picked.values()]
     .sort((a, b) => a.queryIndex - b.queryIndex || a.rank - b.rank)
     .map((entry) => entry.doc);
+}
+
+// JSON을 읽지 못했을 때의 예비 검색어(예전 방식): 모델 출력이 한 줄 검색어면 그 한 줄을 씁니다.
+// 따옴표 · 줄바꿈을 정리한 뒤 1~80자이고 { 나 }가 없어야 합니다(깨진 JSON을 검색어로 쓰지 않게). 아니면 null입니다.
+export function fallbackQuery(text) {
+  if (typeof text !== "string") return null;
+  const query = text.replace(/["'`\n\r]/g, " ").replace(/\s+/g, " ").trim();
+  if (!query || query.length > MAX_SUB_QUERY_LENGTH || /[{}]/.test(query)) return null;
+  return query;
+}
+
+// AI 호출이 실패했을 때 보여 줄 근거 원문을 고릅니다(최대 n개).
+// 하위 질문이 둘 이상이면 각 하위 질문의 1등 근거를 하나씩, 모자라면 합친 근거(merged) 앞쪽으로 채웁니다.
+// 하위 질문이 하나면 합친 근거의 앞 n개입니다.
+export function evidenceDocs(lists, merged, n = 2) {
+  const safeMerged = Array.isArray(merged) ? merged : [];
+  const safeLists = Array.isArray(lists) ? lists : [];
+  if (safeLists.length <= 1) return safeMerged.slice(0, n);
+  const picked = new Map();
+  for (const list of safeLists) {
+    const first = Array.isArray(list) ? list[0] : null;
+    if (first && picked.size < n && !picked.has(docKey(first))) picked.set(docKey(first), first);
+  }
+  for (const doc of safeMerged) {
+    if (picked.size >= n) break;
+    if (!picked.has(docKey(doc))) picked.set(docKey(doc), doc);
+  }
+  return [...picked.values()];
 }
