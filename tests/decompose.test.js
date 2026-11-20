@@ -263,6 +263,14 @@ test("unsupportedNumbers: 근거에 없던 숫자 · 시기 표현만 중복 없
   assert.deepEqual(unsupportedNumbers("36학점, 36학점, 2025학번, 7학기 [1]", docs), { numbers: ["36", "2025", "7"], timeWords: [] });
   // 근거에 없는 시기 표현
   assert.deepEqual(unsupportedNumbers("Apply in early March. [1]", docs), { numbers: [], timeWords: ["march"] });
+  // 줄 맨 앞의 목록 번호(1. · 2) · ①)는 검사에서 빼고, 문장 안의 숫자는 그대로 검사
+  const listed = "1. 25학번 이후는 32학점 이상입니다. [1]\n2) 신청은 학기마다 합니다.\n3. 성적 기준이 있습니다.\n  4. 면담이 필요합니다.\n① 서류를 냅니다.";
+  assert.deepEqual(unsupportedNumbers(listed, docs), { numbers: [], timeWords: [] });
+  assert.deepEqual(unsupportedNumbers("1. 2025학번 이후는 36학점입니다.\n3. 4학기 이상 다녀야 합니다.", docs), { numbers: ["2025", "36", "4"], timeWords: [] });
+  // 줄 맨 앞이 아닌 "3. "은 문장 안의 숫자로 검사, 줄 맨 앞의 날짜 · 연도는 번호로 보지 않음
+  // (근거 검사는 부분 문자열 기준이라 "3"은 근거의 "32"에 포함돼 통과하므로, 근거에 없는 7로 확인)
+  assert.deepEqual(unsupportedNumbers("조건은 7. 입니다.", docs), { numbers: ["7"], timeWords: [] });
+  assert.deepEqual(unsupportedNumbers("2026.03.02 개강\n2025. 신청", docs), { numbers: ["2026.03", "02", "2025"], timeWords: [] });
 });
 
 test("ask.js: 숫자 근거 검사에 걸리면 evidence 로그에 근거에 없던 숫자만(최대 5개), 문장은 남기지 않음", async () => {
@@ -304,6 +312,8 @@ test("ask.js: 숫자 근거 검사에 걸리면 evidence 로그에 근거에 없
     assert.equal(log.unsupportedTimeWords, 0);
     assert.equal(/학번|학점|이중전공/.test(logs.join("\n")), false); // 질문 · 답 문장은 없음
     assert.match(systemPrompt, /'25학번'이면 '2025학번'으로 바꾸지 않는다/);
+    assert.match(systemPrompt, /이름이 다른 제도의 규칙을 질문한 제도의 규칙처럼 말하지 않는다/);
+    assert.match(systemPrompt, /번호를 붙이지 말고 문장으로 이어 쓴다/);
   } finally {
     globalThis.fetch = originalFetch;
     console.log = originalLog;
