@@ -216,7 +216,7 @@ export const BUILDING_INFO = {
       o("학술연구자료실", "Research collection", "4F", null, "정보봉사파트 자료실", "Information services collection", "phone"),
       o("매점", "Snack shop", "6F", null, "간식 · 음료 판매", "Snacks and drinks", "phone"),
       o("빵명장", "Bbang Myeongjang bakery", null, null, "건물 뒤 베이커리 카페", "Bakery café behind the building", "welfare"),
-      o("자료실 이용시간", "Collection hours", null, null, "학기 중 평일 09:00~21:00 · 토 09:00~17:00, 방학 중 평일 · 토 09:00~17:00, 공휴일 폐실", "Semester: weekdays 09:00-21:00, Sat 09:00-17:00; vacation: weekdays and Sat 09:00-17:00; closed on holidays", "guide2026"),
+      o("자료실 이용시간", "Collection hours", null, null, "학기 중 평일 09:00~21:00, 학기 중 토요일 09:00~17:00, 방학 중 평일·토요일 09:00~17:00, 공휴일 폐실", "Semester weekdays 09:00-21:00, semester Saturdays 09:00-17:00, vacation weekdays and Saturdays 09:00-17:00, closed on holidays", "guide2026"),
       o("제1 · 제2자유열람실", "Reading Rooms 1 & 2", null, null, "24시간 개방", "Open 24 hours", "guide2026"),
       o("제3 · 제4자유열람실", "Reading Rooms 3 & 4", null, null, "06:00~23:00", "06:00-23:00", "guide2026"),
     ],
