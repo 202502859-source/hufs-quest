@@ -4,26 +4,73 @@ import * as cheerio from "cheerio";
 
 const HEADING = "\u0000H"; // 소제목 표시용 내부 기호
 const NOISE = [/^\/WEB-INF\//, /^hufs_sub/, /^fnctId=/, /^RSS 2\.0$/, /^콘텐츠 담당자$/];
-// 개인 연락처 줄(사람 이름이 붙은 연락처)만 지웁니다. 부서 대표 전화 · 부서 공용 메일 줄은 남깁니다.
-//   지움: "담당자 홍길동", "홍길동 선생님 02-…", "김○○ 주무관 (내선 2130)", 개인 메일(gildong@hufs.ac.kr)
-//   남김: "문의 : 학사종합지원센터 TEL : 02-2173-2130", "인사팀 | 인사팀장 | 2163"(직책만), "E-MAIL : haksamil@hufs.ac.kr"
+// 개인 연락처 가림(11/20 3차): 줄은 지우지 않습니다. 메일 주소는 기본으로 남깁니다.
+// 같은 줄에 사람 이름 표시("담당자 ○○○", "○○○ 선생님 · 주무관 · 교수")가 있을 때만
+// 그 이름과 그 줄의 메일 · 직통번호(전화 · 내선)를 "(개인 연락처 생략)"으로 바꿉니다. "대표" 번호와 나머지 문장은 남김.
+//   예: "담당자 홍길동 (gildong@hufs.ac.kr, 02-2173-1234)" → "담당자 (개인 연락처 생략)"
+//   남김: "BRICs(브릭스)전공 e-mail: brics@hufs.ac.kr", "인사팀 | 인사팀장 | 2163"(직책만), "비전임 교수 | 3322"
 const PHONE = /(^|[^\d])0\d{1,2}[-.)\s]\s?\d{3,4}[-.\s]\d{4}(?!\d)/; // 02-2173-2112, 031-330-4027, 02)2173-2112
+const PHONE_G = /0\d{1,2}[-.)\s]\s?\d{3,4}[-.\s]\d{4}(?!\d)/g;
+const EXT_G = /(내선\s*)?(?<![\d.~-])\d{4}(?![\d.~-]|\s*(학|년|월|원|명|개|시|호|층|번|~))/g; // 이름 줄의 내선 "2130", "내선 2130"(연도 · 호실은 제외)
 const EXTENSION = /\|\s*(\d{3,4}-)?\d{4}(\s*,\s*[\d-]+)*$/; // 전화안내 표의 "부서 | 2175" 내선
 const EMAIL = /([\w.+-]+)@[\w-]+(\.[\w-]+)+/g;
 const NAME = "[가-힣]{2,4}|[가-힣]○{1,3}";
-const UNIT_END = /(팀|과|실|처|부|센터|위원회|사무국)$/; // "담당자 장학팀"처럼 이름 자리에 부서가 온 경우
-const MANAGER = new RegExp(`^(콘텐츠\\s*)?담당자\\s*[:：]?\\s*(${NAME})(?=$|[\\s,(|/])`);
-const NAME_TITLE = new RegExp(`(^|[\\s|:,(·/])(${NAME})\\s*(선생님|주무관|님)(?=$|[\\s|,):/])`);
-// 부서 공용 메일로 보는 아이디(이 낱말이 들어 있으면 남김). 새 부서 메일이 지워지면 여기에 추가하세요.
-const SHARED_MAIL = /(hufs|haksa|academic|office|admin|info|help|support|center|scholar|janghak|intl|international|global|dorm|hall|career|job|counsel|library|webmaster|master|team|dept|edu|ctl|service|desk|contact)/i;
+// 이름 자리에 부서 · 직위가 온 경우(사람 이름이 아님)
+const NOT_NAME = /(팀|과|실|처|부|센터|위원회|사무국|학과|전공|대학|학부)$|^(비전임|전임|명예|초빙|객원|겸임|주임|외국인|지도|담당|소속|해당|전공|학과)$/;
+const MANAGER = new RegExp(`(^|[\\s|:,(·/])((콘텐츠\\s*)?담당자\\s*[:：]?\\s*)(${NAME})(?=$|[\\s,()|/])`, "g");
+const NAME_TITLE = new RegExp(`(^|[\\s|:,(·/])(${NAME})\\s*(선생님|주무관|교수)(?=$|[\\s|,():/])`, "g");
+const MASK = "(개인 연락처 생략)";
+const TOKEN = "\u0001P\u0001";
 
+function nameHits(line) {
+  const hits = [];
+  for (const m of line.matchAll(MANAGER)) if (!NOT_NAME.test(m[4])) hits.push({ kind: "manager", m });
+  for (const m of line.matchAll(NAME_TITLE)) if (!NOT_NAME.test(m[2])) hits.push({ kind: "title", m });
+  return hits;
+}
+
+// 줄에 사람 이름 표시가 있는지(가린 뒤에는 false가 되어야 함)
 export function isPersonalContact(line) {
-  const manager = line.match(MANAGER);
-  if (manager && !UNIT_END.test(manager[2])) return true;
-  const named = line.match(NAME_TITLE);
-  if (named && !UNIT_END.test(named[2]) && (PHONE.test(line) || /@|내선|\d{4}/.test(line))) return true;
-  for (const [, id] of line.matchAll(EMAIL)) if (!SHARED_MAIL.test(id)) return true;
-  return false;
+  return nameHits(line).length > 0;
+}
+
+// 반환: { line: 가린 줄, masked: 가렸는지, emails: 가린 메일 아이디(@ 앞) }
+// " / "로 나뉜 줄은 이름이 있는 구간만 가립니다.
+//   예: "문의 : 생협 사무국 031-330-4192 / 담당자 : 홍길동 팀장" → 사무국 번호는 남기고 이름만 가림
+export function maskPersonalContact(line) {
+  if (!isPersonalContact(line)) return { line, masked: false, emails: [] };
+  const parts = line.split(/(\s\/\s)/);
+  if (parts.length > 1) {
+    const emails = [];
+    const out = parts.map((part, i) => {
+      if (i % 2 || !isPersonalContact(part)) return part;
+      const r = maskSegment(part);
+      emails.push(...r.emails);
+      return r.line;
+    });
+    return { line: out.join(""), masked: true, emails };
+  }
+  return { ...maskSegment(line), masked: true };
+}
+
+function maskSegment(line) {
+  const emails = [...line.matchAll(EMAIL)].map((m) => m[1]);
+  let out = line
+    .replace(MANAGER, (all, pre, label, _c, name) => (NOT_NAME.test(name) ? all : `${pre}${label}${TOKEN}`))
+    .replace(NAME_TITLE, (all, pre, name) => (NOT_NAME.test(name) ? all : `${pre}${TOKEN}`))
+    .replace(EMAIL, TOKEN)
+    .replace(PHONE_G, (num, offset, str) => (/대표\s*(번호|전화)?\s*[:：]?\s*$/.test(str.slice(Math.max(0, offset - 12), offset)) ? num : TOKEN))
+    .replace(EXT_G, TOKEN);
+  // 붙어 있는 가림 표시는 하나로: "(⟪P⟫, ⟪P⟫)" → "⟪P⟫", "⟪P⟫ / ⟪P⟫" → "⟪P⟫"
+  const t = TOKEN.replace(/\u0001/g, "\\u0001");
+  out = out
+    .replace(new RegExp(`${t}(\\s*[,/·|]?\\s*${t})+`, "g"), TOKEN)
+    .replace(new RegExp(`\\s*\\(\\s*${t}\\s*\\)`, "g"), ` ${TOKEN}`)
+    .replace(new RegExp(`${t}(\\s*[,/·|]?\\s*${t})+`, "g"), TOKEN)
+    .replaceAll(TOKEN, MASK)
+    .replace(/\s+/g, " ")
+    .trim();
+  return { line: out, emails };
 }
 
 // 부서 연락처(전화 · 내선 · 공용 메일)가 들어 있는 조각은 40자 미만이어도 남깁니다(문의 조각 · 전화안내 페이지).
@@ -57,18 +104,19 @@ export function extractPage(html) {
   });
   main.find("p, div, li, br, dt, dd, h5, h6").each((_, el) => { $(el).append("\n"); });
 
-  let personalRemoved = 0;
-  const personalEmails = []; // 지운 줄에 있던 메일 아이디(@ 앞)만. 부서 메일이 잘못 지워졌는지 사람이 확인하는 용도
-  const lines = main.text().split("\n").map(clean).map(stripFootnotes).filter((line) => {
-    if (!line || NOISE.some((re) => re.test(line))) return false;
-    if (isPersonalContact(line)) {
-      personalRemoved += 1;
-      for (const [, id] of line.matchAll(EMAIL)) personalEmails.push(id);
-      return false;
-    }
-    return true;
-  });
-  return { title, lines, personalRemoved, personalEmails };
+  let personalMasked = 0;
+  const personalEmails = []; // 가린 메일 아이디(@ 앞)만. 부서 메일이 잘못 가려졌는지 사람이 확인하는 용도
+  const lines = main.text().split("\n").map(clean).map(stripFootnotes)
+    .filter((line) => line && !NOISE.some((re) => re.test(line)))
+    .map((line) => {
+      const r = maskPersonalContact(line);
+      if (r.masked) {
+        personalMasked += 1;
+        personalEmails.push(...r.emails);
+      }
+      return r.line;
+    });
+  return { title, lines, personalMasked, personalEmails };
 }
 
 // 머리글에 [글로벌] 표시가 붙은 조각(글로벌캠퍼스 전용 기준). 서울캠퍼스 서비스라 collect가 저장하지 않습니다.

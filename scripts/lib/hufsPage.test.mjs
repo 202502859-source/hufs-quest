@@ -3,35 +3,65 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact, isGlobalOnly, dropGlobalOnly } from "./hufsPage.mjs";
+import { extractPage, toChunks, stripFootnotes, campusTag, isPersonalContact, maskPersonalContact, isGlobalOnly, dropGlobalOnly } from "./hufsPage.mjs";
 
 const page = (body) => `<html><head><title>t</title></head><body>
 <div class="menu-title">휴·복학</div><div id="subContent">${body}</div></body></html>`;
 
 const LONG = "휴학은 학기 개시일 전까지 학사정보시스템에서 신청하며, 일반휴학은 통산 6학기까지 가능합니다.";
 
-test("개인 연락처 줄 제거: 사람 이름이 붙은 연락처 · 개인 메일만 지움", () => {
-  const { lines, personalRemoved } = extractPage(page(`
+test("개인 연락처 가림: 이름 표시가 있는 줄은 지우지 않고 이름 · 메일 · 직통번호만 가림", () => {
+  const M = "(개인 연락처 생략)";
+  assert.equal(maskPersonalContact("담당자 홍길동 (gildong@hufs.ac.kr, 02-2173-1234)").line, `담당자 ${M}`);
+  assert.equal(maskPersonalContact("담당자 : 김○○ (내선 2130)").line, `담당자 : ${M}`);
+  assert.equal(maskPersonalContact("학사종합지원센터 홍길동 선생님 02-2173-1234").line, `학사종합지원센터 ${M}`);
+  assert.equal(maskPersonalContact("장학팀 이영희 주무관 | 2135").line, `장학팀 ${M}`);
+  assert.equal(maskPersonalContact("지도 : 박철수 교수 (cspark@hufs.ac.kr)").line, `지도 : ${M}`);
+  // 대표번호와 나머지 문장은 남김
+  assert.equal(
+    maskPersonalContact("학사종합지원센터(대표 02-2173-2114) 담당자 홍길동 02-2173-1234, 2026학년도 신청 접수").line,
+    `학사종합지원센터(대표 02-2173-2114) 담당자 ${M}, 2026학년도 신청 접수`,
+  );
+  // " / "로 나뉜 줄: 부서 번호 구간은 남기고 이름 구간만 가림(11325 생협 문의 줄 형태)
+  assert.equal(
+    maskPersonalContact("문의 : 생협 사무국(후생관 3층) 031-330-4192, 4060 / 담당자 : 홍길동 총무팀장").line,
+    `문의 : 생협 사무국(후생관 3층) 031-330-4192, 4060 / 담당자 : ${M} 총무팀장`,
+  );
+  const { lines, personalMasked } = extractPage(page(`
     <h2>문의</h2>
-    <p>담당자 홍길동</p>
-    <p>담당자 : 김○○ (내선 2130)</p>
-    <p>홍길동 선생님 02-2173-1234</p>
-    <p>이영희 주무관 | 2135</p>
-    <p>E-MAIL : gildong@hufs.ac.kr</p>
+    <p>담당자 홍길동 (gildong@hufs.ac.kr, 02-2173-1234)</p>
     <p>서울 학사종합지원센터</p>
   `));
-  assert.equal(personalRemoved, 5);
-  assert.deepEqual(lines.slice(1), ["서울 학사종합지원센터"]);
+  assert.equal(personalMasked, 1);
+  assert.deepEqual(lines.slice(1), [`담당자 ${M}`, "서울 학사종합지원센터"]);
+  for (const line of lines) assert.equal(isPersonalContact(line), false, `가린 뒤에도 이름 표시: ${line}`);
 });
 
-test("지운 줄의 메일 아이디만 돌려줌(부서 메일 · 남은 줄의 메일은 없음)", () => {
-  const { personalEmails } = extractPage(page(`
+test("가린 메일 아이디만 돌려줌(이름 표시 없는 줄의 메일은 남고 목록에도 없음)", () => {
+  const { personalEmails, lines } = extractPage(page(`
     <p>E-MAIL : gildong@hufs.ac.kr</p>
     <p>홍길동 선생님 hong.gd@hufs.ac.kr</p>
     <p>E-MAIL : haksamil@hufs.ac.kr</p>
-    <p>담당자 홍길동</p>
   `));
-  assert.deepEqual(personalEmails, ["gildong", "hong.gd"]);
+  assert.deepEqual(personalEmails, ["hong.gd"]);
+  assert.ok(lines.includes("E-MAIL : gildong@hufs.ac.kr"));
+  assert.ok(lines.includes("E-MAIL : haksamil@hufs.ac.kr"));
+});
+
+test("전공 · 부서 메일은 그대로 남음(11/20 2차 collect에서 잘못 지워졌던 14개 형태)", () => {
+  assert.equal(maskPersonalContact("BRICs(브릭스)전공 e-mail: brics@hufs.ac.kr").line, "BRICs(브릭스)전공 e-mail: brics@hufs.ac.kr");
+  const ids = ["brics", "euliaison", "neasia", "muncon21", "nationalleader.seoul", "dhks", "aic", "langai", "bizai", "psych", "notice", "haksa", "hufspr", "infra"];
+  for (const id of ids) {
+    for (const line of [`E-mail : ${id}@hufs.ac.kr`, `학사종합지원센터 TEL: 02-2173-2109 e-mail: ${id}@hufs.ac.kr`, `${id}@hufs.ac.kr`]) {
+      const r = maskPersonalContact(line);
+      assert.equal(r.masked, false, line);
+      assert.equal(r.line, line);
+    }
+  }
+  // 직위 · 부서만 있는 줄도 이름으로 보지 않음
+  for (const line of ["비전임 교수 | 3322", "외국인 교수 02-2173-2792", "인사팀 | 인사팀장 | 2163", "담당자 장학팀 02-2173-2138"]) {
+    assert.equal(isPersonalContact(line), false, line);
+  }
 });
 
 test("글로벌 전용 조각 제외: 머리글이 [글로벌]인 조각만 빼고 [서울] · 표시 없음은 그대로", () => {
@@ -62,8 +92,8 @@ test("부서 대표 전화 · 부서 공용 메일 · 직책만 있는 줄은 �
     "서울 2015-2024 입학생",
   ];
   for (const line of keep) assert.equal(isPersonalContact(line), false, line);
-  const { lines, personalRemoved } = extractPage(page(keep.map((t) => `<p>${t}</p>`).join("")));
-  assert.equal(personalRemoved, 0);
+  const { lines, personalMasked } = extractPage(page(keep.map((t) => `<p>${t}</p>`).join("")));
+  assert.equal(personalMasked, 0);
   assert.deepEqual(lines, keep);
 });
 
