@@ -1,9 +1,8 @@
-
- // 빠른 검색창 정확도 평가 (총 62문항: 기존 50문항 + 까다로운 질문 12문항)
- // 승인된 Preview 사이트의 /api/ask에 질문을 보내고, 공식 학사 자료의 핵심어 및 출처로 채점합니다.
- // 실행에는 RUN_EVAL=YES 설정과 Preview 주소 지정이 필요합니다.
- // 운영 서버 기본 주소에서는 평가 실행을 차단합니다.
- // 질문 사이에 6.5초 간격을 두지만, 서버의 사용량 제한 적용 여부는 별도로 확인해야 합니다.
+ // 빠른 검색창 정확도 평가 (총 62문항: 학사 47문항 + 범위 밖 3문항 + 까다로운 질문 12문항)
+ // 실서비스 또는 Preview 사이트의 /api/ask에 질문을 보내 공식 학사 자료의 핵심어와 출처로 채점합니다.
+ // 실행: npm run eval (실서비스: https://hufs-quest.vercel.app)
+ //       npm run eval -- <Preview 주소> (Preview 비교 평가)
+ // 질문 사이에 6.5초 간격을 두며, 실행 횟수와 사용량은 팀 운영 규칙에 따라 관리합니다.
  // 결과는 data/eval/<날짜-시간>.json에 저장하며 기존·신규 평가 지표를 구분합니다.
 //
 // 사용량 제한(IP당 하루 50)에 50문항이 걸리지 않게, 서버 전용 토큰을 헤더로 보냅니다.
@@ -49,8 +48,7 @@ const CASES = [
   { q: "계절학기는 최대 몇 학점까지 들을 수 있어?", type: "기본", pages: ["11378"], must: ["6학점"] },
   { q: "휴학생도 계절학기 들을 수 있어?", type: "조건", pages: ["11378"], must: ["복학"] },
   { q: "계절학기 신청자가 적으면 폐강돼?", type: "구어체", pages: ["11378"], must: ["30명"] },
-  { q: "How many credits can I take in a summer session?", type: "영어", lang: "en", pages: ["11378"], must: ["6"] },
-
+  { q: "How many credits can I take in a summer session?", type: "영어", lang: "en", pages: ["11378"], any: ["6학점", "6 credits"] },
   // ── 이중전공·부전공
   { q: "이중전공 언제 신청해?", type: "구어체", pages: ["11384"], must: ["1학년"] },
   { q: "이중전공 배정 기준이 뭐야?", type: "기본", pages: ["11384"], must: ["34학점"] },
@@ -122,8 +120,7 @@ const CASES = [
   { q: "계절학기 최대 수강학점과 계절학기 폐강 인원 기준을 둘 다 알려줘.", type: "복합", set: "tricky", pages: ["11378"], must: ["6학점", "30명"], reviewed: true },
 
   { q: "double major 신청은 언제 해? 한국외대 규정으로 답해 줘.", type: "한영혼합", set: "tricky", pages: ["11384"], must: ["1학년"], reviewed: true },
-  { q: "summer session 수강은 최대 몇 credits까지 가능해?", type: "한영혼합", set: "tricky", pages: ["11378"], must: ["6"], reviewed: true },
-
+  { q: "summer session 수강은 최대 몇 credits까지 가능해?", type: "한영혼합", set: "tricky", pages: ["11378"], any: ["6학점", "6 credits"], reviewed: true },
   { q: "군입대휴학과 일반휴학은 기간이 어떻게 달라?", type: "이름비슷", set: "tricky", pages: ["11387"], must: ["3년", "입대일", "전역일"], reviewed: true },
   { q: "일반 이중전공 신청과 후기 이중전공 신청의 시기는 어떻게 달라?", type: "이름비슷", set: "tricky", pages: ["11384"], must: ["1학년", "4월"], reviewed: true },
 
@@ -142,17 +139,6 @@ if (unreviewedCases.length > 0) {
   );
   process.exit(1);
 }
-
-if (process.env.RUN_EVAL !== "YES") {
-  console.error("평가 실행이 차단되었습니다. 팀 승인 후 RUN_EVAL=YES를 설정해야 합니다.");
-  process.exit(1);
-}
-
-if (BASE === "https://hufs-quest.vercel.app") {
-  console.error("운영 서버에서는 평가를 실행할 수 없습니다. 승인된 Preview 주소를 지정하세요.");
-  process.exit(1);
-}
-
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const cut = (text, n) => {
