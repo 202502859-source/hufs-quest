@@ -1,6 +1,7 @@
 # 수집할 공개 학사 페이지 (로그인 없이 열리는 페이지만)
 # robots.txt 확인: /hufs/<번호>/subview.do 는 허용, ?enc= 주소와 /bbs/ 게시판은 금지라 넣지 않습니다.
 # 한 줄에 하나. '#' 뒤는 메모입니다. 식당 메뉴처럼 매주 바뀌는 페이지는 넣지 않습니다.
+# 11/20 사이트맵(/hufs/11425)에서 48개 추가
 
 # 학사일정 (11/19 추가) — 대학 학사일정. 서울 · 글로벌 구분 없는 공통 일정, 2026학년도 전체와 2027년 초 날짜가 있음
 # 11/20 재반영(범위 문장 추가)
@@ -42,3 +43,69 @@ https://www.hufs.ac.kr/hufs/11304/subview.do  # 증명서
 https://www.hufs.ac.kr/hufs/11301/subview.do  # 보건진료
 https://www.hufs.ac.kr/hufs/11323/subview.do  # 주차시설
 https://www.hufs.ac.kr/hufs/11159/subview.do  # 전화안내
+
+# 학사 · 교육과정 · 수업
+https://www.hufs.ac.kr/hufs/11375/subview.do  # 교육과정 > 교과과정일람
+https://www.hufs.ac.kr/hufs/12647/subview.do  # 수업 및 성적 > 강의평가 및 결과 공개
+https://www.hufs.ac.kr/hufs/11399/subview.do  # 교직과정 > 기본이수과목 및 교과교육과목 현황
+
+# 학사 · 융합전공 (서울 학생 이중전공 · 부전공 대상, 캠퍼스 표시는 수집 때 자동)
+https://www.hufs.ac.kr/hufs/11254/subview.do  # 융합전공
+https://www.hufs.ac.kr/hufs/11255/subview.do  # 융합전공 > BRICs(브릭스)전공
+https://www.hufs.ac.kr/hufs/11256/subview.do  # 융합전공 > EU(유럽연합)전공
+https://www.hufs.ac.kr/hufs/11257/subview.do  # 융합전공 > 동북아외교통상전공
+https://www.hufs.ac.kr/hufs/11258/subview.do  # 융합전공 > 문화콘텐츠학전공
+https://www.hufs.ac.kr/hufs/11259/subview.do  # 융합전공 > 국가리더전공
+https://www.hufs.ac.kr/hufs/11260/subview.do  # 융합전공 > 세계문화예술경영전공
+https://www.hufs.ac.kr/hufs/11261/subview.do  # 융합전공 > 디지털인문한국학전공
+https://www.hufs.ac.kr/hufs/11262/subview.do  # 융합전공 > AI융합전공
+https://www.hufs.ac.kr/hufs/11263/subview.do  # 융합전공 > 데이터사이언스전공
+https://www.hufs.ac.kr/hufs/11264/subview.do  # 융합전공 > 바이오데이터사이언스전공
+https://www.hufs.ac.kr/hufs/11265/subview.do  # 융합전공 > 상담·UX심리전공
+https://www.hufs.ac.kr/hufs/15032/subview.do  # 융합전공 > Business & AI 전공
+https://www.hufs.ac.kr/hufs/15033/subview.do  # 융합전공 > 융복합소프트웨어전공
+https://www.hufs.ac.kr/hufs/11266/subview.do  # 융합전공 > 지역경제개발협력전공
+https://www.hufs.ac.kr/hufs/11267/subview.do  # 융합전공 > 보험계리학전공
+
+# 학사 · 규정 (학칙 전문 위치 안내)
+https://www.hufs.ac.kr/hufs/11150/subview.do  # 현황 > 전자규정집 > 전자규정집
+https://www.hufs.ac.kr/hufs/11151/subview.do  # 현황 > 전자규정집 > 최근 개정 제정 폐지 규정
+
+# 학생생활 · 증명서 · 정보서비스
+https://www.hufs.ac.kr/hufs/11330/subview.do  # 정보서비스 > 인터넷증명발급
+https://www.hufs.ac.kr/hufs/11331/subview.do  # 정보서비스 > 모바일서비스
+https://www.hufs.ac.kr/hufs/11333/subview.do  # 정보서비스 > 무선네트워크
+https://www.hufs.ac.kr/hufs/11334/subview.do  # 정보서비스 > 무선네트워크 > Eduroam(에듀롬)사용안내
+https://www.hufs.ac.kr/hufs/11335/subview.do  # 정보서비스 > 무선네트워크 > 서울 캠퍼스
+https://www.hufs.ac.kr/hufs/11337/subview.do  # 정보서비스 > 홈페이지
+https://www.hufs.ac.kr/hufs/11338/subview.do  # 정보서비스 > S/W
+https://www.hufs.ac.kr/hufs/11340/subview.do  # 정보서비스 > e-mail 서비스
+https://www.hufs.ac.kr/hufs/11341/subview.do  # 정보서비스 > 국제전화 서비스
+
+# 학생생활 · 지원 · 장애학생
+https://www.hufs.ac.kr/hufs/11300/subview.do  # 학생지원
+https://www.hufs.ac.kr/hufs/11303/subview.do  # 학생지원 > 현장실습
+https://www.hufs.ac.kr/hufs/11307/subview.do  # 장애학생지원
+https://www.hufs.ac.kr/hufs/11308/subview.do  # 장애학생지원 > 주요시설 및 설비
+https://www.hufs.ac.kr/hufs/11309/subview.do  # 장애학생지원 > 교육복지
+
+# 학생생활 · 병무 · 학군단
+https://www.hufs.ac.kr/hufs/11296/subview.do  # 학생활동 > 예비군·병무
+https://www.hufs.ac.kr/hufs/11297/subview.do  # 학생활동 > 예비군·병무 > 병무
+https://www.hufs.ac.kr/hufs/11298/subview.do  # 학생활동 > 예비군·병무 > 민방위
+https://www.hufs.ac.kr/hufs/11294/subview.do  # 학생활동 > 학군단(ROTC)
+
+# 학생생활 · 복지시설 · 학생활동
+https://www.hufs.ac.kr/hufs/11316/subview.do  # 시설이용 > 복지
+https://www.hufs.ac.kr/hufs/11325/subview.do  # 시설이용 > 생활협동조합
+https://www.hufs.ac.kr/hufs/11321/subview.do  # 시설이용 > 시설/차량운행
+https://www.hufs.ac.kr/hufs/11292/subview.do  # 학생활동 > 동아리
+https://www.hufs.ac.kr/hufs/11293/subview.do  # 학생활동 > 체육생활
+https://www.hufs.ac.kr/hufs/11289/subview.do  # HUFS 문의 > FAQ
+
+# 기숙사 (서울)
+https://www.hufs.ac.kr/hufs/11313/subview.do  # 시설이용
+https://www.hufs.ac.kr/hufs/11314/subview.do  # 시설이용 > 기숙사 > GLOBAL HALL(서울)
+
+# 진로취업
+https://www.hufs.ac.kr/hufs/11302/subview.do  # 학생지원 > 진로 취업
