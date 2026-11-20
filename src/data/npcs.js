@@ -42,8 +42,8 @@ const LINES = {
     en: ["This is the Library.\nI hope you find a great book today."],
   },
   union: {
-    ko: ["여기는 학생회관 및 기숙사예요.\n캠퍼스 생활이 궁금하면 또 들러 주세요."],
-    en: ["This is the Student Union & Dorm.\nCome back any time to learn about campus life."],
+    ko: ["여기는 국제학사 및 학생회관이에요.\n캠퍼스 생활이 궁금하면 또 들러 주세요."],
+    en: ["This is GlobeeDorm & Student Union.\nCome back any time to learn about campus life."],
   },
   gatehouse: {
     ko: ["한국외대 서울캠퍼스에 오신 걸 환영해요!\n이곳은 정문안내실이에요.", "건물 앞의 안내원들에게 말을 걸어 보세요.\n스페이스바를 누르면 대화할 수 있어요."],
