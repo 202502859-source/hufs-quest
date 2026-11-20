@@ -21,7 +21,7 @@ const collectedAt = new Date().toISOString();
 const all = [];
 const failed = [];
 const tablePages = []; // 표 정리 조각을 만든 페이지 (검수 파일용)
-let privacyRemoved = 0; // 지운 개인정보 줄 수(전화번호 · 이메일 · 담당자 이름)
+let personalRemoved = 0; // 지운 개인 연락처 줄 수(사람 이름이 붙은 연락처 · 개인 메일)
 
 for (const [i, url] of urls.entries()) {
   const pageId = url.match(/\/(\d+)\/subview\.do/)?.[1] ?? `p${i + 1}`;
@@ -29,8 +29,8 @@ for (const [i, url] of urls.entries()) {
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const html = await res.text();
-    const { title, lines, privacyRemoved: removed } = extractPage(html);
-    privacyRemoved += removed;
+    const { title, lines, personalRemoved: removed } = extractPage(html);
+    personalRemoved += removed;
     if (!lines.length) throw new Error("본문 없음");
     // 학사일정 페이지는 날짜마다 연도를 붙인 줄로 바꿉니다(scripts/lib/calendarPage.mjs). 구조가 바뀌어 못 읽으면 기존 방식.
     const calendar = pageId === "11360" ? calendarChunks({ pageId, title, url, lines }) : null;
@@ -77,7 +77,7 @@ const duplicates = all.length - unique.length;
 await mkdir(new URL("data/", ROOT), { recursive: true });
 await writeFile(new URL("data/chunks.json", ROOT), `${JSON.stringify(unique, null, 2)}\n`);
 console.log(`\n${unique.length}개 조각 저장 → data/chunks.json (실패 ${failed.length}페이지)`);
-console.log(`중복 제거 ${duplicates}개, 개인정보 줄 제거 ${privacyRemoved}개`);
+console.log(`중복 제거 ${duplicates}개, 개인 연락처 줄 제거 ${personalRemoved}개`);
 if (tablePages.length) {
   await writeFile(new URL("data/table-check.md", ROOT), renderTableCheck(tablePages, { collectedAt }));
   const n = tablePages.reduce((sum, p) => sum + p.chunks.length, 0);

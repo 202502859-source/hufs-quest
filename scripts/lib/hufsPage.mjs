@@ -4,13 +4,33 @@ import * as cheerio from "cheerio";
 
 const HEADING = "\u0000H"; // 소제목 표시용 내부 기호
 const NOISE = [/^\/WEB-INF\//, /^hufs_sub/, /^fnctId=/, /^RSS 2\.0$/, /^콘텐츠 담당자$/];
-// 개인정보 줄: 전화번호 · 이메일 · "담당자 홍길동" 형태. 줄 전체를 버리고, 부서 이름 · 위치만 있는 줄은 남깁니다.
-export const PRIVACY = [
-  /(^|[^\d])0\d{1,2}[-.)\s]\s?\d{3,4}[-.\s]\d{4}(?!\d)/, // 02-2173-2112, 031-330-4027, 02)2173-2112, 010-1234-5678
-  /[\w.+-]+@[\w-]+(\.[\w-]+)+/, // 이메일
-  /^(콘텐츠\s*)?담당자\s*[:：]?\s*[가-힣○]{2,4}(\s|$|[,(|/])/, // 담당자 홍길동
-];
-const MIN_BODY_CHARS = 40; // 머리글을 뺀 본문이 이보다 짧은 조각은 버림
+// 개인 연락처 줄(사람 이름이 붙은 연락처)만 지웁니다. 부서 대표 전화 · 부서 공용 메일 줄은 남깁니다.
+//   지움: "담당자 홍길동", "홍길동 선생님 02-…", "김○○ 주무관 (내선 2130)", 개인 메일(gildong@hufs.ac.kr)
+//   남김: "문의 : 학사종합지원센터 TEL : 02-2173-2130", "인사팀 | 인사팀장 | 2163"(직책만), "E-MAIL : haksamil@hufs.ac.kr"
+const PHONE = /(^|[^\d])0\d{1,2}[-.)\s]\s?\d{3,4}[-.\s]\d{4}(?!\d)/; // 02-2173-2112, 031-330-4027, 02)2173-2112
+const EXTENSION = /\|\s*(\d{3,4}-)?\d{4}(\s*,\s*[\d-]+)*$/; // 전화안내 표의 "부서 | 2175" 내선
+const EMAIL = /([\w.+-]+)@[\w-]+(\.[\w-]+)+/g;
+const NAME = "[가-힣]{2,4}|[가-힣]○{1,3}";
+const UNIT_END = /(팀|과|실|처|부|센터|위원회|사무국)$/; // "담당자 장학팀"처럼 이름 자리에 부서가 온 경우
+const MANAGER = new RegExp(`^(콘텐츠\\s*)?담당자\\s*[:：]?\\s*(${NAME})(?=$|[\\s,(|/])`);
+const NAME_TITLE = new RegExp(`(^|[\\s|:,(·/])(${NAME})\\s*(선생님|주무관|님)(?=$|[\\s|,):/])`);
+// 부서 공용 메일로 보는 아이디(이 낱말이 들어 있으면 남김). 새 부서 메일이 지워지면 여기에 추가하세요.
+const SHARED_MAIL = /(hufs|haksa|academic|office|admin|info|help|support|center|scholar|janghak|intl|international|global|dorm|hall|career|job|counsel|library|webmaster|master|team|dept|edu|ctl|service|desk|contact)/i;
+
+export function isPersonalContact(line) {
+  const manager = line.match(MANAGER);
+  if (manager && !UNIT_END.test(manager[2])) return true;
+  const named = line.match(NAME_TITLE);
+  if (named && !UNIT_END.test(named[2]) && (PHONE.test(line) || /@|내선|\d{4}/.test(line))) return true;
+  for (const [, id] of line.matchAll(EMAIL)) if (!SHARED_MAIL.test(id)) return true;
+  return false;
+}
+
+// 부서 연락처(전화 · 내선 · 공용 메일)가 들어 있는 조각은 40자 미만이어도 남깁니다(문의 조각 · 전화안내 페이지).
+function hasContact(body) {
+  return body.split("\n").some((line) => PHONE.test(line) || EXTENSION.test(line) || /@/.test(line));
+}
+const MIN_BODY_CHARS = 40; // 머리글을 뺀 본문이 이보다 짧은 조각은 버림(연락처 조각은 예외)
 
 export function extractPage(html) {
   const $ = cheerio.load(html);
@@ -37,16 +57,16 @@ export function extractPage(html) {
   });
   main.find("p, div, li, br, dt, dd, h5, h6").each((_, el) => { $(el).append("\n"); });
 
-  let privacyRemoved = 0;
+  let personalRemoved = 0;
   const lines = main.text().split("\n").map(clean).map(stripFootnotes).filter((line) => {
     if (!line || NOISE.some((re) => re.test(line))) return false;
-    if (PRIVACY.some((re) => re.test(line))) {
-      privacyRemoved += 1;
+    if (isPersonalContact(line)) {
+      personalRemoved += 1;
       return false;
     }
     return true;
   });
-  return { title, lines, privacyRemoved };
+  return { title, lines, personalRemoved };
 }
 
 // 각주 기호(*, **, ***)를 지웁니다. 지운 뒤 남는 빈 괄호 "()"도 함께 정리.
@@ -70,7 +90,7 @@ export function campusTag(text) {
 }
 
 // 소제목 기준으로 묶은 뒤, 긴 구간은 maxChars 안에서 줄 단위로 자르고 앞 조각 끝을 조금 겹칩니다.
-// 머리글을 뺀 본문이 MIN_BODY_CHARS 미만인 조각은 버리고, 캠퍼스 표시([서울] · [글로벌])를 머리글 앞에 붙입니다.
+// 머리글을 뺀 본문이 MIN_BODY_CHARS 미만인 조각은 버리고(부서 연락처 조각은 남김), 캠퍼스 표시([서울] · [글로벌])를 머리글 앞에 붙입니다.
 export function toChunks({ pageId, title, url, lines, maxChars = 700, overlapChars = 120 }) {
   const sections = [];
   let h2 = "";
@@ -124,7 +144,10 @@ export function toChunks({ pageId, title, url, lines, maxChars = 700, overlapCha
   }
 
   return chunks
-    .filter((chunk) => chunk.text.slice(chunk.text.indexOf("\n") + 1).length >= MIN_BODY_CHARS)
+    .filter((chunk) => {
+      const body = chunk.text.slice(chunk.text.indexOf("\n") + 1);
+      return body.length >= MIN_BODY_CHARS || hasContact(body);
+    })
     .map((chunk, i) => ({
       id: `${pageId}-${String(i + 1).padStart(2, "0")}`,
       title,
