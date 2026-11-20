@@ -31,8 +31,8 @@ const allowRow = { allowed: true, reason: null, retry_after: 0, minute_hits: 1, 
 
 beforeEach(() => resetMemoryLimit());
 
-test("한도 상수: 분당 10, 하루 50, 전체 하루 500", () => {
-  assert.deepEqual({ ...ASK_LIMITS }, { minute: 10, day: 50, globalDay: 500 });
+test("한도 상수: 분당 10, 학생 하루 50, 게스트 IP 하루 150, 전체 하루 500", () => {
+  assert.deepEqual({ ...ASK_LIMITS }, { minute: 10, day: 50, guestDay: 150, globalDay: 500 });
 });
 
 test("IP는 x-forwarded-for 첫 값, 없으면 unknown", () => {
@@ -48,16 +48,16 @@ test("해시: 소문자 16진수 64자, 원본 IP가 들어가지 않고 날짜 
   assert.notEqual(h, ipHash("203.0.113.7", "other", "2026-11-19"));
 });
 
-test("Supabase로 보내는 값: 해시 · 세 한도 · 서버 키(apikey)만, 원본 IP는 없음", async () => {
+test("게스트(토큰 없음) → Supabase로 보내는 값: IP 해시 · 게스트 한도 · 서버 키(apikey)만, 원본 IP는 없음", async () => {
   const { calls, fetchImpl } = fakeDb(allowRow);
   const result = await checkAskLimit(req("203.0.113.7"), { env: ENV, fetchImpl, now: NOW });
-  assert.deepEqual(result, { allowed: true, reason: null, retryAfter: 0, source: "db", eval: false });
+  assert.deepEqual(result, { allowed: true, reason: null, retryAfter: 0, source: "db", eval: false, who: "guest" });
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "https://db.example.test/rest/v1/rpc/ask_hit");
   assert.deepEqual(calls[0].body, {
     p_ip_hash: ipHash("203.0.113.7", "test-salt", "2026-11-19"),
     p_minute_limit: 10,
-    p_day_limit: 50,
+    p_day_limit: 150,
     p_global_day_limit: 500,
   });
   assert.equal(calls[0].headers.apikey, "test-service-key");
@@ -68,7 +68,7 @@ test("ask_hit 거절은 이유와 남은 초를 그대로 돌려줌", async () =
   for (const reason of ["minute", "day", "global"]) {
     const { fetchImpl } = fakeDb({ ...allowRow, allowed: false, reason, retry_after: 42 });
     const result = await checkAskLimit(req("203.0.113.8"), { env: ENV, fetchImpl, now: NOW });
-    assert.deepEqual(result, { allowed: false, reason, retryAfter: 42, source: "db", eval: false });
+    assert.deepEqual(result, { allowed: false, reason, retryAfter: 42, source: "db", eval: false, who: "guest" });
   }
 });
 
@@ -84,11 +84,12 @@ test("Supabase 실패(오류 · 500 · 설정 없음)면 메모리 제한으로 
     for (let n = 1; n <= 10; n++) {
       const r = await checkAskLimit(req(ip), { env: c.env, fetchImpl: c.fetchImpl, now: NOW });
       assert.equal(r.allowed, true, `case ${i} #${n}`);
-      assert.equal(r.source, "memory");
+      assert.equal(r.source, "memory-fallback", "DB를 못 써서 메모리로 통과시킨 요청은 memory-fallback");
     }
     const r11 = await checkAskLimit(req(ip), { env: c.env, fetchImpl: c.fetchImpl, now: NOW });
     assert.equal(r11.allowed, false);
     assert.equal(r11.reason, "minute");
+    assert.equal(r11.source, "memory-first", "11번째는 1차 메모리 제한에서 끊김");
     assert.ok(r11.retryAfter >= 1 && r11.retryAfter <= 60);
   }
 });
@@ -99,7 +100,7 @@ test("1차 메모리 제한에 걸리면 Supabase를 부르지 않음, 다른 IP
   const before = calls.length;
   const blocked = await checkAskLimit(req("203.0.113.30"), { env: ENV, fetchImpl, now: NOW });
   assert.equal(blocked.allowed, false);
-  assert.equal(blocked.source, "memory");
+  assert.equal(blocked.source, "memory-first");
   assert.equal(calls.length, before);
   const other = await checkAskLimit(req("203.0.113.31"), { env: ENV, fetchImpl, now: NOW });
   assert.equal(other.allowed, true);
@@ -130,7 +131,7 @@ test("eval 토큰이 틀리거나 서버에 토큰이 없으면 일반 요청", 
   assert.equal(isEvalRequest(req("203.0.113.41", { [EVAL_TOKEN_HEADER]: "anything" }), undefined), false);
   const { calls, fetchImpl } = fakeDb(allowRow);
   await checkAskLimit(req("203.0.113.41", { [EVAL_TOKEN_HEADER]: "wrong" }), { env: ENV, fetchImpl, now: NOW });
-  assert.equal(calls[0].body.p_day_limit, 50);
+  assert.equal(calls[0].body.p_day_limit, 150); // 일반 게스트 한도
 });
 
 test("eval 요청도 Supabase가 실패하면 메모리 제한(1분 10회)을 받음", async () => {
@@ -138,6 +139,87 @@ test("eval 요청도 Supabase가 실패하면 메모리 제한(1분 10회)을 �
   const { fetchImpl } = fakeDb(new Error("fetch failed"));
   for (let n = 0; n < 10; n++) assert.equal((await checkAskLimit(req("203.0.113.42", headers), { env: ENV, fetchImpl, now: NOW })).allowed, true);
   assert.equal((await checkAskLimit(req("203.0.113.42", headers), { env: ENV, fetchImpl, now: NOW })).allowed, false);
+});
+
+// ── 학생(로그인 토큰)은 계정 기준으로 셈 ──
+// 가짜 fetch: /auth/v1/user에는 토큰별 사용자, /rpc/ask_hit에는 허용을 돌려줍니다.
+function fakeAuthAndDb(users, { authStatus = 200 } = {}) {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url: String(url), init, body: init.body ? JSON.parse(init.body) : null });
+    if (String(url).endsWith("/auth/v1/user")) {
+      if (authStatus instanceof Error) throw authStatus;
+      const token = init.headers.Authorization.replace("Bearer ", "");
+      const user = users[token];
+      return user && authStatus === 200
+        ? { ok: true, status: 200, json: async () => user }
+        : { ok: false, status: authStatus === 200 ? 401 : authStatus, json: async () => ({}) };
+    }
+    return { ok: true, status: 200, json: async () => [allowRow] };
+  };
+  return { calls, fetchImpl };
+}
+const USERS = {
+  "token-a": { id: "11111111-aaaa-4aaa-8aaa-111111111111", email: "studenta@hufs.ac.kr" },
+  "token-b": { id: "22222222-bbbb-4bbb-8bbb-222222222222", email: "studentb@hufs.ac.kr" },
+  "token-gmail": { id: "33333333-cccc-4ccc-8ccc-333333333333", email: "someone@gmail.com" },
+};
+const bearer = (t) => ({ authorization: `Bearer ${t}` });
+
+test("학생: 같은 IP(같은 와이파이)여도 계정마다 다른 해시 · 학생 한도(하루 50)로 셈, 원본 id · 토큰은 DB에 안 감", async () => {
+  const { calls, fetchImpl } = fakeAuthAndDb(USERS);
+  const a = await checkAskLimit(req("203.0.113.60", bearer("token-a")), { env: ENV, fetchImpl, now: NOW });
+  const b = await checkAskLimit(req("203.0.113.60", bearer("token-b")), { env: ENV, fetchImpl, now: NOW });
+  assert.equal(a.who, "student");
+  assert.equal(b.who, "student");
+  const hits = calls.filter((c) => c.url.endsWith("/rpc/ask_hit")).map((c) => c.body);
+  assert.equal(hits[0].p_ip_hash, ipHash(`user:${USERS["token-a"].id}`, "test-salt", "2026-11-19"));
+  assert.notEqual(hits[0].p_ip_hash, hits[1].p_ip_hash);
+  assert.notEqual(hits[0].p_ip_hash, ipHash("203.0.113.60", "test-salt", "2026-11-19"));
+  assert.equal(hits[0].p_day_limit, 50);
+  const sent = JSON.stringify(hits);
+  assert.equal(sent.includes(USERS["token-a"].id) || sent.includes("token-a") || sent.includes("203.0.113.60"), false);
+  // 토큰 확인은 서버 키(apikey) + 사용자 토큰으로
+  const auth = calls.find((c) => c.url.endsWith("/auth/v1/user"));
+  assert.equal(auth.url, "https://db.example.test/auth/v1/user");
+  assert.equal(auth.init.headers.apikey, "test-service-key");
+});
+
+test("학생: 한 사람이 1분 한도를 넘겨도 같은 와이파이의 다른 학생은 통과(메모리 1차 제한도 계정별)", async () => {
+  const { fetchImpl } = fakeAuthAndDb(USERS);
+  for (let n = 0; n < 10; n++) await checkAskLimit(req("203.0.113.61", bearer("token-a")), { env: ENV, fetchImpl, now: NOW });
+  const aBlocked = await checkAskLimit(req("203.0.113.61", bearer("token-a")), { env: ENV, fetchImpl, now: NOW });
+  assert.equal(aBlocked.allowed, false);
+  assert.equal(aBlocked.source, "memory-first");
+  const bOk = await checkAskLimit(req("203.0.113.61", bearer("token-b")), { env: ENV, fetchImpl, now: NOW });
+  assert.equal(bOk.allowed, true);
+  const guestOk = await checkAskLimit(req("203.0.113.61"), { env: ENV, fetchImpl, now: NOW });
+  assert.equal(guestOk.allowed, true);
+});
+
+test("토큰이 틀리거나 · 학교 메일이 아니거나 · 확인이 실패하면 게스트(IP · 게스트 한도)로 셈", async () => {
+  const cases = [
+    { token: "wrong-token", opts: {} },
+    { token: "token-gmail", opts: {} },
+    { token: "token-a", opts: { authStatus: 500 } },
+    { token: "token-a", opts: { authStatus: new Error("timeout") } },
+  ];
+  for (const c of cases) {
+    resetMemoryLimit();
+    const { calls, fetchImpl } = fakeAuthAndDb(USERS, c.opts);
+    const r = await checkAskLimit(req("203.0.113.62", bearer(c.token)), { env: ENV, fetchImpl, now: NOW });
+    assert.equal(r.who, "guest", c.token);
+    const hit = calls.find((x) => x.url.endsWith("/rpc/ask_hit")).body;
+    assert.equal(hit.p_ip_hash, ipHash("203.0.113.62", "test-salt", "2026-11-19"));
+    assert.equal(hit.p_day_limit, 150);
+  }
+});
+
+test("Supabase 설정이 없으면 토큰 확인을 하지 않고 게스트로 봄", async () => {
+  const { calls, fetchImpl } = fakeAuthAndDb(USERS);
+  const r = await checkAskLimit(req("203.0.113.63", bearer("token-a")), { env: { ASK_IP_SALT: "s" }, fetchImpl, now: NOW });
+  assert.equal(r.who, "guest");
+  assert.equal(calls.length, 0);
 });
 
 // ── api/ask.js 처리 함수: 한도 · 길이 검사 순서 ──

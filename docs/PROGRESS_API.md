@@ -151,7 +151,7 @@ SQL은 `supabase/` 폴더에 저장합니다.
 | 파일 | 담당 | 내용 |
 | --- | --- | --- |
 | `shared/progressRules.js` (새로 만듦) | 임현규 | 레벨 계산식, 퀴즈 보상 10(하루 상한 50), 퀘스트 완료 보상(경험치 10·포인트 10), 출석 보상(포인트 5), 퀘스트 목록. **서버와 화면이 같이 씀** |
-| `api/progress.js`, `api/quiz-answer.js`, `api/quest-complete.js`, `api/check-in.js` | 임현규 | 위 API |
+| `api/progress.js`, `api/quiz-answer.js`, `api/quest-complete.js`, `api/check-in.js` | 임현규 | 위 API (**11/19 구현 완료, 11/19 확인 완료**) |
 | `supabase/*.sql` | 임현규 | 테이블, RLS |
 | `src/data/progressApi.js` (새로 만듦) | 이종헌 | API 호출 함수. **처음엔 가짜 응답으로 만들고, 서버가 되면 진짜로 교체** |
 | `src/scenes/TitleScene.js` | 이종헌 | 이메일·코드 입력 화면 |

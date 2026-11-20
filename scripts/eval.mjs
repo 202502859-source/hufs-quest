@@ -34,7 +34,9 @@ function readEvalEnv(names) {
 }
 
 // q: 질문 / type: 기본·구어체·조건·혼동·영어·범위밖 / pages: 정답 근거가 있는 학교 페이지 번호(URL의 숫자)
-// must: 답에 모두 있어야 할 말 / any: 이 중 하나는 있어야 할 말 / mustNot: 있으면 안 되는 말 / lang: 기본 ko
+// must: 답에 모두 있어야 할 말 / any: 이 중 하나는 있어야 할 말 / anyOf: 묶음마다 하나씩은 있어야 할 말(표기가 여러 가지인 시간·날짜)
+// mustNot: 있으면 안 되는 말 / lang: 기본 ko
+// pages는 출처 주소의 /번호/ 또는 /파일이름. 부분과 맞춥니다(예: studentlifeguide2026 → …/studentlifeguide2026.pdf).
 // 모든 정답은 data/chunks.json(2026-11-10 수집)의 원문에서 뽑았습니다. 원문이 바뀌면 정답도 다시 확인하세요.
 const CASES = [
   // ── 학사경고·제적·재입학
@@ -96,12 +98,17 @@ const CASES = [
   { q: "증명서 자동발급기는 몇 시까지 운영해?", type: "기본", pages: ["11304"], any: ["20:00", "20시", "오후 8시"] },
   { q: "마이크로디그리 다 못 들으면 졸업에 지장 있어?", type: "조건", pages: ["13511"], any: ["무관", "관계없", "상관없", "영향"] },
 
+  // ── 11/20 범위 밖 → 일반 문항으로 옮김 (기대 답은 이종헌이 원문을 보고 정함)
+  // 근거: data/manual/guide2026-seoul.json의 guide2026-01(신입생 대학생활안내 2026, 서울캠퍼스 도서관 자료실 학기 중)
+  { q: "도서관 운영 시간 알려줘", type: "기본", pages: ["studentlifeguide2026"], anyOf: [["09:00", "9시"], ["21:00", "21시", "오후 9시"], ["17:00", "17시", "오후 5시"], ["폐실", "휴관", "공휴일"]] },
+  // 근거: 학사일정(11360) 2026학년도 제2학기 중간시험 2026.10.20 ~ 2026.10.26. 이번 학기 기준이라 2026-12까지만 유효(2027년부터는 기대 답을 다시 정할 것)
+  { q: "이번 학기 중간고사 기간이 언제야?", type: "조건", pages: ["11360"], anyOf: [["10월 20일", "10.20", "10-20"], ["10월 26일", "26일", "10.26", "10-26"]], mustNot: ["4월", "04.21"] },
+
   // ── 범위 밖 (지금 데이터에 없음 → "찾지 못했다"가 정답)
   { q: "오늘 학식 메뉴 뭐야?", type: "범위밖", outOfScope: true },
-  { q: "2027년 1학기 개강일이 언제야?", type: "범위밖", outOfScope: true, note: "학사일정 수집 후 일반 문항으로 바꿀 것" },
-  { q: "도서관 운영 시간 알려줘", type: "범위밖", outOfScope: true },
+  { q: "2027년 1학기 개강일이 언제야?", type: "범위밖", outOfScope: true, note: "학사일정은 2026학년도(2026.03~2027.02)만 있음. 2027학년도 일정이 올라오면 다시 볼 것" },
   { q: "기숙사 입사 신청은 언제 해?", type: "범위밖", outOfScope: true },
-  { q: "이번 학기 중간고사 기간이 언제야?", type: "범위밖", outOfScope: true, note: "학사일정 수집 후 일반 문항으로 바꿀 것" },
+
   
   // ── 까다로운 질문 12개
   // 공식 원문 확인 후 must, any, mustNot 작성
@@ -119,6 +126,7 @@ const CASES = [
 
   { q: "군입대휴학과 일반휴학은 기간이 어떻게 달라?", type: "이름비슷", set: "tricky", pages: ["11387"], must: ["3년", "입대일", "전역일"], reviewed: true },
   { q: "일반 이중전공 신청과 후기 이중전공 신청의 시기는 어떻게 달라?", type: "이름비슷", set: "tricky", pages: ["11384"], must: ["1학년", "4월"], reviewed: true },
+
 ];
 
 const unreviewedCases = CASES.filter(
@@ -174,8 +182,12 @@ function grade(c, r) {
  
   const normalizedAnswer = answer.replace(/\s+/g, " ");
   const cited = (r.sources || []).map((s) => String(s?.url ?? ""));
-  const foundSource = cited.some((url) => c.pages.some((p) => url.includes(`/${p}/`)));
-  
+  const foundSource = cited.some((url) =>
+    c.pages.some((p) =>
+      url.includes(`/${p}/`) || url.includes(`/${p}.`)
+    )
+  );
+
 
 
  const contentOk =
@@ -184,7 +196,10 @@ function grade(c, r) {
    (c.mustGroups || []).every((group) =>
      group.some((w) => answer.includes(w))
    ) &&
-   !(c.mustNot || []).some((w) => answer.includes(w)) &&
+   (c.anyOf || []).every((group) =>
+      group.some((w) => answer.includes(w))
+    ) &&
+    !(c.mustNot || []).some((w) => answer.includes(w)) &&
    (
      !c.checkGradeOrder ||
      (
@@ -275,7 +290,10 @@ for (const row of trickyViolations) {
 
 console.log(`학사 질문    : ${inScope.length}개 중 ${correct}개 정확 (${pct(correct, inScope.length)}%)`);
 console.log(`범위 밖 질문 : ${outScope.length}개 중 ${refused}개 "찾지 못함" 안내 (지어낸 답 ${outScope.length - refused}건)`);
-console.log(`평균 응답    : ${avg.toFixed(1)}초\n`);
+console.log(`평균 응답    : ${avg.toFixed(1)}초`);
+// 기준선: 11/17 학사 45개 중 43개 · 범위 밖 5개 모두 거절. 11/20에 범위 밖 2문항(도서관 · 이번 학기 중간고사)을 학사로 옮겨
+// 학사 47 · 범위 밖 3이 됨 → 기존 45문항 정답 43개 이상 + 범위 밖 3개 모두 거절이 통과 기준. 옮긴 2문항은 첫 실행 결과로 새 기준선을 정함.
+console.log(`기준선       : 기존 학사 45문항 중 43개 정확(11/17) · 범위 밖 전부 "찾지 못함" (11/20부터 학사 47 · 범위 밖 3)\n`);
 
 console.log("유형별 정확도");
 for (const type of [...new Set(inScope.map((x) => x.type))]) {

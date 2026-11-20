@@ -3,7 +3,15 @@
  *
  * 1차: 메모리 제한 — 이 서버 인스턴스 안에서만 IP 해시당 1분 10회. Supabase를 부르기 전에 연타를 끊어 DB 호출도 아낍니다.
  * 2차: 공용 카운터 — Supabase 함수 ask_hit(supabase/003_usage_limits.sql)로 모든 인스턴스가 같은 수를 셉니다.
- *      IP 해시당 1분 · 하루, 서비스 전체 하루 한도를 한 번에 확인하고, 통과할 때만 +1 합니다.
+ *      사용자 해시당 1분 · 하루, 서비스 전체 하루 한도를 한 번에 확인하고, 통과할 때만 +1 합니다.
+ *
+ * 누구를 기준으로 세나 (11/19 변경, 같은 와이파이 사용자끼리 한도를 나눠 쓰던 문제 수정)
+ *  - 학교 메일로 로그인한 학생: 계정(Supabase user id) 기준. 요청의 Authorization 토큰을 Supabase로 확인합니다.
+ *    같은 와이파이(학교망 · 발표장)여도 학생마다 따로 셉니다. 학생 하루 한도 = ASK_LIMITS.day
+ *  - 게스트 · 토큰이 없거나 틀리거나 확인 실패: 지금처럼 IP 기준. 학교 와이파이처럼 여럿이 IP를 같이 쓰는 경우를 고려해
+ *    게스트 하루 한도 = ASK_LIMITS.guestDay (학생보다 큼). 1분 한도는 둘 다 ASK_LIMITS.minute
+ *  - 서비스 전체 하루 상한(globalDay)은 학생 · 게스트 · eval 모두 합쳐 셉니다(비용 방어).
+ *  - DB(ask_hit)의 p_ip_hash 칸에는 IP 해시 또는 "user:<id>" 해시가 들어갑니다. 둘 다 원본 값은 저장 · 로그하지 않습니다.
  * Supabase 호출이 실패하거나 설정이 없으면: 1차 메모리 제한만으로 판단합니다(2026-11-19 결정).
  *
  * eval 토큰: 요청 헤더 x-ask-eval-token이 서버 환경 변수 ASK_EVAL_TOKEN과 같으면 IP 1분 · 하루 한도를 건너뛰고
@@ -22,10 +30,14 @@ import { kstToday } from "../../shared/progressRules.js";
 
 // 검색창 한도. 바꾸려면 이 한 곳만 고칩니다.
 export const ASK_LIMITS = Object.freeze({
-  minute: 10, // IP당 1분
-  day: 50, // IP당 한국 날짜 하루
+  minute: 10, // 사람(학생 계정 또는 게스트 IP)당 1분
+  day: 50, // 로그인 학생 계정당 한국 날짜 하루
+  guestDay: 150, // 게스트 IP당 한국 날짜 하루 (학교 와이파이처럼 여럿이 IP를 같이 쓰는 경우 고려)
   globalDay: 500, // 서비스 전체 한국 날짜 하루
 });
+
+const AUTH_TIMEOUT_MS = 2000;
+const STUDENT_DOMAIN = "@hufs.ac.kr";
 
 // eval 요청의 IP 한도 대신 넘기는 값(사실상 제한 없음). 전체 하루 한도는 그대로 ASK_LIMITS.globalDay.
 const NO_IP_LIMIT = 2_147_483_647;
@@ -50,6 +62,30 @@ export function isEvalRequest(req, token) {
   const sent = req?.headers?.[EVAL_TOKEN_HEADER];
   if (!token || typeof sent !== "string" || !sent) return false;
   return timingSafeEqual(Buffer.from(sha256(sent), "hex"), Buffer.from(sha256(token), "hex"));
+}
+
+// 요청의 로그인 토큰으로 학생인지 확인합니다. → { who: "student", key: "user:<id>" } 또는 { who: "guest", key: <IP> }
+// 토큰이 없거나 · 틀리거나 · 학교 메일이 아니거나 · 확인이 실패하면 게스트(IP 기준)로 봅니다. 검색창은 게스트도 쓰므로 거절하지 않습니다.
+// 토큰 · 이메일 · user id는 로그에 남기지 않습니다.
+export async function resolveAskSubject(req, { env = process.env, fetchImpl = fetch } = {}) {
+  const guest = { who: "guest", key: clientIp(req) };
+  const header = req?.headers?.authorization || req?.headers?.Authorization;
+  const token = typeof header === "string" ? (header.match(/^Bearer\s+(\S+)$/i) || [])[1] : null;
+  if (!token || !env.SUPABASE_URL || !env.SUPABASE_SERVICE_KEY) return guest;
+  try {
+    const response = await fetchImpl(`${env.SUPABASE_URL.replace(/\/$/, "")}/auth/v1/user`, {
+      method: "GET",
+      headers: { apikey: env.SUPABASE_SERVICE_KEY, Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(AUTH_TIMEOUT_MS),
+    });
+    if (!response.ok) return guest;
+    const user = await response.json();
+    const email = String(user?.email ?? "").trim().toLowerCase();
+    if (typeof user?.id !== "string" || !user.id || !email.endsWith(STUDENT_DOMAIN)) return guest;
+    return { who: "student", key: `user:${user.id}` };
+  } catch {
+    return guest;
+  }
 }
 
 // ── 1차: 메모리 제한 (인스턴스별) ──
@@ -91,24 +127,29 @@ async function askHit(hash, limits, env, fetchImpl) {
 
 /*
  * 이번 질문을 받아도 되는지 판단합니다.
- * → { allowed, reason: null | "minute" | "day" | "global", retryAfter(초), source: "db" | "memory", eval }
- *   source가 "memory"면 공용 카운터 없이 메모리 제한만으로 판단한 것입니다(설정 없음 · 호출 실패 · 1차에서 끊음).
+ * → { allowed, reason: null | "minute" | "day" | "global", retryAfter(초), source, eval, who: "student" | "guest" | "eval" }
+ *   source(로그의 limit 값)는 누가 판단했는지입니다.
+ *   - "db"              공용 카운터(Supabase)가 판단. 정상
+ *   - "memory-first"    1차 메모리 제한(인스턴스별 1분 10회)에서 끊음. DB를 부르지 않은 것이며 정상
+ *   - "memory-fallback" 공용 카운터를 쓸 수 없어(설정 없음 · 호출 실패 · 시간 초과) 메모리 제한만으로 판단. ⚠️ 하루 · 전체 상한이 꺼진 상태
+ *   (11/19 이전에는 앞의 둘을 모두 "memory"로 남겨 로그만으로 정상과 장애를 구분할 수 없었음)
  */
 export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch, now = new Date() } = {}) {
   const evalMode = isEvalRequest(req, env.ASK_EVAL_TOKEN);
   const salt = env.ASK_IP_SALT || "";
-  const subject = evalMode ? "eval" : clientIp(req);
-  const hash = ipHash(subject, salt, kstToday(now));
-  const memoryDecision = () => {
+  const subject = evalMode ? { who: "eval", key: "eval" } : await resolveAskSubject(req, { env, fetchImpl });
+  const who = subject.who;
+  const hash = ipHash(subject.key, salt, kstToday(now));
+  const memoryDecision = (source) => {
     const wait = memoryHit(hash, now.getTime());
     return wait
-      ? { allowed: false, reason: "minute", retryAfter: wait, source: "memory", eval: evalMode }
-      : { allowed: true, reason: null, retryAfter: 0, source: "memory", eval: evalMode };
+      ? { allowed: false, reason: "minute", retryAfter: wait, source, eval: evalMode, who }
+      : { allowed: true, reason: null, retryAfter: 0, source, eval: evalMode, who };
   };
 
   // eval이 아니면 1차 메모리 제한부터. 여기서 끊기면 Supabase를 부르지 않습니다.
   if (!evalMode) {
-    const first = memoryDecision();
+    const first = memoryDecision("memory-first");
     if (!first.allowed) return first;
   }
 
@@ -116,10 +157,14 @@ export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch,
   if (ready) {
     const limits = evalMode
       ? { minute: NO_IP_LIMIT, day: NO_IP_LIMIT, globalDay: ASK_LIMITS.globalDay }
-      : ASK_LIMITS;
+      : {
+          minute: ASK_LIMITS.minute,
+          day: who === "student" ? ASK_LIMITS.day : ASK_LIMITS.guestDay,
+          globalDay: ASK_LIMITS.globalDay,
+        };
     try {
       const result = await askHit(hash, limits, env, fetchImpl);
-      return { ...result, source: "db", eval: evalMode };
+      return { ...result, source: "db", eval: evalMode, who };
     } catch (err) {
       // 원인 메시지에는 주소 등이 섞일 수 있어 상태만 남깁니다. 해시 · IP는 남기지 않습니다.
       const message = String(err?.message || "");
@@ -127,5 +172,7 @@ export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch,
     }
   }
   // 공용 카운터를 쓸 수 없으면 메모리 제한만으로 판단합니다. eval이 아니면 위에서 이미 셌으므로 통과입니다.
-  return evalMode ? memoryDecision() : { allowed: true, reason: null, retryAfter: 0, source: "memory", eval: false };
+  return evalMode
+    ? memoryDecision("memory-fallback")
+    : { allowed: true, reason: null, retryAfter: 0, source: "memory-fallback", eval: false, who };
 }
