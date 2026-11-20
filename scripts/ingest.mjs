@@ -1,7 +1,9 @@
-// 2단계: data/chunks.json을 CLOVA 임베딩으로 벡터화해 Supabase chunks 테이블에 저장합니다.
+// 2단계: data/chunks.json을 CLOVA 임베딩으로 벡터화해 Supabase chunks(또는 --target next면 chunks_next) 테이블에 저장합니다.
 // 실행: npm run ingest   (.env에 CLOVA_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY 필요)
 // 옵션: --dry-run  임베딩·저장 없이 조각 수만 확인
 //       --keep     이번에 없는 옛 조각을 지우지 않음
+//       --target next  실서비스 chunks 대신 시험용 chunks_next 테이블에 저장 · 옛 조각 삭제 · 개수 확인
+//                      (supabase/005_chunks_next.sql). 없으면 지금처럼 chunks. --dry-run과 함께 쓸 수 있음
 import { readFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 
@@ -10,9 +12,21 @@ const EMBED_URL = "https://clovastudio.stream.ntruss.com/v1/api-tools/embedding/
 const EMBED_DELAY_MS = 1100; // 테스트 키 호출 한도를 넘지 않도록
 const BATCH = 20;
 const DIMENSIONS = 1024;
+const TABLES = { live: "chunks", next: "chunks_next" };
 
-const dryRun = process.argv.includes("--dry-run");
-const keepOld = process.argv.includes("--keep");
+const args = process.argv.slice(2);
+const dryRun = args.includes("--dry-run");
+const keepOld = args.includes("--keep");
+const targetArg = args.find((a) => a.startsWith("--target="))?.split("=")[1]
+  ?? (args.includes("--target") ? args[args.indexOf("--target") + 1] : "live");
+const TABLE = TABLES[targetArg];
+if (!TABLE) {
+  console.error(`--target 값은 next만 쓸 수 있습니다 (받은 값: ${targetArg ?? "없음"}). 빼면 실서비스 chunks에 저장합니다.`);
+  process.exit(1);
+}
+
+const banner = `대상 테이블: ${TABLE}${TABLE === "chunks" ? "  (실서비스 DB)" : "  (시험용)"}${dryRun ? "  [dry-run: 저장 안 함]" : ""}`;
+console.log(`${"=".repeat(60)}\n  ${banner}\n${"=".repeat(60)}`);
 
 loadEnv(new URL(".env", ROOT));
 const { CLOVA_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env;
@@ -46,7 +60,7 @@ console.log("\n저장 완료");
 
 if (!keepOld) {
   const ids = chunks.map((c) => `"${c.id}"`).join(",");
-  const res = await fetch(`${rest}/chunks?id=not.in.(${encodeURIComponent(ids)})`, {
+  const res = await fetch(`${rest}/${TABLE}?id=not.in.(${encodeURIComponent(ids)})`, {
     method: "DELETE",
     headers: { ...supabaseHeaders, Prefer: "return=representation" },
   });
@@ -54,8 +68,8 @@ if (!keepOld) {
   console.log(`옛 조각 ${(await res.json()).length}개 삭제`);
 }
 
-const count = await fetch(`${rest}/chunks?select=id`, { headers: { ...supabaseHeaders, Prefer: "count=exact", Range: "0-0" } });
-console.log(`Supabase chunks 테이블: ${count.headers.get("content-range")?.split("/")[1] ?? "?"}행`);
+const count = await fetch(`${rest}/${TABLE}?select=id`, { headers: { ...supabaseHeaders, Prefer: "count=exact", Range: "0-0" } });
+console.log(`Supabase ${TABLE} 테이블: ${count.headers.get("content-range")?.split("/")[1] ?? "?"}행`);
 
 async function embed(text, attempt = 1) {
   const res = await fetch(EMBED_URL, {
@@ -78,7 +92,7 @@ async function embed(text, attempt = 1) {
 }
 
 async function upsert(batch) {
-  const res = await fetch(`${rest}/chunks?on_conflict=id`, {
+  const res = await fetch(`${rest}/${TABLE}?on_conflict=id`, {
     method: "POST",
     headers: { ...supabaseHeaders, Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify(batch),

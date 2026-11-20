@@ -16,12 +16,21 @@ export function renderTableCheck(pages, { collectedAt }) {
   out.push("> - **생성 문장**: 조각에 들어가는 문장. 숫자는 펼친 격자에서만 가져옴", "");
 
   out.push("## 요약", "");
-  out.push("| 페이지 | 조각 | 문장 | 보류한 행 | 건너뛴 표 |", "| --- | --- | --- | --- | --- |");
+  const excludedOf = (p) => p.excluded ?? [];
+  out.push("| 페이지 | 조각 | 문장 | 보류한 행 | 건너뛴 표 | 글로벌 전용 제외 조각 |", "| --- | --- | --- | --- | --- | --- |");
   for (const p of pages) {
     const sentences = p.review.reduce((m, r) => m + r.sentences.length, 0);
-    out.push(`| [${esc(p.title)} (${p.pageId})](${p.url}) | ${p.chunks.length} | ${sentences} | ${p.ambiguous.length} | ${p.skipped.length} |`);
+    out.push(`| [${esc(p.title)} (${p.pageId})](${p.url}) | ${p.chunks.length} | ${sentences} | ${p.ambiguous.length} | ${p.skipped.length} | ${excludedOf(p).length} |`);
   }
-  out.push(`| **합계** | **${totalChunks}** | **${totalSentences}** | **${totalAmbiguous}** | **${pages.reduce((n, p) => n + p.skipped.length, 0)}** |`, "");
+  out.push(`| **합계** | **${totalChunks}** | **${totalSentences}** | **${totalAmbiguous}** | **${pages.reduce((n, p) => n + p.skipped.length, 0)}** | **${pages.reduce((n, p) => n + excludedOf(p).length, 0)}** |`, "");
+  out.push("> 조각 수는 저장한 조각만 셉니다. 문장 수에는 제외한 조각의 문장도 들어 있습니다(검수용).", "");
+
+  out.push("## 글로벌캠퍼스 전용으로 제외한 표 조각 (저장 안 함)", "");
+  out.push("> 서울캠퍼스 서비스라 표 제목에 '글로벌캠퍼스'만 있는 문장은 뺍니다(11/20 eval 2025학번 졸업학점 오답 원인).", "");
+  out.push("| 조각 | 구분 | 문장 |", "| --- | --- | --- |");
+  for (const p of pages) for (const e of excludedOf(p)) out.push(`| ${e.id} | ${esc(e.section)} | ${e.sentences} |`);
+  if (!pages.some((p) => excludedOf(p).length)) out.push("| (없음) | - | - |");
+  out.push("");
 
   out.push("## 문장을 만들지 않은 곳 (해석 확인 필요)", "");
   out.push("| 페이지 | 표 | 행 | 구분 | 원문 행 | 이유 |", "| --- | --- | --- | --- | --- | --- |");
@@ -37,8 +46,8 @@ export function renderTableCheck(pages, { collectedAt }) {
     out.push(`## ${p.title} (${p.pageId})`, "", `원문: ${p.url}`, "");
     for (const note of p.reviewNotes ?? []) out.push(`> ※ 검수 메모: ${note.note}`, "");
     for (const r of p.review) {
-      const chunk = p.chunks.find((c) => c.id === r.id);
-      out.push(`### ${r.id} · ${esc(chunk.section)}`, "");
+      const chunk = p.chunks.find((c) => c.id === r.id) ?? excludedOf(p).find((c) => c.id === r.id);
+      out.push(`### ${r.id} · ${esc(chunk.section)}${r.excluded ? ` — **제외: ${esc(r.excluded)}**` : ""}`, "");
       if (r.lead) out.push(`표 위 안내: ${r.lead}`, "");
       out.push("| 행 | 원문 행 | 펼친 격자 | 생성 문장 |", "| --- | --- | --- | --- |");
       for (const s of r.sentences) {
@@ -48,7 +57,8 @@ export function renderTableCheck(pages, { collectedAt }) {
         ].join("<br>");
         const flag = (p.reviewNotes ?? []).some((n) => s.labels.some((l) => l.includes(n.match))) ? "※ " : "";
         const body = s.text.replace(/^\[[^\]]*\]\s*/, "");
-        out.push(`| ${s.row}${s.focus ? `<br>${esc(s.focus)}` : ""} | ${esc(s.rawCells.join(" ¦ "))} | ${esc(grid)} | ${flag}${esc(body)} |`);
+        const cut = s.excluded ? "(제외: 글로벌캠퍼스 전용) " : "";
+        out.push(`| ${s.row}${s.focus ? `<br>${esc(s.focus)}` : ""} | ${esc(s.rawCells.join(" ¦ "))} | ${esc(grid)} | ${cut}${flag}${esc(body)} |`);
       }
       out.push("");
     }
