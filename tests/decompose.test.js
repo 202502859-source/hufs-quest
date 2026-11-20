@@ -250,3 +250,67 @@ test("evidenceDocs: 하위 질문이 하나면 앞의 2개", () => {
   const a = [doc("a1", 0.9), doc("a2", 0.85), doc("a3", 0.8)];
   assert.deepEqual(evidenceDocs([a], mergeDocs([a])).map((d) => d.title), ["a1", "a2"]);
 });
+
+// ── api/ask.js 숫자 근거 검사: 걸린 숫자만 돌려주고, evidence 로그에는 숫자 토큰만 ──
+test("unsupportedNumbers: 근거에 없던 숫자 · 시기 표현만 중복 없이 돌려줌(검사 기준은 그대로)", async () => {
+  const { unsupportedNumbers } = await import("../api/ask.js");
+  const docs = [{ title: "이중전공", text: "25학번 이후부터는 32학점 이상 이수해야 한다." }];
+  // 표기를 바꿔 "2025학번"이라고 쓰면 여전히 걸림(검사를 느슨하게 하지 않음)
+  assert.deepEqual(unsupportedNumbers("2025학번 이후는 32학점 이상입니다. [1]", docs), { numbers: ["2025"], timeWords: [] });
+  // 자료 표기 그대로면 통과, 인용 번호 [1]은 숫자로 세지 않음
+  assert.deepEqual(unsupportedNumbers("25학번 이후는 32학점 이상입니다. [1]", docs), { numbers: [], timeWords: [] });
+  // 여러 개 · 중복
+  assert.deepEqual(unsupportedNumbers("36학점, 36학점, 2025학번, 7학기 [1]", docs), { numbers: ["36", "2025", "7"], timeWords: [] });
+  // 근거에 없는 시기 표현
+  assert.deepEqual(unsupportedNumbers("Apply in early March. [1]", docs), { numbers: [], timeWords: ["march"] });
+});
+
+test("ask.js: 숫자 근거 검사에 걸리면 evidence 로그에 근거에 없던 숫자만(최대 5개), 문장은 남기지 않음", async () => {
+  const ENV = { ASK_IP_SALT: "test-salt", SUPABASE_URL: "https://db.example.test", SUPABASE_SERVICE_KEY: "test-service-key", CLOVA_API_KEY: "test-clova-key" };
+  const saved = Object.fromEntries(Object.keys(ENV).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, ENV);
+  let reply = "";
+  let systemPrompt = "";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    const u = String(url);
+    const json = (body) => ({ ok: true, status: 200, json: async () => body });
+    if (u.includes("/rpc/ask_hit")) return json([{ allowed: true, reason: null, retry_after: 0, minute_hits: 1, day_hits: 1, global_hits: 1 }]);
+    if (u.includes("HCX-DASH-002")) return json({ result: { message: { content: '{"queries": ["이중전공 신청 자격"]}' }, finishReason: "stop" } });
+    if (u.includes("/embedding/v2")) return json({ result: { embedding: [0.1] } });
+    if (u.includes("/rpc/match_chunks")) {
+      return json([{ title: "이중전공", url: "https://www.hufs.ac.kr/x", text: "25학번 이후부터는 32학점 이상 이수해야 한다.", similarity: 0.8 }]);
+    }
+    if (u.includes("HCX-005")) {
+      systemPrompt = JSON.parse(init.body).messages[0].content;
+      return json({ result: { message: { content: reply }, finishReason: "stop", usage: { promptTokens: 10, completionTokens: 5 } } });
+    }
+    throw new Error(`unexpected fetch ${u}`);
+  };
+  const logs = [];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = (...a) => logs.push(a.join(" "));
+  console.error = () => {};
+  try {
+    const { default: handler } = await import("../api/ask.js");
+    const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
+    reply = "2025학번 이후 학생은 32학점 이상이고, 2019학번은 42학점, 2020 2021 2022 2023학번은 따로 정합니다. [1]";
+    await handler({ method: "POST", headers: { "x-forwarded-for": "203.0.113.90" }, body: { question: "이중전공 신청 조건이 뭐야?", lang: "ko" } }, res);
+    assert.equal(res.body.mode, "evidence");
+    const log = JSON.parse(logs.at(-1));
+    assert.equal(log.mode, "evidence");
+    assert.deepEqual(log.unsupportedNumbers, ["2025", "2019", "42", "2020", "2021"]); // 최대 5개
+    assert.equal(log.unsupportedTimeWords, 0);
+    assert.equal(/학번|학점|이중전공/.test(logs.join("\n")), false); // 질문 · 답 문장은 없음
+    assert.match(systemPrompt, /'25학번'이면 '2025학번'으로 바꾸지 않는다/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.log = originalLog;
+    console.error = originalError;
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
