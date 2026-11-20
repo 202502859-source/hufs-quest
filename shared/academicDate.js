@@ -67,6 +67,25 @@ export function datesIn(text, { rangeEnds = false } = {}) {
   return found;
 }
 
+// AI가 근거의 24시간 표기(17:00)를 "오후 5시" · "5 p.m."처럼 바꿔 쓴 시각을 24시간 표기로 되돌립니다.
+// api/ask.js의 숫자 검사(근거에 없는 숫자면 원문 대체)가 이런 답을 지어낸 것으로 오해하지 않게 하려는 것입니다.
+// 예: "오전 9시" → "09:00", "오후 9시 30분" → "21:30", "저녁 9시" · "밤 9시" → "21:00", "5 p.m." → "17:00"
+export function normalizeClockTimes(text) {
+  const hhmm = (h, m) => `${pad(h)}:${pad(m ?? 0)}`;
+  const convert = (hour, minute, pm) => {
+    const h = Number(hour);
+    const m = minute === undefined ? 0 : Number(minute);
+    if (h < 1 || h > 12 || m > 59) return null;
+    return hhmm(pm ? (h === 12 ? 12 : h + 12) : h === 12 ? 0 : h, m);
+  };
+  return String(text ?? "")
+    .replace(/(오전|오후|저녁|밤)\s*(\d{1,2})\s*시(?:\s*(\d{1,2})\s*분|\s*반)?/g, (all, part, h, m) => {
+      const minute = m ?? (all.endsWith("반") ? 30 : undefined);
+      return convert(h, minute, part !== "오전") ?? all;
+    })
+    .replace(/(?<![\d:])(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/gi, (all, h, m, ampm) => convert(h, m, /^p/i.test(ampm)) ?? all);
+}
+
 // 연도 없는 월·일: "3월 2일" 또는 "10.26"(점 뒤가 두 자리일 때만. 3.5 · 4.0 같은 평점은 안 셈).
 // 연도가 붙은 날짜의 일부(2026.10.20의 10.20)는 앞의 점 때문에 여기서 따로 세지 않고, 아래에서 연-월-일의 월·일로 넣습니다.
 const MONTH_DAY = /(?<![\d.])(\d{1,2})\s*월\s*(\d{1,2})\s*일|(?<![\d.])(\d{1,2})\.(\d{2})(?![\d.])/g;

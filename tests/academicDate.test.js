@@ -1,7 +1,7 @@
 // 검색창 날짜 처리(shared/academicDate.js)와 api/ask.js의 날짜 근거 검사를 확인합니다. 실행: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { datesIn, seoulToday, todayContext, ungroundedDates } from "../shared/academicDate.js";
+import { datesIn, normalizeClockTimes, seoulToday, todayContext, ungroundedDates } from "../shared/academicDate.js";
 
 // 한국 시간 정오로 만들어 날짜 경계 문제 없이 학기만 봅니다.
 const kstNoon = (date) => new Date(`${date}T12:00:00+09:00`);
@@ -77,6 +77,13 @@ test("학년도: 1~2월 날짜는 전년도 학년도, 근거에 'YYYY학년도'
   assert.deepEqual(ungroundedDates("2025학년도 이후 입학생은 126학점이에요. [1]", text), []);
 });
 
+test("시각 되돌리기: 오전·오후 N시 · p.m. → 24시간 표기, 다른 숫자는 그대로", () => {
+  assert.equal(normalizeClockTimes("평일 오전 9시부터 오후 9시까지, 토요일 오후 5시까지"), "평일 09:00부터 21:00까지, 토요일 17:00까지");
+  assert.equal(normalizeClockTimes("밤 11시 반, 저녁 6시 30분, 오후 12시, 오전 12시"), "23:30, 18:30, 12:00, 00:00");
+  assert.equal(normalizeClockTimes("open 9 a.m. to 9:30 pm"), "open 09:00 to 21:30");
+  assert.equal(normalizeClockTimes("09:00~21:00, 126학점, 3월 2일, 오후 13시"), "09:00~21:00, 126학점, 3월 2일, 오후 13시");
+});
+
 // 기존 eval 학사 문항의 실제 답변(data/eval/20261120-1214.json)이 실제 근거 조각(data/chunks.json, 같은 출처 페이지의 조각 전부)으로 잘못 막히지 않는지
 test("실제 조각: 졸업학점 · 최우등 · 휴학 · 조기졸업 · 이중전공 답변은 막히지 않음", async () => {
   const { readFile } = await import("node:fs/promises");
@@ -105,6 +112,7 @@ test("ask.js: 근거에 없는 날짜 답변은 mode none, 로그 mode guard · 
   Object.assign(process.env, ENV);
   let reply = "";
   let systemPrompt = "";
+  let rows = [{ title: "학사일정(대학)", url: "https://www.hufs.ac.kr/hufs/11360/subview.do", text: "2026.03.02: 2026학년도 제1학기 개강·대체휴업일", similarity: 0.8 }];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     const u = String(url);
@@ -113,7 +121,7 @@ test("ask.js: 근거에 없는 날짜 답변은 mode none, 로그 mode guard · 
     if (u.includes("HCX-DASH-002")) return { ok: false, status: 500, json: async () => ({}) }; // 검색어 정리 실패 → 원래 질문으로 검색
     if (u.includes("/embedding/v2")) return json({ result: { embedding: [0.1, 0.2] } });
     if (u.includes("/rpc/match_chunks")) {
-      return json([{ title: "학사일정(대학)", url: "https://www.hufs.ac.kr/hufs/11360/subview.do", text: "2026.03.02: 2026학년도 제1학기 개강·대체휴업일", similarity: 0.8 }]);
+      return json(rows);
     }
     if (u.includes("HCX-005")) {
       systemPrompt = JSON.parse(init.body).messages[0].content;
@@ -151,6 +159,26 @@ test("ask.js: 근거에 없는 날짜 답변은 mode none, 로그 mode guard · 
     const yearOnly = await call("2027학년도 개강일 알려줘", "203.0.113.72");
     assert.equal(yearOnly.body.mode, "none");
     assert.equal(logs.map((l) => JSON.parse(l)).filter((l) => l.mode === "guard").at(-1)?.reason, "ungrounded-year");
+
+    // 도서관: 근거는 09:00~21:00 · 09:00~17:00인데 AI가 "오후 5시"로 바꿔 써도 원문 대체(evidence)가 아니라 AI 답
+    rows = [{ title: "2026학년도 신입생 대학생활안내", url: "https://www.hufs.ac.kr/sites/hufs/download/studentlifeguide2026.pdf", similarity: 0.8,
+      text: "[2026학년도 신입생 대학생활안내 > 도서관 이용시간 > 서울캠퍼스]\n서울캠퍼스 도서관 자료실(학기 중): 평일 09:00~21:00, 토요일 09:00~17:00, 공휴일 폐실" }];
+    reply = "서울캠퍼스 도서관 자료실은 학기 중 평일 오전 9시부터 오후 9시까지, 토요일 오전 9시부터 오후 5시까지 열고 공휴일에는 닫아요. [1]";
+    const library = await call("도서관 운영 시간 알려줘", "203.0.113.73");
+    assert.equal(library.body.mode, "ai");
+    assert.equal(library.body.answer, reply);
+    assert.match(systemPrompt, /시각은 자료 표기 그대로/);
+    // 근거가 "오후 5시"로 적혀 있고 AI도 그대로 쓰면 통과
+    rows = [{ title: "증명서 발급", url: "https://www.hufs.ac.kr/hufs/11304/subview.do", similarity: 0.8, text: "자동발급기 운영: 오전 8시 ~ 오후 5시" }];
+    reply = "자동발급기는 오전 8시부터 오후 5시까지 운영해요. [1]";
+    const same = await call("자동발급기 몇 시까지 해?", "203.0.113.75");
+    assert.equal(same.body.mode, "ai");
+    rows = [{ title: "2026학년도 신입생 대학생활안내", url: "https://www.hufs.ac.kr/sites/hufs/download/studentlifeguide2026.pdf", similarity: 0.8,
+      text: "서울캠퍼스 도서관 자료실(학기 중): 평일 09:00~21:00, 토요일 09:00~17:00, 공휴일 폐실" }];
+    // 근거에 없는 시각은 여전히 원문 대체
+    reply = "서울캠퍼스 도서관 자료실은 평일 오후 10시까지 열어요. [1]";
+    const late = await call("도서관 몇 시까지 해?", "203.0.113.74");
+    assert.equal(late.body.mode, "evidence");
   } finally {
     globalThis.fetch = originalFetch;
     console.log = originalLog;
