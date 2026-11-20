@@ -52,6 +52,7 @@ export const SOURCES = {
   guide2026: { title: "2026학년도 신입생 대학생활안내(교무처 학사종합지원센터, 2026.2.20) 서울캠퍼스 표기 부분", url: "https://www.hufs.ac.kr/sites/hufs/download/studentlifeguide2026.pdf" },
   counseling: { title: "학생상담센터", url: "https://sccs.hufs.ac.kr/" },
   disability: { title: "장애학생지원센터", url: "http://support.hufs.ac.kr/" },
+  flttc: { title: "외국어연수평가원", url: "https://flttc.hufs.ac.kr/" },
 };
 
 // 공식 페이지끼리 다르거나 건물이 분명하지 않아 아직 넣지 않은 것입니다. 확인되면 offices로 옮기고 여기서 지웁니다.
@@ -59,6 +60,9 @@ export const PENDING = [
   "학사종합지원센터 호수: 위치(국제학사 및 학생회관 1층)는 팀 현장 확인. 공식 페이지(학사 사이트 '사이버관 105호', 2026 신입생 대학생활안내 '본관 1층')는 옛 정보로 보임 — 11/20 학사종합지원센터 통화 때 호수 확인",
   "전화안내의 '1층안내데스크 · 2층안내데스크': 건물 이름이 적혀 있지 않음",
   "진로취업지원센터 · 국제교류팀 · 학생지원팀: 공식 페이지에서 위치를 찾지 못함",
+  "Minerva Complex(오바마홀): 전화안내(전기실만 기재), 공식 캠퍼스맵, 2026 신입생 대학생활안내 PDF 확인했으나 층·호수 및 입주 시설 공식 안내 미기재",
+  "출판부: 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
+  "역사관(역사기념관): 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
 ];
 
 const CHECKED = "2026-11-19";
@@ -144,7 +148,14 @@ export const BUILDING_INFO = {
     ],
     checkedAt: CHECKED,
   },
-  law: { ...empty, name: "법학관", nameEn: "Law Hall" },
+  law: {
+    ...empty,
+    name: "법학관",
+    nameEn: "Law Hall",
+    use: { ko: "건물 안내실이 있어요.", en: "Has a building information desk." },
+    offices: [o("안내실", "Information desk", null, null, "건물 안내", "Building information", "phone")],
+    checkedAt: "2026-11-20",
+  },
   grad: {
     ...empty,
     name: "대학원",
@@ -156,7 +167,28 @@ export const BUILDING_INFO = {
     ],
     checkedAt: CHECKED,
   },
-  flc: { ...empty, name: "외국어연수평가원", mapName: "외국어 연수평가원", nameEn: "Language Center" },
+  flc: {
+    ...empty,
+    name: "외국어연수평가원",
+    mapName: "외국어 연수평가원",
+    nameEn: "Language Center",
+    use: {
+      ko: "외국어 교육 과정과 외국어 평가를 운영해요.",
+      en: "Runs foreign language training programs and proficiency testing.",
+    },
+    offices: [
+      o(
+        "외국어연수평가원",
+        "Foreign Language Training and Testing Center",
+        null,
+        null,
+        "외국어 교육 과정(정규 · 야간 · 주말 · 대학원시험대체 등) 및 외국어 평가",
+        "Foreign language courses (regular, evening, weekend, graduate exam replacement) and testing",
+        "flttc"
+      ),
+    ],
+    checkedAt: "2026-11-20",
+  },
   intl: {
     ...empty,
     name: "국제관",
@@ -189,7 +221,16 @@ export const BUILDING_INFO = {
     ],
     checkedAt: CHECKED,
   },
-  faculty: { ...empty, name: "교수연구동", nameEn: "Faculty Research" },
+  faculty: {
+    ...empty,
+    name: "교수연구동",
+    nameEn: "Faculty Research",
+    use: { ko: "제1교수연구동 안내실이 있어요.", en: "Has the Faculty Research Building 1 information desk." },
+    offices: [
+      o("제1교수연구동 안내실", "Faculty Research Building 1 information desk", null, null, "건물 안내", "Building information", "phone"),
+    ],
+    checkedAt: "2026-11-20",
+  },
   club: {
     ...empty,
     name: "교수회관",
@@ -204,7 +245,17 @@ export const BUILDING_INFO = {
     checkedAt: CHECKED,
   },
   press: { ...empty, name: "출판부", nameEn: "Univ. Press" },
-  gatehouse: { ...empty, name: "정문안내실", mapName: "정문 안내실", nameEn: "Gate Office" },
+  gatehouse: {
+    ...empty,
+    name: "정문안내실",
+    mapName: "정문 안내실",
+    nameEn: "Gate Office",
+    use: { ko: "정문 안내실이 있어요.", en: "Has the main gate information desk." },
+    offices: [
+      o("정문 안내실", "Main gate information desk", null, null, "정문 및 캠퍼스 안내", "Main gate and campus information", "phone"),
+    ],
+    checkedAt: "2026-11-20",
+  },
   history: { ...empty, name: "역사관", nameEn: "History Hall" },
   minerva: { ...empty, name: "Minerva Complex", nameEn: "Minerva Complex" },
   cyber: {
