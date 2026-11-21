@@ -49,6 +49,36 @@ export function buildTableChunks({ pageId, title, url, html, config }) {
   return { chunks, review, ambiguous, skipped };
 }
 
+// 서울캠퍼스 서비스라 표 제목에 '글로벌캠퍼스'만 있는(서울캠퍼스는 없는) 문장은 뺍니다(11/20 eval 2025학번 졸업학점 오답 원인).
+// 문장이 다 빠진 조각은 저장하지 않고 excluded에 남겨 table-check.md에 '제외'로 표시합니다.
+// buildTableChunks는 그대로 두고 collect가 이 함수를 거칩니다(글로벌 표 문장 생성 테스트는 계속 유지).
+export function isGlobalOnlyTableLine(line) {
+  const prefix = line.match(/^\[([^\]]*)\]/)?.[1] ?? "";
+  return prefix.includes("글로벌캠퍼스") && !prefix.includes("서울캠퍼스");
+}
+
+export function excludeGlobalOnlyTables(result) {
+  const chunks = [];
+  const excluded = [];
+  for (const chunk of result.chunks) {
+    const lines = chunk.text.split("\n");
+    const isLead = (line) => /^\[[^\]]*\] 표 위 안내: /.test(line);
+    const kept = lines.filter((line) => !isGlobalOnlyTableLine(line));
+    if (!kept.filter((line) => !isLead(line)).length) {
+      excluded.push({ id: chunk.id, section: chunk.section, sentences: lines.filter((line) => !isLead(line)).length });
+      continue;
+    }
+    chunks.push(kept.length === lines.length ? chunk : { ...chunk, text: kept.join("\n") });
+  }
+  const excludedIds = new Set(excluded.map((e) => e.id));
+  const review = result.review.map((r) => {
+    if (excludedIds.has(r.id)) return { ...r, excluded: "글로벌캠퍼스 전용 표, 저장 안 함" };
+    const sentences = r.sentences.map((s) => (isGlobalOnlyTableLine(s.text) ? { ...s, excluded: true } : s));
+    return { ...r, sentences };
+  });
+  return { ...result, chunks, review, excluded };
+}
+
 // ── 문장 틀 ───────────────────────────────────────────────
 
 const KINDS = {

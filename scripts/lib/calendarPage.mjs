@@ -9,6 +9,8 @@
 // - 3~12월 일정은 year년, 1~2월 일정은 year+1년. 끝 날짜가 1~2월이면 끝 날짜도 year+1년
 // - 3~6월 · 7~8월 · 9~12월 · 이듬해 1~2월로 묶어 조각 4개를 만듭니다
 // - 일정 이름은 원문 그대로(바꾸지 않음)
+// - 조각마다 "2026학년도(2026.03~2027.02) 일정만 담음" 범위 문장, 겨울방학 조각에는 다음 학년도 개강일이 없다는 문장을 넣습니다.
+//   (11/20 2차 보류 원인: "2027년 1학기 개강일"을 물으면 겨울방학 조각의 2027.02.22 수강신청 시작일을 개강일로 답함)
 const DATE = /^(\d{2})\.(\d{2})$/;
 const END = /^~\s*(\d{2})\.(\d{2})$/;
 const MONTH_KO = /^\d{1,2}월$/;
@@ -65,6 +67,18 @@ export function parseCalendar(lines) {
   return { year, items };
 }
 
+// 조각 머리글 다음에 오는 안내 줄(날짜 줄보다 앞). 테스트도 이 함수로 안내 줄 수를 셉니다.
+export function calendarNotes(year, groupKey) {
+  const notes = [
+    `${year}학년도 학사일정(학교 홈페이지 대학 학사일정, 캠퍼스 구분 없이 게시됨)`,
+    `${year}학년도(${year}.03~${year + 1}.02) 일정만 담음`,
+  ];
+  if (groupKey === "winter") {
+    notes.push(`${year + 1}학년도 제1학기 개강일은 이 일정표에 없음(${year + 1}학년도 학사일정 게시 후 확인)`);
+  }
+  return notes;
+}
+
 // collect.mjs가 부릅니다. 일정이 너무 적게 읽히면(페이지 구조가 바뀐 경우) null을 돌려주고, collect는 기존 방식으로 자릅니다.
 export function calendarChunks({ pageId, title, url, lines, minItems = 20 }) {
   const { year, items } = parseCalendar(lines);
@@ -77,7 +91,7 @@ export function calendarChunks({ pageId, title, url, lines, minItems = 20 }) {
     const body = rows.map((it) => `${it.end ? `${it.start} ~ ${it.end}` : it.start}: ${it.name}`);
     return {
       section,
-      text: [`[${pageTitle} > ${section}]`, `${year}학년도 학사일정(학교 홈페이지 대학 학사일정, 캠퍼스 구분 없이 게시됨)`, ...body].join("\n"),
+      text: [`[${pageTitle} > ${section}]`, ...calendarNotes(year, group.key), ...body].join("\n"),
     };
   })
     .filter(Boolean)

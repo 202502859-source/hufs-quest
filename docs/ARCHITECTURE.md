@@ -33,9 +33,10 @@ flowchart LR
         supaAuth["Supabase Auth<br/>이메일 OTP · 학교 메일만"]
         vector["Supabase 벡터 DB<br/>학사 문서 242조각"]
         userDb["Supabase 사용자 DB<br/>진행 · 포인트 · 사용량 카운터"]
+        vectorNext["Supabase 시험용 벡터 DB<br/>chunks_next · 문서 확대 시험"]
     end
 
-    collect["학사 페이지 수집<br/>scripts/ · 공개 페이지 27곳 · 표 정리 4곳"]
+    collect["학사 페이지 수집<br/>scripts/ · 공개 페이지 27곳 · 표 정리 4곳 · 11/20 사이트맵 후보 48곳 추가"]
 
     user --> game
     user --> login
@@ -54,13 +55,14 @@ flowchart LR
     ask --> vector
     newApi --> userDb
     collect --> vector
+    collect -.->|"ingest --target next"| vectorNext
 
     classDef done fill:#E1F5EE,stroke:#0F6E56,color:#085041
     classDef partial fill:#FAEEDA,stroke:#854F0B,color:#633806
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect,supaAuth done
-    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi partial
+    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext partial
 ```
 
 | 색 | 상태 |
@@ -77,7 +79,7 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect,supaAuth done      ← 동작 중
-class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi partial    ← 일부 구현
+class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext partial    ← 일부 구현
 (만들 것 todo: 11/19 기준 없음. 새로 만들 기능이 생기면 `class 이름 todo` 줄을 다시 추가)
 ```
 
@@ -101,12 +103,12 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 | 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창, 1단계에 개인정보 안내 4줄 + 동의 체크박스 · 문구는 `state.js` `loginPrivacy*`) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **진짜 메일 로그인 완료(11/19, 임현규)** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
 | 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
 | 진행 저장 서버 함수 | `api/progress.js`, `api/quiz-answer.js`, `api/quest-complete.js`, `api/check-in.js`, `api/_lib/progressServer.js`, 테스트 `tests/progressApiServer.test.js` (**구현 완료, 11/19 확인 완료**) | 임현규 |
-| Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단), `supabase/003_usage_limits.sql` (사용량 카운터, 11/18 실행) | 임현규 |
-| CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` | 신중혁 |
+| Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단), `supabase/003_usage_limits.sql` (사용량 카운터, 11/18 실행), `supabase/005_chunks_next.sql` (시험용 벡터 DB `chunks_next` · 검색 함수 `match_chunks_next`, service_role만 실행, 11/20 실행 · 이종헌. 맨 아래에 실서비스 `match_chunks` 원본 정의 기록) | 임현규 |
+| CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` (11/20~ `--target next`: 실서비스 `chunks` 대신 시험용 `chunks_next`에 저장 · 옛 조각 삭제 · 개수 확인, 첫 줄에 대상 테이블 출력, `--dry-run`과 함께 사용 가능. `api/ask.js`는 계속 `chunks`만 검색. 11/21~ `scripts/lib/retry.mjs`: 임베딩 · 저장 실패 시 2 · 5 · 10초 뒤 최대 3번 다시 시도, 그래도 실패하면 멈춘 조각 번호 · id를 출력하고 옛 조각 삭제 없이 종료 코드 1, 진행 표시는 50조각마다. 테스트 `scripts/lib/retry.test.mjs`) | 신중혁 |
 | 서버 함수 실행 지역 | 저장소 루트 `vercel.json`의 `"regions": ["icn1"]`(서울). Supabase(ap-northeast-2 서울) · CLOVA Studio가 한국에 있고 개인정보 처리 위치도 한국으로 두기 위함. Vercel 문서상 `vercel.json` 값이 대시보드 Function Regions 설정보다 우선 | 이종헌 |
 | 범위 밖 기능 숨김 | `src/data/features.js`의 `SHOW_OUT_OF_SCOPE`(지금 `false`). false면 HUD "수강신청 추천 서비스" 버튼(`HudScene.renderPlannerButton`)을 만들지 않고, 퀘스트 목록(`state.js` `QUEST_LIST`)에서 `outOfScope` 퀘스트(`mockReg`)를 빼고, `CampusScene.openPlanner` · `openMockReg` 진입을 막음. 숨김 대상 파일(`public/planner/`, `plannerOverlay.js`, `MockRegScene.js`, `teammate/`)과 `main.js` 장면 등록은 그대로 | 이종헌 |
-| 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` | 신중혁 |
-| 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` | 이종헌 (검색창 개선 1~4단계) |
+| 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` (11/20~ 사람 이름 표시(담당자 ○○○ · ○○○ 선생님 · 주무관 · 교수)가 있는 줄은 이름과 그 구간의 메일 · 직통번호만 "(개인 연락처 생략)"으로 가림(줄 · 대표번호 · 부서 메일은 남김). 이름 표시 없는 개인 메일은 `PERSONAL_MAIL_IDS` 목록으로 가림, 각주 기호(`*`) 정리, 본문 40자 미만 조각 제거(부서 연락처 조각은 예외), 캠퍼스 표시 `[서울]` · `[글로벌]`. 테스트 `scripts/lib/hufsPage.test.mjs`), collect는 `[글로벌]` 표시 조각을 저장하지 않고(서울캠퍼스 서비스, 11/20 eval 2025학번 졸업학점 오답 원인), 본문이 같은 조각을 해시로 하나만 남기고 "글로벌 전용 조각 제외 n개(표 정리 포함), 중복 제거 n개, 개인 연락처 가림 n줄"과 가린 메일 아이디를 출력. 학사일정 `scripts/lib/calendarPage.mjs`는 조각마다 적용 학년도 범위 문장 · 겨울방학 조각에 다음 학년도 개강일 없음 문장 | 신중혁 |
+| 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` (11/20~ 표 제목에 글로벌캠퍼스만 있는 문장은 `excludeGlobalOnlyTables`로 빼고, 검수표에 "제외"로 표시) | 이종헌 (검색창 개선 1~4단계) |
 
 게임 상태(경험치·포인트)는 `src/state.js`에 있고, 서버 저장과 연결하는 부분은 이종헌·임현규 공동 담당입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답으로만 바뀌고(`applyProgress`), 게스트는 서버를 부르지 않고 메모리에서만 동작합니다.
 
@@ -135,7 +137,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 1. `scripts/urls.txt`의 공개 페이지를 `npm run collect`가 1.5초 간격으로 받아 `data/chunks.json`에 조각으로 저장합니다.
 2. `scripts/tablePages.mjs`에 있는 페이지(졸업이수학점·전과·수료·학석사연계과정)는 기존 조각에 더해 **표 정리 조각**(`<페이지>-t01` …)도 만듭니다. 표의 rowspan/colspan을 풀어 행마다 캠퍼스·학번·단과대학·이수 유형을 붙인 한 문장으로 바꾸므로, 숫자가 다른 표의 조건과 섞이지 않습니다. 숫자는 원문 칸에서만 가져오고, 괄호 값처럼 뜻이 애매한 행은 문장을 만들지 않고 보류합니다.
 3. collect가 원문 행과 생성 문장을 나란히 보여 주는 `data/table-check.md`를 만듭니다. **사람이 숫자를 검수한 뒤에만** ingest를 실행합니다. (표 문장 규칙 테스트: `npm test`)
-4. `npm run ingest`가 조각마다 CLOVA 임베딩(1024차원)을 만들어 Supabase `chunks` 테이블에 저장하고, 이번에 없는 옛 조각은 지웁니다. **실제 서비스 DB가 바뀌므로 실행 전에 단톡에 알리고, 실행한 사실과 조각 수 변화를 PR에 적습니다.**
+4. `npm run ingest`가 조각마다 CLOVA 임베딩(1024차원)을 만들어 Supabase `chunks` 테이블에 저장하고, 이번에 없는 옛 조각은 지웁니다. **실제 서비스 DB가 바뀌므로 실행 전에 단톡에 알리고, 실행한 사실과 조각 수 변화를 PR에 적습니다.** 문서를 크게 늘릴 때는 먼저 `npm run ingest -- --target next`로 시험용 `chunks_next`에 넣어 봅니다(실서비스 검색에는 쓰이지 않음).
 
 ## 변경 기록
 
@@ -159,3 +161,9 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi par
 | 2026-11-19 | 검색창 사용량 제한을 로그인 학생은 계정 기준, 게스트는 IP 기준으로 변경(같은 와이파이 사용자끼리 한도를 나눠 쓰던 버그, 임현규 제보). 사용량 제한 상자 · 파일 표 갱신 | 이종헌 |
 | 2026-11-20 | 검색창 날짜 근거 검사(`shared/academicDate.js`, 오늘 날짜 · 현재 학기 전달, 근거에 없는 날짜 차단): ask.js 상자 · 파일 표 · 주요 흐름 갱신 | 이종헌 |
 | 2026-11-20 | 검색창 복합 질문 나눠 찾기(`api/_lib/decompose.js`, 하위 질문 최대 2개 동시 검색 · 합치기, `CHUNKS_RPC`): ask.js 상자 · 파일 표 · 주요 흐름 갱신. Preview eval 확인 전 | 이종헌 |
+| 2026-11-20 | 문서 확대 준비: 시험용 벡터 DB `chunks_next` 상자 · `ingest --target next` 점선 추가, 수집 정리 규칙(개인 연락처 줄 · 각주 · 짧은 조각 · 캠퍼스 표시 · 중복 제거)과 학사일정 범위 문장을 파일 표에 반영 | 이종헌 |
+| 2026-11-20 | `supabase/005_chunks_next.sql`(11/20 대시보드 실행분 기록)을 파일 표에 추가 | 이종헌 |
+| 2026-11-20 | 수집 표에 `[글로벌]` 조각 저장 제외 · 지운 메일 아이디 출력 반영 | 이종헌 |
+| 2026-11-20 | 개인 연락처를 줄 삭제 대신 이름 · 메일 · 직통번호 가림으로 변경, 표 정리 조각의 글로벌캠퍼스 전용 문장 제외 | 이종헌 |
+| 2026-11-20 | 수집의 40자 미만 조각 버리기에 예외 추가(숫자 · 학점 · 기간 · 인원 같은 규칙 조각은 남김, 468 → 485조각) | 이종헌 |
+| 2026-11-21 | ingest 재시도(`scripts/lib/retry.mjs`)와 50조각마다 진행 표시: CLOVA · Supabase 상자 파일 표 갱신 | 이종헌 |
