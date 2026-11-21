@@ -12,7 +12,8 @@
  * 2. 하위 질문마다 동시에(Promise.all) CLOVA Studio 임베딩 v2로 벡터화해 Supabase RPC(CHUNKS_RPC)에서
  *    비슷한 조각을 하위 질문당 6개까지 찾고, 1등과 유사도 차이(SIMILARITY_GAP) 필터는 하위 질문별로 따로 겁니다.
  *    한 하위 질문의 벡터 검색만 실패하면 그 질문만 shared/kb.js 키워드 검색으로 대신합니다.
- * 3. mergeDocs로 하위 질문별 결과를 중복 없이 합칩니다(질문마다 상위 3개 보장, 최대 6개 · 하위 질문 1개면 4개).
+ * 3. mergeDocs로 하위 질문별 결과를 중복 없이 합칩니다(질문마다 3개 보장, 최대 6개 · 하위 질문 1개면 4개).
+ *    하위 질문이 둘 이상이면 그 3개를 고를 때 같은 페이지 조각은 2개까지만 먼저 넣습니다. 로그 subQueryIds에 최종 근거의 조각 id.
  *    합친 근거가 비면 전체를 키워드 검색으로 다시 찾고, 그래도 없으면 AI를 부르지 않고 "찾지 못함"을 돌려줍니다.
  * 4. 근거와 하위 질문 목록을 넘겨 HyperCLOVA X(HCX-005)가 답하게 하고, 답변에 실제로 인용된 번호의 출처만 돌려줍니다.
  *    하위 질문이 둘이면 각각 따로 답하고, 근거가 없는 쪽은 그 부분만 "찾지 못했어요"라고 답하게 합니다.
@@ -190,6 +191,7 @@ async function vectorSearch(text, rpc) {
     .filter((row) => (row.similarity || 0) >= best - SIMILARITY_GAP)
     .slice(0, MATCH_COUNT)
     .map((row) => ({
+      id: row.id ?? null, // 조각 id(로그 subQueryIds용, 개인정보 아님)
       title: row.title || row.section || row.url,
       page: row.title || row.url,
       url: row.url,
@@ -201,6 +203,7 @@ async function vectorSearch(text, rpc) {
 // 예비 근거(키워드 검색)
 function keywordSearch(question, lang) {
   return retrieve(question, KB, lang, 3).map((doc) => ({
+    id: doc.id ? `kb:${doc.id}` : null,
     title: doc.title[lang],
     page: doc.source.label[lang],
     url: doc.source.url,
@@ -363,7 +366,14 @@ export default async function handler(req, res) {
     docs = keywordSearch(rewritten ? `${question} ${searchTexts.join(" ")}` : question, lang);
   }
   // 하위 질문 개수 · 하위 질문별 근거 수 · RPC 이름만 남깁니다. 질문 · 검색어 내용은 로그에 남기지 않습니다.
-  const searchLog = { subQueries: searchTexts.length, subQueryDocs: perQuery.map((r) => r.docs.length), rpc };
+  // subQueryIds: 하위 질문마다, 최종 근거(docs)에 들어간 그 하위 질문 검색 결과의 조각 id(어떤 근거가 잘렸는지 진단용).
+  const finalDocs = new Set(docs);
+  const searchLog = {
+    subQueries: searchTexts.length,
+    subQueryDocs: perQuery.map((r) => r.docs.length),
+    subQueryIds: perQuery.map((r) => r.docs.filter((d) => finalDocs.has(d)).map((d) => d.id ?? "?")),
+    rpc,
+  };
 
   if (!docs.length) {
     console.log(JSON.stringify({ mode: "none", retrieval, rewritten, ...searchLog, ...limitLog, ...rewriteLog, ms: Date.now() - started }));
