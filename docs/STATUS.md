@@ -8,7 +8,7 @@
 
 | | 실서비스 (hufs-quest.vercel.app) | Preview (모든 PR) |
 | --- | --- | --- |
-| 검색창 DB | Supabase `chunks` — main의 `data/chunks.json` **485조각**으로 11/21 ingest(이종헌) | 실서비스와 같은 `chunks` (Preview 환경 변수 `CHUNKS_RPC` 삭제 여부는 **확인 필요**, 남아 있으면 `chunks_next` 485조각) |
+| 검색창 DB | Supabase `chunks` **485행** (main의 `data/chunks.json`, 11/21 ingest 이종헌) | 실서비스와 같은 `chunks` (Preview 환경 변수 `CHUNKS_RPC`는 11/21 삭제) |
 | 어떻게 정해지나 | Vercel 환경 변수 `CHUNKS_RPC` 없음 → `match_chunks` | `CHUNKS_RPC`가 없으면 `match_chunks` |
 | 질문 쪼개기(Advanced RAG) | **있음** (#42 Merge, 11/21) | 같음 |
 | 마감 임박 공지 | `[예시]` 5건만 (실제 6건은 원문과 달라 #40에서 내림) | 같음 |
@@ -37,7 +37,11 @@
 - **비교 eval(#43 Preview, 시험 DB 485조각 + 질문 쪼개기, `data/eval/20261121-1540.json`):** 학사 **46/48**(기숙사 문항 제외 45/47), 까다로운 **9/12**, 범위 밖은 셔틀 문항이 "공개되지 않았습니다 … 문의"로 거절했는데 "지어냄"으로 잘못 채점됨 → #46에서 채점 수정.
 - 전날 밤 퇴보 문항(계절학기 최대 학점 3문항 · 후기 이중전공 신청 시기)은 40자 규칙 예외(5797491)로 풀림. 번호 목록 · 없는 인용 번호는 `api/_lib/answerFormat.js`로 막음.
 - **전환:** #41 Merge → 실서비스 ingest(이종헌, 대상 `chunks`) → #42 Merge. 원격 브랜치 `test/rag-night` · `feat/ask-decompose` · `data/docs-expansion` · `fix/eval-dorm-in-scope` 정리.
-- **확인 필요(이종헌):** 실서비스 ingest 마지막 줄의 `chunks` 행 수, Vercel Preview의 `CHUNKS_RPC` 삭제, 실서비스 검색창에서 확인표 질문 다시 확인, `docs/ROADMAP.md` 상태.
+- **전환 뒤 확인(이종헌, 11/21):**
+  - 실서비스 ingest: 대상 `chunks`, **485행**(직접 실행)
+  - Vercel Preview 환경 변수 `CHUNKS_RPC`: **삭제함**
+  - 실서비스 확인 3문항: 계절학기 최대 학점 → 6학점 / 후기 이중전공 신청 → 4월 / 이번 학기 중간고사 → 10/20~10/26. 로그 `rpc: match_chunks`
+  - `docs/ROADMAP.md`: "복합 질문 나눠 찾기" ✅, 변경 기록 추가
 - 사전 사용자 테스트(팀 밖 2~3명, "이중전공 기준 찾기")는 이제 시작할 수 있다.
 
 ## 5. 사람별 다음 작업
@@ -61,7 +65,7 @@
 5. **같은 질문 답변 캐시**(로드맵 2주차, 발표장 동시 질문 대비): ingest하면 캐시를 비우는 구조. 시작 전에 설계를 단톡에 공유.
 
 ### 이종헌 (PM · 게임 · 그래픽)
-1. 11/21 전환 뒤 확인(4장 "확인 필요").
+1. ~~11/21 전환 뒤 확인~~ 끝(4장).
 2. **그래픽 사양서 `docs/GRAPHICS.md` + 시연 동선 건물 3~4곳 확정** — M1(11/25) 기준, 11/24 마감.
 3. 구글 폼 '실제와 달라요' 1번 드롭다운의 '학생회관 및 기숙사'를 '국제학사 및 학생회관'으로.
 4. 건물 정보(`src/data/buildingInfo.js`) 화면 연결 방식 결정(동선 확정 뒤).
