@@ -11,6 +11,7 @@
 // 두 값은 터미널 환경 변수나 .env에서 읽고(이 두 이름만 읽음), 화면이나 결과 파일에 출력하지 않습니다.
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
+import { isRefusal } from "./lib/evalGrade.mjs";
 
 const BASE = (process.argv[2] || "https://hufs-quest.vercel.app").replace(/\/$/, "");
 const DELAY_MS = 6500;
@@ -166,7 +167,8 @@ async function ask(question, lang) {
 function grade(c, r) {
   const answer = String(r.answer ?? "");
   if (c.outOfScope) {
-    const refused = r.mode === "none" || /찾지 못|찾을 수 없|couldn't find|could not find/i.test(answer);
+    // 거절 표현 판정은 scripts/lib/evalGrade.mjs (11/21~ "공개되지 않" · "확인할 수 없" 등도 숫자 없이 말하면 거절)
+    const refused = isRefusal(answer, r.mode);
     return { result: refused ? "거절" : "지어냄" };
   }
  
