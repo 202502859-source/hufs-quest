@@ -5,7 +5,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import * as cheerio from "cheerio";
 import { expandTable, tableRecords } from "./tableGrid.mjs";
-import { buildTableChunks, josa } from "./tableSentences.mjs";
+import { buildTableChunks, excludeGlobalOnlyTables, isGlobalOnlyTableLine, josa } from "./tableSentences.mjs";
+import { renderTableCheck } from "./tableCheck.mjs";
 import { TABLE_PAGES } from "../tablePages.mjs";
 
 const html = readFileSync(new URL("./fixtures/11373.html", import.meta.url), "utf8");
@@ -121,4 +122,29 @@ test("조사 고르기", () => {
   assert.equal(josa("이중전공", "을", "를"), "을");
   assert.equal(josa("이중전공(사범대)", "을", "를"), "를");
   assert.equal(josa("1학기 이수자", "은", "는"), "는");
+});
+
+test("글로벌 전용 표 제외: 11373 서울 표 조각(t01~t06)은 그대로, 글로벌 표 조각(t07 이후)은 저장하지 않음", () => {
+  const cut = excludeGlobalOnlyTables(result);
+  const seoul = result.chunks.filter((c) => c.text.split("\n")[0].includes("서울캠퍼스"));
+  assert.deepEqual(seoul.map((c) => c.id), ["11373-t01", "11373-t02", "11373-t03", "11373-t04", "11373-t05", "11373-t06"]);
+  assert.deepEqual(cut.chunks.map((c) => c.id), seoul.map((c) => c.id));
+  assert.deepEqual(cut.chunks.map((c) => c.text), seoul.map((c) => c.text)); // 서울 조각 본문은 한 글자도 안 바뀜
+  assert.ok(cut.excluded.length > 0 && cut.excluded.every((e) => Number(e.id.slice(-2)) >= 7));
+  assert.equal(cut.excluded.length, result.chunks.length - 6);
+  assert.ok(cut.chunks.every((c) => !c.text.includes("글로벌캠퍼스")));
+  // 검수표에 제외 표시
+  const md = renderTableCheck([{ pageId: "11373", title: "졸업이수학점", url: "u", ...cut }], { collectedAt: "t" });
+  assert.match(md, /## 글로벌캠퍼스 전용으로 제외한 표 조각/);
+  assert.match(md, /### 11373-t07 · .* — \*\*제외: 글로벌캠퍼스 전용 표, 저장 안 함\*\*/);
+});
+
+test("글로벌 전용 판정: 표 제목에 서울캠퍼스가 함께 있으면 남김, 문장 일부만 글로벌이면 그 문장만 뺌", () => {
+  assert.equal(isGlobalOnlyTableLine("[졸업이수학점 > 글로벌캠퍼스 2025학년도 이후] 문장"), true);
+  assert.equal(isGlobalOnlyTableLine("[졸업이수학점 > 서울캠퍼스 · 글로벌캠퍼스 공통] 문장"), false);
+  assert.equal(isGlobalOnlyTableLine("[수료] 126학점 졸업자가 …"), false);
+  const mixed = { chunks: [{ id: "x-t01", section: "s", text: "[a > 서울캠퍼스 표] 문장1\n[a > 글로벌캠퍼스 표] 문장2" }], review: [] };
+  const cut = excludeGlobalOnlyTables(mixed);
+  assert.deepEqual(cut.chunks.map((c) => c.text), ["[a > 서울캠퍼스 표] 문장1"]);
+  assert.equal(cut.excluded.length, 0);
 });
