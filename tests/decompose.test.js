@@ -98,6 +98,35 @@ test("mergeDocs: 하위 질문이 1개면 최대 4개", () => {
   assert.deepEqual(mergeDocs([a]).map((d) => d.title), ["a1", "a2", "a3", "a4"]);
 });
 
+test("mergeDocs: 하위 질문이 둘이면 한 페이지가 몫을 다 차지하지 못함(11/21 조기졸업 재현 순위)", () => {
+  // 11/21 로컬 재현: "조기졸업 평점 기준" / "졸업 요건 평점" 하위 질문의 실제 검색 순위와 유사도
+  const page = (n) => `https://www.hufs.ac.kr/hufs/${n}/subview.do`;
+  const early = [doc("11389-02", 0.730, page(11389)), doc("11389-01", 0.713, page(11389)), doc("11389-04", 0.711, page(11389))];
+  const grad = [
+    doc("11391-01", 0.724, page(11391)), doc("11391-t03", 0.716, page(11391)), doc("11391-t04", 0.716, page(11391)),
+    doc("11391-t02", 0.713, page(11391)), doc("11391-t01", 0.710, page(11391)), doc("11390-01", 0.691, page(11390)),
+  ];
+  const merged = mergeDocs([early, grad]).map((d) => d.title);
+  // 예전에는 11391 조각 3개가 둘째 몫을 다 차지해 졸업 요건(11390-01, "2.00 이상")이 빠졌음
+  assert.deepEqual(merged, ["11389-02", "11389-01", "11389-04", "11391-01", "11391-t03", "11390-01"]);
+  // 한 페이지 결과밖에 없는 하위 질문(조기졸업)은 같은 페이지로 몫을 채움
+  assert.equal(merged.filter((t) => t.startsWith("11389")).length, 3);
+});
+
+test("mergeDocs: 페이지 제한은 몫을 고를 때만, 남는 자리는 그대로 유사도 순", () => {
+  const p = "https://www.hufs.ac.kr/same";
+  const a = [doc("a1", 0.9, p), doc("a2", 0.89, p), doc("a3", 0.88, p), doc("a4", 0.5)];
+  const b = [doc("b1", 0.7)];
+  // a의 몫: a1 · a2(같은 페이지 2개) + a4(다른 페이지). b의 몫: b1. 남는 2자리: a3(0.88)
+  assert.deepEqual(mergeDocs([a, b]).map((d) => d.title), ["a1", "a2", "a3", "a4", "b1"]);
+});
+
+test("mergeDocs: 하위 질문이 1개면 페이지 제한 없이 순위 그대로(최대 4개)", () => {
+  const p = "https://www.hufs.ac.kr/hufs/11373/subview.do";
+  const one = [doc("t01", 0.9, p), doc("t02", 0.89, p), doc("t03", 0.88, p), doc("t04", 0.87, p), doc("x", 0.86)];
+  assert.deepEqual(mergeDocs([one]).map((d) => d.title), ["t01", "t02", "t03", "t04"]);
+});
+
 test("mergeDocs: 유사도가 없는 조각(키워드 검색)도 순서를 지켜 합침", () => {
   const kw = [{ title: "k1", url: "u1", text: "t1" }, { title: "k2", url: "u2", text: "t2" }];
   const vec = [doc("v1", 0.8)];
@@ -133,8 +162,8 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
       assert.equal(body.match_count, 6);
       const tag = body.query_embedding[0];
       return json([
-        { title: `이중전공 ${tag}`, url: "https://www.hufs.ac.kr/a", text: `이중전공은 42학점 ${tag}`, similarity: 0.8 },
-        { title: `먼 조각 ${tag}`, url: "https://www.hufs.ac.kr/far", text: `관련 없음 ${tag}`, similarity: 0.6 },
+        { id: `a-${tag}`, title: `이중전공 ${tag}`, url: "https://www.hufs.ac.kr/a", text: `이중전공은 42학점 ${tag}`, similarity: 0.8 },
+        { id: `far-${tag}`, title: `먼 조각 ${tag}`, url: "https://www.hufs.ac.kr/far", text: `관련 없음 ${tag}`, similarity: 0.6 },
       ]);
     }
     if (u.includes("HCX-005")) {
@@ -169,6 +198,7 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
     let log = lastLog();
     assert.equal(log.subQueries, 2);
     assert.deepEqual(log.subQueryDocs, [1, 1]); // 유사도 차이 필터를 하위 질문별로 적용(0.6 조각 제외)
+    assert.deepEqual(log.subQueryIds, [["a-10"], ["a-9"]]); // 최종 근거에 들어간 조각 id만(질문 내용 없음)
     assert.equal(log.rpc, "match_chunks");
     assert.equal(log.retrieval, "vector");
     assert.equal(log.rewriteFormat, "json");

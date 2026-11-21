@@ -48,7 +48,13 @@ const similarityOf = (doc) => (typeof doc?.similarity === "number" ? doc.similar
 // 2) 하위 질문마다 상위 perQuery개를 먼저 넣고, 남는 자리는 나머지 조각을 유사도 높은 순으로 채워 max개까지.
 // 3) 결과는 하위 질문 순서(같은 질문 안에서는 원래 순위)대로 정렬합니다.
 // 하위 질문이 1개면 max는 4입니다(예전 근거 수와 같음).
-export function mergeDocs(lists, { perQuery = 3, max = 6 } = {}) {
+//
+// 하위 질문이 둘 이상이면 2)의 몫(perQuery개)을 고를 때 같은 페이지(url) 조각은 pageCap개까지만 먼저 넣고,
+// 몫이 남으면 그때 순위대로 같은 페이지 조각으로 채웁니다. 한 페이지의 비슷한 조각들이 몫을 다 차지해
+// 그 하위 질문에 정작 필요한 다른 페이지 조각이 잘리는 것을 막습니다.
+// (11/21 재현: "졸업 요건 평점" 하위 질문에서 수료(11391) 조각 5개가 1~5위, 졸업 요건 11390-01 "2.00 이상"이 6위라 잘려
+//  "졸업 평점도 4.00"으로 오답. 하위 질문이 1개일 때는 순위를 그대로 씁니다.)
+export function mergeDocs(lists, { perQuery = 3, max = 6, pageCap = 2 } = {}) {
   const safeLists = (Array.isArray(lists) ? lists : []).map((list) => (Array.isArray(list) ? list : []));
   const limit = safeLists.length <= 1 ? Math.min(max, 4) : max;
   if (limit <= 0) return [];
@@ -64,10 +70,11 @@ export function mergeDocs(lists, { perQuery = 3, max = 6 } = {}) {
   });
 
   const picked = new Map();
-  // 하위 질문마다 상위 perQuery개 보장
+  // 하위 질문마다 perQuery개 보장(이미 다른 하위 질문이 넣은 같은 조각도 그 하위 질문의 몫 하나로 셈)
   safeLists.forEach((list) => {
-    list.slice(0, perQuery).forEach((doc) => {
-      if (!doc || picked.size >= limit) return;
+    const share = shareOf(list, safeLists.length > 1 ? pageCap : Infinity, perQuery);
+    share.forEach((doc) => {
+      if (picked.size >= limit) return;
       const key = docKey(doc);
       if (!picked.has(key)) picked.set(key, candidates.get(key));
     });
@@ -84,6 +91,26 @@ export function mergeDocs(lists, { perQuery = 3, max = 6 } = {}) {
   return [...picked.values()]
     .sort((a, b) => a.queryIndex - b.queryIndex || a.rank - b.rank)
     .map((entry) => entry.doc);
+}
+
+// 한 하위 질문의 몫 count개를 순위대로 고르되, 같은 페이지(url)는 pageCap개까지만 먼저 고르고
+// 모자라면 건너뛴 조각을 순위대로 채웁니다. 결과는 원래 순위 순서입니다.
+function shareOf(list, pageCap, count) {
+  const docs = list.filter(Boolean);
+  const chosen = new Set();
+  const perPage = new Map();
+  for (const doc of docs) {
+    if (chosen.size >= count) break;
+    const page = doc.url ?? "";
+    if ((perPage.get(page) ?? 0) >= pageCap) continue;
+    perPage.set(page, (perPage.get(page) ?? 0) + 1);
+    chosen.add(doc);
+  }
+  for (const doc of docs) {
+    if (chosen.size >= count) break;
+    chosen.add(doc);
+  }
+  return docs.filter((doc) => chosen.has(doc));
 }
 
 // JSON을 읽지 못했을 때의 예비 검색어(예전 방식): 모델 출력이 한 줄 검색어면 그 한 줄을 씁니다.
