@@ -1,5 +1,7 @@
-import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, OPEN_SPACES, buildCampusLayers, doorTile } from "../data/campus.js";
+import { BUILDINGS, MAP_HEIGHT, MAP_WIDTH, buildCampusLayers } from "../data/campus.js";
+import { WORLD } from "../data/world.js";
 import { TILE, TILE_SIZE } from "../gfx/textures.js";
+import { campusV2OverviewCanvas } from "../gfx/campusV2Texture.js";
 import { QUEST_LIST, getLang, session } from "../state.js";
 
 const TEXTURE_KEY = "campus-overview";
@@ -27,9 +29,8 @@ const SOLID_COLOR = {
   [TILE.FOUNTAIN]: "#6fb3d6",
 };
 
-// 실제 맵 데이터로 한 타일이 1픽셀인 지도 이미지를 만듭니다. 맵을 고치면 지도도 함께 바뀝니다.
-export function overviewTexture(scene) {
-  if (scene.textures.exists(TEXTURE_KEY)) return TEXTURE_KEY;
+// v1(옛 타일맵): 한 타일이 1픽셀인 지도 이미지
+function v1OverviewCanvas() {
   const canvas = document.createElement("canvas");
   canvas.width = MAP_WIDTH;
   canvas.height = MAP_HEIGHT;
@@ -45,43 +46,33 @@ export function overviewTexture(scene) {
     ctx.fillStyle = b.underground ? UNDERGROUND_COLOR : ROOF_COLOR[b.roof];
     b.parts.forEach(([x, y, w, h]) => ctx.fillRect(x, y, w, h));
   });
-  scene.textures.addCanvas(TEXTURE_KEY, canvas);
+  return canvas;
+}
+
+// 전체 지도 · 미니맵 그림. 맵 데이터로 만들므로 맵을 고치면 지도도 함께 바뀝니다.
+// perWorld: 지도 그림 1px이 월드 몇 px인지의 역수(v1 1/16, v2 1/4)
+export function overviewTexture(scene) {
+  if (!scene.textures.exists(TEXTURE_KEY)) {
+    scene.textures.addCanvas(TEXTURE_KEY, WORLD.version === "v1" ? v1OverviewCanvas() : campusV2OverviewCanvas());
+  }
   return TEXTURE_KEY;
 }
+export const overviewInfo = () => {
+  const perWorld = WORLD.version === "v1" ? 1 / TILE_SIZE : 1 / 4;
+  return { perWorld, width: WORLD.width * perWorld, height: WORLD.height * perWorld };
+};
 
 // 영어 공식 이름을 아직 확인하지 못한 곳(nameEn: null)은 한국어 이름으로 보여 줍니다.
 export const placeName = (place) => (getLang() === "en" ? place.nameEn ?? place.name : place.name);
 
-// 안내 중인 퀘스트의 목적지 건물과 입구 앞 위치입니다. 없으면 null입니다.
+// 안내 중인 퀘스트의 목적지 건물과 입구 위치(월드 px)입니다. 없으면 null입니다.
 export function trackedDestination() {
   const quest = QUEST_LIST.find((q) => q.id === session.trackedQuest);
   if (!quest?.destination) return null;
-  const building = BUILDINGS.find((b) => b.id === quest.destination);
-  const door = doorTile(building);
-  return {
-    building,
-    worldX: door.x * TILE_SIZE + TILE_SIZE / 2,
-    worldY: door.y * TILE_SIZE + TILE_SIZE / 2,
-  };
+  const building = WORLD.buildings.find((b) => b.id === quest.destination);
+  if (!building?.door) return null;
+  return { building, worldX: building.door.x, worldY: building.door.y };
 }
 
 // 지금 위치에서 가장 가까운 건물이나 공간을 돌려줍니다.
-export function nearestPlace(worldX, worldY) {
-  const tileX = worldX / TILE_SIZE;
-  const tileY = worldY / TILE_SIZE;
-  let best = null;
-  let bestDistance = Infinity;
-  [...BUILDINGS, ...OPEN_SPACES].forEach((p) => {
-    // ㄱ자 · 계단식 건물도 맞게 재도록 사각형(parts)마다 거리를 재서 가장 가까운 값을 씁니다.
-    p.parts.forEach(([x, y, w, h]) => {
-      const dx = Math.max(x - tileX, 0, tileX - (x + w));
-      const dy = Math.max(y - tileY, 0, tileY - (y + h));
-      const distance = Math.hypot(dx, dy);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        best = p;
-      }
-    });
-  });
-  return best;
-}
+export const nearestPlace = (worldX, worldY) => WORLD.nearestPlace(worldX, worldY);

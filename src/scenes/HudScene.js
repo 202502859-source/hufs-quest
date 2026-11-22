@@ -1,14 +1,12 @@
 import Phaser from "phaser";
 import { QUEST_LIST, getLang, isGuest, onLangChange, session, t } from "../state.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
-import { MAP_HEIGHT, MAP_WIDTH } from "../data/campus.js";
-import { TILE_SIZE } from "../gfx/textures.js";
-import { overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
+import { overviewInfo, overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
 import { isTouchDevice, onTouchDetected } from "../device.js";
 import { onDeadlinesChange, urgentCount } from "../data/deadlinesApi.js";
 import { COLOR, addButton, addLabel, addLangButtons, drawPanel } from "../ui/widgets.js";
 
-const MINIMAP_SCALE = 2;
+const MINIMAP_W = 176; // 미니맵 가로(px). 세로는 맵 비율대로
 const MIN_TOUCH_PX = 52; // 실제 화면에서 최소 48px 이상이 되도록 약간 여유를 둡니다.
 const PAD_ALPHA = 0.55;
 const REWARD_TOAST_MS = 2500;
@@ -198,19 +196,22 @@ export class HudScene extends Phaser.Scene {
   renderMinimap() {
     const x = MARGIN;
     const y = MARGIN + (isGuest() ? 70 : 96);
-    const mapW = MAP_WIDTH * MINIMAP_SCALE;
-    const mapH = MAP_HEIGHT * MINIMAP_SCALE;
+    const info = overviewInfo();
+    const scale = MINIMAP_W / info.width;
+    const mapW = MINIMAP_W;
+    const mapH = Math.round(info.height * scale);
     const g = this.add.graphics();
     drawPanel(g, x, y, mapW + 16, mapH + 40, { border: COLOR.line });
     this.minimap = { x: x + 8, y: y + 8 };
+    // 월드 px → 미니맵 안 px
+    this.toMini = (wx, wy) => ({ x: this.minimap.x + wx * info.perWorld * scale, y: this.minimap.y + wy * info.perWorld * scale });
     this.minimapBottom = y + mapH + 44;
-    this.add.image(this.minimap.x, this.minimap.y, overviewTexture(this)).setOrigin(0).setScale(MINIMAP_SCALE);
+    this.add.image(this.minimap.x, this.minimap.y, overviewTexture(this)).setOrigin(0).setScale(scale);
     addLabel(this, x + 8 + mapW / 2, y + mapH + 14, t("mapButton"), { size: 13, color: "#f2c94c" }).setOrigin(0.5, 0);
 
     const destination = trackedDestination();
     if (destination) {
-      const dx = this.minimap.x + (destination.worldX / TILE_SIZE) * MINIMAP_SCALE;
-      const dy = this.minimap.y + (destination.worldY / TILE_SIZE) * MINIMAP_SCALE;
+      const { x: dx, y: dy } = this.toMini(destination.worldX, destination.worldY);
       this.add.rectangle(dx, dy, 10, 10, 0xffffff);
       const dot = this.add.rectangle(dx, dy, 6, 6, 0xe5484d);
       this.tweens.add({ targets: dot, alpha: 0.25, duration: 400, yoyo: true, repeat: -1 });
@@ -237,8 +238,7 @@ export class HudScene extends Phaser.Scene {
     if (!this.quizDots || !boxes) return;
     this.quizDots.clear();
     boxes.forEach((box) => {
-      const x = this.minimap.x + box.tile.x * MINIMAP_SCALE;
-      const y = this.minimap.y + box.tile.y * MINIMAP_SCALE;
+      const { x, y } = this.toMini(box.x, box.y);
       this.quizDots.fillStyle(0x10182a, 1).fillRect(x - 2, y - 2, 6, 6);
       this.quizDots.fillStyle(QUIZ_DOT_COLOR, 1).fillRect(x - 1, y - 1, 4, 4);
     });
@@ -247,8 +247,7 @@ export class HudScene extends Phaser.Scene {
   moveMinimapMarker() {
     const player = this.scene.get("Campus").player;
     if (!this.marker || !player) return;
-    const x = this.minimap.x + (player.x / TILE_SIZE) * MINIMAP_SCALE;
-    const y = this.minimap.y + (player.y / TILE_SIZE) * MINIMAP_SCALE;
+    const { x, y } = this.toMini(player.x, player.y);
     this.marker.setPosition(x, y);
     this.markerShadow.setPosition(x, y);
   }

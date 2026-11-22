@@ -227,6 +227,7 @@ const STRINGS = {
   quizClose: { ko: "닫기 (ESC)", en: "Close (ESC)" },
   quizMapLegend: { ko: "퀴즈 상자", en: "Quiz boxes" },
   mapNote: { ko: "공식 캠퍼스 지도 좌표와 위성 사진을 따라 그린 근사치입니다(북쪽이 위). 건물 모양과 길은 단순화했습니다.", en: "Drawn to approximate the official campus map coordinates and satellite view (north is up). Buildings and roads are simplified." },
+  mapNoteV2: { ko: "정문 기준 방향입니다(정문에서 들어가면 위쪽). 북쪽은 나침반을 참고하세요. 공식 캠퍼스 지도 좌표와 위성 사진을 따라 그린 근사치예요.", en: "Oriented from the main gate (entering the gate = up). See the compass for north. Drawn to approximate the official campus map coordinates and satellite view." },
   mapBaseDate: { ko: "{year}년 {month}월 기준 캠퍼스", en: "Campus as of {month}/{year}" },
   mapOfficial: { ko: "공식 캠퍼스 지도 ↗", en: "Official campus map ↗" },
   mapReport: { ko: "실제와 달라요 (신고) ↗", en: "Report a difference ↗" },

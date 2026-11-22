@@ -1,6 +1,8 @@
 import Phaser from "phaser";
 import { TILE_SIZE } from "../gfx/textures.js";
-import { BUILDINGS, OPEN_SPACES, SPAWN, buildCampusLayers, doorTile } from "../data/campus.js";
+import { buildCampusLayers } from "../data/campus.js";
+import { WORLD, findPlace } from "../data/world.js";
+import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
 import { isTouchDevice } from "../device.js";
 import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
@@ -27,37 +29,39 @@ export class CampusScene extends Phaser.Scene {
   }
 
   create() {
-    const { ground, solid } = buildCampusLayers();
-    const groundLayer = this.createLayer(ground);
-    const solidLayer = this.createLayer(solid);
-    solidLayer.setCollisionByExclusion([-1]);
-    const worldWidth = groundLayer.width;
-    const worldHeight = groundLayer.height;
+    // 맵: 기본은 v2(미터 다각형 → 텍스처 + 1m 판정 격자), 주소에 ?map=v1이면 옛 타일맵(src/data/world.js)
+    let solidLayer = null;
+    if (WORLD.version === "v1") {
+      const { ground, solid } = buildCampusLayers();
+      this.createLayer(ground);
+      solidLayer = this.createLayer(solid);
+      solidLayer.setCollisionByExclusion([-1]);
+    } else {
+      addCampusV2Ground(this);
+    }
+    const worldWidth = WORLD.width;
+    const worldHeight = WORLD.height;
 
-    this.nameTags = [...BUILDINGS, ...OPEN_SPACES].map((place) => this.addNameTag(place));
+    this.nameTags = [...WORLD.buildings, ...WORLD.openSpaces].map((place) => this.addNameTag(place));
     // 로그아웃으로 이 장면이 멈추면 언어 변경 알림도 해제합니다(지워진 글자를 고치려다 오류가 나지 않게).
     const offLang = onLangChange(() => this.nameTags.forEach(({ place, tag }) => tag.setText(placeName(place))));
     this.events.once("shutdown", offLang);
     this.loggingOut = false;
 
-    this.player = this.physics.add.sprite(
-      SPAWN.x * TILE_SIZE + TILE_SIZE / 2,
-      SPAWN.y * TILE_SIZE + TILE_SIZE / 2,
-      "player",
-      IDLE_FRAME.down,
-    );
+    this.player = this.physics.add.sprite(WORLD.spawn.x, WORLD.spawn.y, "player", IDLE_FRAME.down);
     // 발 부분만 부딪히게 해 건물과 나무 사이를 자연스럽게 지나갑니다.
     this.player.body.setSize(10, 7).setOffset(3, 9);
     this.player.setCollideWorldBounds(true);
     this.facing = "down";
 
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
-    this.physics.add.collider(this.player, solidLayer);
+    // v1은 타일 충돌, v2는 movePlayer에서 판정 격자(WORLD.moveFeet)로 직접 움직입니다.
+    if (solidLayer) this.physics.add.collider(this.player, solidLayer);
 
     this.destArrow = this.add.image(0, 0, "dest-arrow").setDepth(DEPTH.DEST_ARROW).setVisible(false);
 
     // O/X 퀴즈 상자 15개와, 가까이 갔을 때 상자 위에 뜨는 안내 문구입니다.
-    this.quizBoxes = new QuizBoxes(this, ground, solid, (box) => this.openQuiz(box));
+    this.quizBoxes = new QuizBoxes(this, (box) => this.openQuiz(box));
     this.quizPrompt = this.add
       .text(0, 0, "", {
         fontFamily: "Galmuri9, sans-serif",
@@ -173,9 +177,10 @@ export class CampusScene extends Phaser.Scene {
 
   // 본관 입구에서 이 거리 안이면 수강 설계 버튼을 보여 줍니다.
   isNearMainHall() {
-    const door = doorTile(BUILDINGS.find((b) => b.id === "main"));
-    const x = door.x * TILE_SIZE + TILE_SIZE / 2;
-    const y = (door.y + 1) * TILE_SIZE;
+    const door = findPlace("main")?.door;
+    if (!door) return false;
+    const { x } = door;
+    const y = door.y + TILE_SIZE / 2;
     return Phaser.Math.Distance.Between(this.player.x, this.player.y, x, y) < PLANNER_RANGE;
   }
 
@@ -222,9 +227,8 @@ export class CampusScene extends Phaser.Scene {
   }
 
   addNameTag(place) {
-    // 가장 큰 사각형 기준으로 한 번만 표시(여러 동으로 된 건물도). 높이는 campus.js label.tagY
-    const x = place.label.tagX * TILE_SIZE;
-    const y = place.label.tagY * TILE_SIZE;
+    // 건물 위쪽 가운데(여러 동으로 된 건물도 한 번만), 열린 공간은 가운데. 월드 px(src/data/world.js)
+    const { x, y } = place.tag;
     const tag = this.add
       .text(x, y, placeName(place), {
         fontFamily: "Galmuri9, sans-serif",
@@ -254,8 +258,10 @@ export class CampusScene extends Phaser.Scene {
     }
   }
 
-  update(time) {
+  update(time, delta) {
     this.updateDestinationArrow(time);
+    // 성능 확인용: 휴대폰 원격 디버깅 콘솔에서 __campusStats.fps로 봅니다(docs/GRAPHICS.md 2장).
+    campusStats.fps = Math.round(this.game.loop.actualFps);
 
     // 답변 패널이 열려 있는 동안에는 캐릭터를 세워 둡니다.
     if (this.dialog.isOpen) {
@@ -280,11 +286,11 @@ export class CampusScene extends Phaser.Scene {
       return;
     }
 
-    this.movePlayer();
+    this.movePlayer(delta);
     this.player.setDepth(this.player.y);
   }
 
-  movePlayer() {
+  movePlayer(delta = 16) {
     const { left, right, up, down } = this.cursors;
     const dx = Phaser.Math.Clamp((right.isDown ? 1 : 0) - (left.isDown ? 1 : 0) + this.touchMove.x, -1, 1);
     const dy = Phaser.Math.Clamp((down.isDown ? 1 : 0) - (up.isDown ? 1 : 0) + this.touchMove.y, -1, 1);
@@ -294,7 +300,18 @@ export class CampusScene extends Phaser.Scene {
     }
 
     const length = Math.hypot(dx, dy);
-    this.player.setVelocity((dx / length) * PLAYER_SPEED, (dy / length) * PLAYER_SPEED);
+    if (WORLD.moveFeet) {
+      // v2: 발 상자가 막힌 칸에 닿지 않게 직접 옮깁니다(비스듬한 벽은 따라 미끄러짐). 긴 프레임도 한 번에 너무 멀리 가지 않게 나눕니다.
+      const step = (PLAYER_SPEED * Math.min(delta, 50)) / 1000;
+      let { x, y } = this.player;
+      for (let moved = 0; moved < step; moved += 2) {
+        const s = Math.min(2, step - moved);
+        ({ x, y } = WORLD.moveFeet(x, y, (dx / length) * s, (dy / length) * s));
+      }
+      this.player.body.reset(x, y);
+    } else {
+      this.player.setVelocity((dx / length) * PLAYER_SPEED, (dy / length) * PLAYER_SPEED);
+    }
 
     if (dx && dy) {
       // 대각선일 때는 지금 보는 방향이 눌려 있으면 유지해 걷기 동작이 떨리지 않게 합니다.
