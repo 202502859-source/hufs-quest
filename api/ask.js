@@ -17,6 +17,8 @@
  *    합친 근거가 비면 전체를 키워드 검색으로 다시 찾고, 그래도 없으면 AI를 부르지 않고 "찾지 못함"을 돌려줍니다.
  * 4. 근거와 하위 질문 목록을 넘겨 HyperCLOVA X(HCX-005)가 답하게 하고, 답변에 실제로 인용된 번호의 출처만 돌려줍니다.
  *    하위 질문이 둘이면 각각 따로 답하고, 근거가 없는 쪽은 그 부분만 "찾지 못했어요"라고 답하게 합니다.
+ *    출력 토큰 상한(ANSWER_MAX_TOKENS 400)에 걸려 끊기면 마지막으로 끝난 문장까지만 남기고(로그 truncated: true),
+ *    끝난 문장이 하나도 없으면 5번처럼 원문을 보여 줍니다(api/_lib/answerFormat.js trimTruncated).
  *    지시문에는 한국 시간 기준 오늘 날짜 · 현재 학기를 붙이고(shared/academicDate.js),
  *    답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거에 없으면 "찾지 못함"으로 바꿉니다
  *    (로그 mode "guard", reason "ungrounded-date" 또는 "ungrounded-year").
@@ -36,7 +38,7 @@ import { KB, retrieve } from "../shared/kb.js";
 import { checkAskLimit } from "./_lib/usageLimit.js";
 import { todayContext, ungroundedDates } from "../shared/academicDate.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
-import { stripListNumbers, dropInvalidCitations } from "./_lib/answerFormat.js";
+import { stripListNumbers, dropInvalidCitations, trimTruncated } from "./_lib/answerFormat.js";
 
 const CLOVA_BASE = "https://clovastudio.stream.ntruss.com";
 const CHAT_URL = `${CLOVA_BASE}/v3/chat-completions/HCX-005`;
@@ -68,8 +70,10 @@ function chunksRpc() {
   const name = (process.env.CHUNKS_RPC || "").trim();
   return ALLOWED_RPCS.includes(name) ? name : "match_chunks";
 }
-// 답변 출력 토큰 상한. Vercel 로그의 completionTokens · finishReason("length"면 잘림)을 보고 조정합니다.
-const ANSWER_MAX_TOKENS = 1000;
+// 답변 출력 토큰 상한. Vercel 로그의 completionTokens · finishReason("length"면 잘림) · truncated를 보고 조정합니다.
+// 11/22 실서비스 eval 62건: 출력 토큰 중앙값 58 · 95% 187 · 최대 202(정확한 답 최대 202), 잘린 답 0건.
+// 202 × 1.3 ≈ 263 이상 · 최소 400 기준으로 1000 → 400(11/22 이종헌 결정). 입력 토큰은 출력의 약 25배(중앙값)라 이번엔 그대로.
+const ANSWER_MAX_TOKENS = 400;
 const UPSTREAM_TIMEOUT_MS = 20_000;
 
 const SYSTEM = {
@@ -253,10 +257,20 @@ async function generate(question, lang, docs, subQueries = [], now = new Date())
     .replace(/^#+\s*/gm, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-  // 번호 목록 금지를 지키지 않았으면 줄 맨 앞 번호를 지우고, 넘긴 자료 수를 넘는 인용 번호([4] 등)를 지웁니다.
-  const { text: answer, dropped: droppedCitations } = dropInvalidCitations(stripListNumbers(raw), docs.length);
-  if (!answer.trim()) throw Object.assign(new Error("empty answer"), { usage });
-  return { answer: answer.trim(), usage, droppedCitations };
+  // 번호 목록 금지를 지키지 않았으면 줄 맨 앞 번호를 지웁니다.
+  let body = stripListNumbers(raw);
+  // 출력 토큰 상한에 걸려 끊겼으면(finishReason "length") 마지막으로 끝난 문장까지만 남깁니다.
+  // 끝난 문장이 하나도 없으면 원문 보여 주기(evidence)로 바꿉니다.
+  const truncated = usage.finishReason === "length";
+  if (truncated) {
+    const trimmed = trimTruncated(body);
+    if (!trimmed.sentences) throw Object.assign(new Error("truncated answer too short"), { usage, truncated });
+    body = trimmed.text;
+  }
+  // 넘긴 자료 수를 넘는 인용 번호([4] 등)를 지웁니다.
+  const { text: answer, dropped: droppedCitations } = dropInvalidCitations(body, docs.length);
+  if (!answer.trim()) throw Object.assign(new Error("empty answer"), { usage, truncated });
+  return { answer: answer.trim(), usage, droppedCitations, truncated };
 }
 
 // 답변에 실제로 인용된 번호의 출처만 남깁니다. 같은 페이지에서 나온 근거는 한 줄로 묶고 인용 번호를 함께 보여 줍니다.
@@ -386,7 +400,8 @@ export default async function handler(req, res) {
   try {
     const result = await generate(question, lang, docs, queries || []);
     // droppedCitations: 넘긴 자료 수를 넘어 지운 인용 번호 개수(모든 로그에 함께 남김)
-    usage = { maxTokens: ANSWER_MAX_TOKENS, ...result.usage, chars: result.answer.length, droppedCitations: result.droppedCitations };
+    // truncated: 출력 토큰 상한에 걸려 끝난 문장까지만 남겼는지(모든 로그에 함께 남김)
+    usage = { maxTokens: ANSWER_MAX_TOKENS, ...result.usage, chars: result.answer.length, droppedCitations: result.droppedCitations, truncated: result.truncated };
     const { answer } = result;
     // 근거 조각 어디에도 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)를 말하면
     // (예: 2026학년도 일정만 있는데 "2027년 3월 2일", "2027학년도 1학기 개강은 3월 2일") 원문도 보여 주지 않고 "찾지 못함"으로 답합니다.
@@ -405,6 +420,7 @@ export default async function handler(req, res) {
   } catch (err) {
     console.error("generation failed:", err.message);
     if (err.usage) usage = { maxTokens: ANSWER_MAX_TOKENS, ...err.usage };
+    if (usage.maxTokens) usage.truncated = Boolean(err.truncated ?? usage.truncated);
     // 숫자 근거 검사에 걸렸으면 근거에 없던 숫자 토큰만(최대 5개) 남깁니다. 질문 · 답변 문장은 남기지 않습니다.
     // 시기 표현(월 이름 · 상순 등)은 개수만 남깁니다.
     const unsupportedLog = err.unsupported
