@@ -113,3 +113,24 @@ export function ungroundedDates(answer, docs) {
   ];
   return [...new Set(missing)];
 }
+
+const KO_TIME_SENSITIVE = [
+  "오늘", "어제", "내일", "모레", "금일", "명일",
+  "이번 주", "이번주", "금주", "다음 주", "다음주", "차주", "지난 주", "지난주", "전주",
+  "요즘", "최근", "지금", "현재", "당장",
+  "이번 달", "이번달", "이달", "금월", "다음 달", "다음달", "내월", "익월", "지난 달", "지난달", "전월",
+  "이번 학기", "이번학기", "금학기", "현학기", "다음 학기", "다음학기", "차기 학기", "차기학기", "지난 학기", "지난학기", "전학기",
+  "올해", "금년", "내년", "명년", "작년", "전년",
+  "마감됐", "마감했", "끝났", "지났", "남았", "신청 가능", "신청가능", "접수 중", "접수중", "진행 중", "진행중",
+];
+
+// 영어 시간 표현은 단어 경계(\b...\b)로 검사해 "now"가 "know" 안에서 오탐되지 않게 합니다.
+const EN_TIME_SENSITIVE = /\b(?:today|yesterday|tomorrow|this\s+week|next\s+week|last\s+week|now|currently|right\s+now|recent|recently|this\s+month|next\s+month|last\s+month|this\s+semester|next\s+semester|last\s+semester|this\s+year|next\s+year|last\s+year|still\s+open|deadline\s+passed|days\s+left|ongoing)\b/i;
+
+// 날짜·시점에 따라 답이 달라지는 질문인지 확인합니다(캐시 조회·저장 제외용).
+export function hasTimeSensitiveWords(question) {
+  const text = String(question ?? "");
+  if (!text.trim()) return false;
+  if (KO_TIME_SENSITIVE.some((word) => text.includes(word))) return true;
+  return EN_TIME_SENSITIVE.test(text);
+}

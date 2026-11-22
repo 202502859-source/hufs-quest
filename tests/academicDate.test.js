@@ -109,6 +109,8 @@ test("ask.js: 근거에 없는 날짜 답변은 mode none, 로그 mode guard · 
   globalThis.fetch = async (url, init) => {
     const u = String(url);
     const json = (body) => ({ ok: true, status: 200, json: async () => body });
+    if (u.includes("/rpc/get_answer_cache")) return json([]);
+    if (u.includes("/rpc/set_answer_cache")) return json(null);
     if (u.includes("/rpc/ask_hit")) return json([{ allowed: true, reason: null, retry_after: 0, minute_hits: 1, day_hits: 1, global_hits: 1 }]);
     if (u.includes("HCX-DASH-002")) return { ok: false, status: 500, json: async () => ({}) }; // 검색어 정리 실패 → 원래 질문으로 검색
     if (u.includes("/embedding/v2")) return json({ result: { embedding: [0.1, 0.2] } });

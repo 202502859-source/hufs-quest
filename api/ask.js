@@ -35,7 +35,8 @@
  * 개인정보: 질문 내용 · IP · IP 해시는 저장하거나 로그에 남기지 않습니다. 검색 방식·응답 시간 같은 통계만 로그에 남깁니다.
  */
 import { KB, retrieve } from "../shared/kb.js";
-import { checkAskLimit } from "./_lib/usageLimit.js";
+import { checkAskLimit, checkMemoryAskLimit, isEvalRequest } from "./_lib/usageLimit.js";
+import { buildCacheKey, canUseAnswerCache, shouldCacheAnswer, getAnswerCache, setAnswerCache } from "./_lib/answerCache.js";
 import { todayContext, ungroundedDates } from "../shared/academicDate.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
 import { stripListNumbers, dropInvalidCitations, trimTruncated } from "./_lib/answerFormat.js";
@@ -335,16 +336,38 @@ export default async function handler(req, res) {
   if (question.length > MAX_QUESTION) return res.status(400).json({ error: "question too long", max: MAX_QUESTION });
   const lang = answerLanguage(question, body.lang === "en" ? "en" : "ko");
 
-  // 첫 AI 호출 전에 사용량 한도를 확인합니다. 걸리면 AI를 부르지 않습니다.
-  const limit = await checkAskLimit(req);
+  const started = Date.now();
+  const evalMode = isEvalRequest(req, process.env.ASK_EVAL_TOKEN);
+  const useCache = canUseAnswerCache({ evalMode, question });
+  const cacheKey = useCache ? buildCacheKey(question, lang) : null;
+
+  // 캐시를 쓸 수 있는 일반 질문은 1차 메모리 1분 제한만 먼저 확인하고 캐시를 조회합니다.
+  // 캐시가 적중하면 DB ask_hit(하루·전체 한도)을 차감하지 않고 즉시 응답합니다.
+  let precheckedMemory = null;
+  if (useCache) {
+    precheckedMemory = await checkMemoryAskLimit(req);
+    if (!precheckedMemory.allowed) {
+      const memLog = { limit: precheckedMemory.source, who: precheckedMemory.who };
+      console.log(JSON.stringify({ mode: "limited", reason: precheckedMemory.reason, ...memLog }));
+      res.setHeader("Retry-After", String(precheckedMemory.retryAfter));
+      return res.status(429).json({ error: "too many requests", reason: precheckedMemory.reason, retryAfter: precheckedMemory.retryAfter });
+    }
+    const cached = await getAnswerCache(cacheKey);
+    if (cached) {
+      const hitLog = { limit: precheckedMemory.source, who: precheckedMemory.who };
+      console.log(JSON.stringify({ mode: "ai", cacheHit: true, lang, ...hitLog, ms: Date.now() - started }));
+      return res.status(200).json({ mode: "ai", answer: cached.answer, sources: cached.sources });
+    }
+  }
+
+  // 캐시 미적중 · eval · 날짜 의존 질문은 기존 공용 카운터(ask_hit)로 하루 · 전체 한도를 확인합니다.
+  const limit = await checkAskLimit(req, { precheckedMemory });
   const limitLog = { limit: limit.source, who: limit.who, ...(limit.eval ? { eval: true } : {}) };
   if (!limit.allowed) {
     console.log(JSON.stringify({ mode: "limited", reason: limit.reason, ...limitLog }));
     res.setHeader("Retry-After", String(limit.retryAfter));
     return res.status(429).json({ error: "too many requests", reason: limit.reason, retryAfter: limit.retryAfter });
   }
-
-  const started = Date.now();
   // 검색에는 정리한 검색어를 쓰고, 답변 생성에는 학생의 원래 질문을 씁니다.
   const { queries, format: rewriteFormat, usage: rewriteUsage } = await rewriteQuery(question);
   // 검색어 정리 호출의 토큰 수 · 종료 이유. 질문과 검색어 내용은 로그에 남기지 않습니다.
@@ -390,7 +413,7 @@ export default async function handler(req, res) {
   };
 
   if (!docs.length) {
-    console.log(JSON.stringify({ mode: "none", retrieval, rewritten, ...searchLog, ...limitLog, ...rewriteLog, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "none", cacheHit: false, retrieval, rewritten, ...searchLog, ...limitLog, ...rewriteLog, ms: Date.now() - started }));
     return res.status(200).json({ mode: "none", answer: null, sources: [] });
   }
 
@@ -408,15 +431,19 @@ export default async function handler(req, res) {
     const ungrounded = ungroundedDates(answer, docs);
     if (ungrounded.length) {
       const reason = ungrounded.some((x) => x.includes("-")) ? "ungrounded-date" : "ungrounded-year";
-      console.log(JSON.stringify({ mode: "guard", reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+      console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
       return res.status(200).json({ mode: "none", answer: null, sources: [] });
     }
     const unsupported = unsupportedNumbers(answer, docs);
     if (unsupported.numbers.length || unsupported.timeWords.length) {
       throw Object.assign(new Error("answer has numbers not in sources"), { unsupported });
     }
-    console.log(JSON.stringify({ mode: "ai", retrieval, rewritten, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
-    return res.status(200).json({ mode: "ai", answer, sources: citedSources(answer, docs) });
+    console.log(JSON.stringify({ mode: "ai", cacheHit: false, retrieval, rewritten, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    const sources = citedSources(answer, docs);
+    if (useCache && shouldCacheAnswer({ mode: "ai", truncated: result.truncated })) {
+      await setAnswerCache({ cacheKey, lang, answer, sources });
+    }
+    return res.status(200).json({ mode: "ai", answer, sources });
   } catch (err) {
     console.error("generation failed:", err.message);
     if (err.usage) usage = { maxTokens: ANSWER_MAX_TOKENS, ...err.usage };
@@ -429,7 +456,7 @@ export default async function handler(req, res) {
     // AI 연결이 안 되면 근거 원문을 그대로 보여 줍니다. 추측한 답은 만들지 않습니다.
     // 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다.
     const top = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
-    console.log(JSON.stringify({ mode: "evidence", retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({
       mode: "evidence",
       answer: top.map((d) => d.text).join("\n"),

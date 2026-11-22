@@ -134,13 +134,26 @@ async function askHit(hash, limits, env, fetchImpl) {
  *   - "memory-fallback" 공용 카운터를 쓸 수 없어(설정 없음 · 호출 실패 · 시간 초과) 메모리 제한만으로 판단. ⚠️ 하루 · 전체 상한이 꺼진 상태
  *   (11/19 이전에는 앞의 둘을 모두 "memory"로 남겨 로그만으로 정상과 장애를 구분할 수 없었음)
  */
-export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch, now = new Date() } = {}) {
+// 캐시 적중 요청용: 1차 메모리 제한(인스턴스별 1분 10회)만 확인하고 DB ask_hit은 부르지 않습니다.
+export async function checkMemoryAskLimit(req, { env = process.env, fetchImpl = fetch, now = new Date() } = {}) {
   const evalMode = isEvalRequest(req, env.ASK_EVAL_TOKEN);
   const salt = env.ASK_IP_SALT || "";
   const subject = evalMode ? { who: "eval", key: "eval" } : await resolveAskSubject(req, { env, fetchImpl });
   const who = subject.who;
   const hash = ipHash(subject.key, salt, kstToday(now));
+  const wait = evalMode ? 0 : memoryHit(hash, now.getTime());
+  return wait
+    ? { allowed: false, reason: "minute", retryAfter: wait, source: "memory-first", eval: evalMode, who, _hash: hash }
+    : { allowed: true, reason: null, retryAfter: 0, source: "memory-first", eval: evalMode, who, _hash: hash };
+}
+
+export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch, now = new Date(), precheckedMemory = null } = {}) {
+  const pre = precheckedMemory || (await checkMemoryAskLimit(req, { env, fetchImpl, now }));
+  const { eval: evalMode, who, _hash: hash } = pre;
   const memoryDecision = (source) => {
+    if (precheckedMemory && precheckedMemory.source === "memory-first") {
+      return { allowed: pre.allowed, reason: pre.reason, retryAfter: pre.retryAfter, source, eval: evalMode, who };
+    }
     const wait = memoryHit(hash, now.getTime());
     return wait
       ? { allowed: false, reason: "minute", retryAfter: wait, source, eval: evalMode, who }
@@ -149,8 +162,7 @@ export async function checkAskLimit(req, { env = process.env, fetchImpl = fetch,
 
   // eval이 아니면 1차 메모리 제한부터. 여기서 끊기면 Supabase를 부르지 않습니다.
   if (!evalMode) {
-    const first = memoryDecision("memory-first");
-    if (!first.allowed) return first;
+    if (!pre.allowed) return { allowed: false, reason: pre.reason, retryAfter: pre.retryAfter, source: pre.source, eval: false, who };
   }
 
   const ready = Boolean(env.ASK_IP_SALT && env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY);

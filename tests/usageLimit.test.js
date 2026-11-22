@@ -229,6 +229,7 @@ test("ask.js: 201자 질문은 자르지 않고 400, 한도에 걸리면 429 { e
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     fetched.push(String(url));
+    if (String(url).includes("/rpc/get_answer_cache")) return { ok: true, status: 200, json: async () => [] };
     if (String(url).includes("/rpc/ask_hit")) return { ok: true, status: 200, json: async () => [{ ...allowRow, allowed: false, reason: "day", retry_after: 3600 }] };
     throw new Error(`unexpected fetch ${url}`);
   };
@@ -252,7 +253,7 @@ test("ask.js: 201자 질문은 자르지 않고 400, 한도에 걸리면 429 { e
     assert.equal(limited.code, 429);
     assert.deepEqual(limited.body, { error: "too many requests", reason: "day", retryAfter: 3600 });
     assert.equal(limited.headers["Retry-After"], "3600");
-    assert.deepEqual(fetched.map((u) => u.includes("ask_hit")), [true]); // CLOVA 호출 없음
+    assert.deepEqual(fetched.map((u) => new URL(u).pathname), ["/rest/v1/rpc/get_answer_cache", "/rest/v1/rpc/ask_hit"]); // CLOVA 호출 없음
 
     const joined = logs.join("\n");
     assert.equal(/203\.0\.113|졸업학점|[0-9a-f]{64}/.test(joined), false); // 로그에 IP · 질문 · 해시 없음
