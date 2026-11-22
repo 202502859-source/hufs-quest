@@ -82,12 +82,32 @@ export class MapScene extends Phaser.Scene {
     addLabel(this, n.x, n.y, getLang() === "en" ? "N" : "북", { size: 12, color: "#ff8f92" }).setOrigin(0.5);
   }
 
+  // 표시(현재 위치 · 목적지) 이름표: 점의 위 · 아래 · 오른쪽 · 왼쪽 가운데 지도 밖으로 나가지 않고
+  // 장소 이름표 · 다른 표시와 겹치지 않는 첫 자리에 둡니다. 다 겹치면 위쪽(지도 안으로 맞춤).
   addMapTag(x, y, text, background, color) {
-    const tag = addLabel(this, x, y - 12, text, { size: 12, color, backgroundColor: background, padding: { x: 4, y: 2 } }).setOrigin(0.5, 1);
-    // 표시가 지도 밖으로 나가지 않게 위치를 맞춥니다.
-    const half = tag.width / 2;
-    tag.setX(Phaser.Math.Clamp(x, MAP.x + half, MAP.x + this.mapSize.width - half));
-    if (tag.y - tag.height < MAP.y) tag.setOrigin(0.5, 0).setY(y + 12);
+    const tag = addLabel(this, x, y, text, { size: 12, color, backgroundColor: background, padding: { x: 4, y: 2 } }).setOrigin(0.5);
+    const w = tag.width;
+    const h = tag.height;
+    const gap = 9;
+    const spots = [
+      [x, y - gap - h / 2],
+      [x, y + gap + h / 2],
+      [x + gap + w / 2, y],
+      [x - gap - w / 2, y],
+    ];
+    const inMap = ([cx, cy]) =>
+      cx - w / 2 >= MAP.x && cx + w / 2 <= MAP.x + this.mapSize.width && cy - h / 2 >= MAP.y && cy + h / 2 <= MAP.y + this.mapSize.height;
+    const others = [...(this.placeLabels ?? []), ...(this.mapTags ?? [])].map((o) => o.getBounds());
+    const free = ([cx, cy]) => {
+      const r = new Phaser.Geom.Rectangle(cx - w / 2 - 2, cy - h / 2 - 2, w + 4, h + 4); // 2px 여백
+      return others.every((o) => !Phaser.Geom.Intersects.RectangleToRectangle(r, o));
+    };
+    const [cx, cy] = spots.find((s) => inMap(s) && free(s)) ?? spots[0];
+    tag.setPosition(
+      Phaser.Math.Clamp(cx, MAP.x + w / 2, MAP.x + this.mapSize.width - w / 2),
+      Phaser.Math.Clamp(cy, MAP.y + h / 2, MAP.y + this.mapSize.height - h / 2),
+    );
+    (this.mapTags ??= []).push(tag);
     return tag;
   }
 
