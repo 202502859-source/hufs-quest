@@ -107,17 +107,6 @@ export const DEADLINES = [
     url: "https://www.hufs.ac.kr/bbs/hufs/2180/267820/artclView.do",
   },
   {
-    id: "2026-12-reserve-forces-3rd",
-    title: {
-      ko: "(서울) 2026년도 후반기 학생예비군 기본 3차훈련(안내)",
-      en: "(Seoul) 2026 Second-Half Student Reserve Forces 3rd Basic Training Notice",
-    },
-    dept: { ko: "예비군연대(서울)", en: "Reserve Forces Regiment (Seoul)" },
-    category: "campus",
-    deadline: "2026-12-07T09:00:00+09:00",
-    url: "https://www.hufs.ac.kr/bbs/hufs/2180/271180/artclView.do",
-  },
-  {
     id: "2026-12-hufs-dream-scholarship",
     title: {
       ko: "[서울][교내] 2026학년도 2학기 서울캠퍼스 HUFS Dream 장학금 신청 안내 (11/23~12/4)",
