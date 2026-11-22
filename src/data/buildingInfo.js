@@ -9,6 +9,8 @@
  * - offices: 건물 안의 사무실 · 시설 · 주요 기능 목록(아래 형식). 확인 전에는 []
  * - checkedAt: 마지막으로 공식 페이지와 대조한 날짜 "YYYY-MM-DD". 확인 전에는 null
  * - status: "open"(운영 중) · "construction"(공사 중) · "new"(신규)
+ * - onMap: false면 맵(campus.js)에 그리지 않는 장소입니다(좌표 미확인 등). 항목은 지우지 않고 남깁니다. 없으면 맵에 있음
+ * - nameEn이 null이면 영어 공식 표기를 확인하지 못한 것입니다(PENDING에 이유). 화면은 한국어 이름으로 대신 보여 줍니다
  *
  * offices 한 줄: { name: {ko,en}, floor, room, does: {ko,en}, src }
  * - floor: "1F" · "B1" 처럼 근거 페이지에 층이 적혀 있을 때만. 호수만 있으면 null(호수로 층을 짐작해 넣지 않음)
@@ -64,7 +66,8 @@ export const PENDING = [
   "출판부: 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
   "역사관(역사기념관): 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
   "교수연구동: 전화안내에 '제1교수연구동 안내실'로 표기되어 있으나 맵 건물이 제1교수연구동인지 확인 근거가 없어 PENDING 이동",
-  "원스톱서비스센터 호수: 원스톱 사이트(dep.hufs.ac.kr/onestop)는 118호, 증명서 페이지(학생지원 > 증명서)는 국제학사 1층 114호 → 114호로 확정(이종헌 확인, 2026-11-20). 원스톱 사이트는 옛 정보",
+  "정문 & 진입광장 영어 이름: HUFS MAP English 목록에서 같은 위도 · 경도의 항목이 'Main(Administration) Building'(본관 이름)으로 적혀 있어 오기로 보고 넣지 않음(2026-11-22 확인). 확인 전에는 화면에 한국어 이름",
+  "원스톱서비스센터 호수:원스톱 사이트(dep.hufs.ac.kr/onestop)는 118호, 증명서 페이지(학생지원 > 증명서)는 국제학사 1층 114호 → 114호로 확정(이종헌 확인, 2026-11-20). 원스톱 사이트는 옛 정보",
 ];
 
 const CHECKED = "2026-11-19";
@@ -269,7 +272,11 @@ export const BUILDING_INFO = {
   // 건물이 아닌 공간(광장·운동장·휴게공간)
   square: { ...empty, name: "Minerva Square", nameEn: "Minerva Square" },
   field: { ...empty, name: "대운동장", nameEn: "Main Field" },
-  rest: { ...empty, name: "휴게공간 오디", nameEn: "Odi Lounge" },
+  // 좌표가 없어 이번 맵(2026-11 배치)에서는 그리지 않습니다. 위치가 확인되면 onMap을 지우고 campus.js에 넣습니다.
+  rest: { ...empty, name: "휴게공간 오디", nameEn: "Odi Lounge", onMap: false },
+  // 이름은 HUFS MAP 서울캠퍼스 목록 표기(한국어 · English, 같은 위도 · 경도로 짝지음, 2026-11-22 확인)
+  lawn: { ...empty, name: "잔디광장", nameEn: "Open Air Theater" },
+  gate: { ...empty, name: "정문 & 진입광장", nameEn: null },
 };
 
 const UNKNOWN = { ...empty, name: "알 수 없는 건물", nameEn: "Unknown building" };

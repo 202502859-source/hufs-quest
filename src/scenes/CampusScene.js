@@ -222,8 +222,9 @@ export class CampusScene extends Phaser.Scene {
   }
 
   addNameTag(place) {
-    const x = (place.x + place.w / 2) * TILE_SIZE;
-    const y = place.y * TILE_SIZE + TILE_SIZE;
+    // 가장 큰 사각형 기준으로 한 번만 표시(여러 동으로 된 건물도). 높이는 campus.js label.tagY
+    const x = place.label.tagX * TILE_SIZE;
+    const y = place.label.tagY * TILE_SIZE;
     const tag = this.add
       .text(x, y, placeName(place), {
         fontFamily: "Galmuri9, sans-serif",

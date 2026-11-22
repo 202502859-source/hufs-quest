@@ -6,8 +6,8 @@ import { getLang, t } from "../state.js";
 import { nearestPlace, overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
 import { addButton, addLabel, addShade, centerLayout, drawPanel } from "../ui/widgets.js";
 
-const SCALE = 6; // 타일 하나를 6픽셀로 그립니다.
-const MAP = { x: 92, y: 64 };
+const SCALE = 5; // 타일 하나를 5픽셀로 그립니다(88×90타일 → 440×450px).
+const MAP = { x: 92, y: 60 };
 const INFO = { x: 598, width: 310 };
 const MIN_LABEL_WIDTH = 56;
 
@@ -44,8 +44,9 @@ export class MapScene extends Phaser.Scene {
   }
 
   addPlaceLabel(place) {
-    const text = getLang() === "en" ? place.nameEn : place.mapName ?? place.name;
-    return addLabel(this, MAP.x + (place.x + place.w / 2) * SCALE, MAP.y + (place.y + place.h / 2) * SCALE, text, {
+    const text = getLang() === "en" ? place.nameEn ?? place.name : place.mapName ?? place.name;
+    // 여러 사각형으로 된 건물은 가장 큰 사각형 가운데에 이름을 둡니다.
+    return addLabel(this, MAP.x + place.label.x * SCALE, MAP.y + place.label.y * SCALE, text, {
       size: 10,
       backgroundColor: "#10182a",
       padding: { x: 2, y: 1 },

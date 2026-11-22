@@ -1,16 +1,16 @@
 import Phaser from "phaser";
-import { SPAWN } from "./data/campus.js";
-import { TILE, TILE_SIZE } from "./gfx/textures.js";
+import { SPAWN, quizBoxTiles } from "./data/campus.js";
+import { TILE_SIZE } from "./gfx/textures.js";
 
 export const QUIZ_BOX_COUNT = 15;
 const RESPAWN_MS = 30_000;
 const OPEN_RANGE = 22; // 상자 중심에서 이 거리(px) 안이면 열 수 있습니다.
 const MIN_GAP_TILES = 4; // 상자끼리, 또 캐릭터와 이만큼 떨어뜨려 놓습니다.
-const PLACEABLE = new Set([TILE.PATH, TILE.GRASS, TILE.GRASS_FLOWER, TILE.LAWN]); // 길·잔디
 
 /*
  * 맵 위 O/X 퀴즈 상자 15개를 관리합니다.
- * 길·잔디 칸 가운데, 시작 위치에서 실제로 걸어갈 수 있는 칸에만 놓습니다(건물·나무·벽 칸 제외).
+ * 보행로 · 잔디 · 흙 광장 칸 가운데, 시작 위치에서 실제로 걸어갈 수 있는 칸에만 놓습니다
+ * (건물 · 나무 · 차도 · 입구 앞 · 안내원 자리 제외, campus.js quizBoxTiles).
  * 푼 상자는 사라지고 30초 뒤 다른 무작위 칸에 새로 생겨 개수를 15개로 유지합니다.
  */
 export class QuizBoxes {
@@ -18,7 +18,7 @@ export class QuizBoxes {
     this.scene = scene;
     this.onTap = onTap;
     this.boxes = [];
-    this.candidates = reachableTiles(ground, solid);
+    this.candidates = quizBoxTiles(ground, solid);
     for (let i = 0; i < QUIZ_BOX_COUNT; i++) this.spawn();
   }
 
@@ -74,26 +74,4 @@ export class QuizBoxes {
     box.sprite.destroy();
     this.scene.time.delayedCall(RESPAWN_MS, () => this.spawn());
   }
-}
-
-// 시작 위치에서 걸어서 닿을 수 있는 길·잔디 칸 목록입니다.
-function reachableTiles(ground, solid) {
-  const height = ground.length;
-  const width = ground[0].length;
-  const seen = new Set([`${SPAWN.x},${SPAWN.y}`]);
-  const queue = [SPAWN];
-  const result = [];
-  while (queue.length) {
-    const { x, y } = queue.shift();
-    if (PLACEABLE.has(ground[y][x])) result.push({ x, y });
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const nx = x + dx;
-      const ny = y + dy;
-      const key = `${nx},${ny}`;
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height || seen.has(key) || solid[ny][nx] !== -1) continue;
-      seen.add(key);
-      queue.push({ x: nx, y: ny });
-    }
-  }
-  return result;
 }

@@ -226,7 +226,7 @@ const STRINGS = {
   progressLoadFailed: { ko: "진행 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't load your progress. Please try again in a moment." },
   quizClose: { ko: "닫기 (ESC)", en: "Close (ESC)" },
   quizMapLegend: { ko: "퀴즈 상자", en: "Quiz boxes" },
-  mapNote: { ko: "조감도를 위에서 본 형태로 옮긴 근사치이며, 길은 단순화했습니다.", en: "An approximation of the aerial map seen from above. Roads are simplified." },
+  mapNote: { ko: "공식 캠퍼스 지도 좌표와 위성 사진을 따라 그린 근사치입니다(북쪽이 위). 건물 모양과 길은 단순화했습니다.", en: "Drawn to approximate the official campus map coordinates and satellite view (north is up). Buildings and roads are simplified." },
   mapBaseDate: { ko: "{year}년 {month}월 기준 캠퍼스", en: "Campus as of {month}/{year}" },
   mapOfficial: { ko: "공식 캠퍼스 지도 ↗", en: "Official campus map ↗" },
   mapReport: { ko: "실제와 달라요 (신고) ↗", en: "Report a difference ↗" },

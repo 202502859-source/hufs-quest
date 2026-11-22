@@ -1,5 +1,5 @@
 import { buildingInfo, isChecked } from "./buildingInfo.js";
-import { BUILDINGS, doorTile } from "./campus.js";
+import { BUILDINGS, npcTile } from "./campus.js";
 import { isTouchDevice } from "../device.js";
 import { getLang, isGuest } from "../state.js";
 
@@ -82,12 +82,7 @@ export function npcLines(npc) {
 }
 
 export const NPCS = BUILDINGS.map((building) => {
-  const door = doorTile(building);
-  return {
-    id: building.id,
-    building,
-    // 입구 왼쪽 아래에 세워 문 앞 길을 막지 않습니다.
-    tileX: door.x - 1,
-    tileY: door.y + 1,
-  };
+  // 입구 앞 칸의 옆에 세워 문 앞 길을 막지 않습니다(campus.js npcTile).
+  const tile = npcTile(building);
+  return { id: building.id, building, tileX: tile.x, tileY: tile.y };
 });
