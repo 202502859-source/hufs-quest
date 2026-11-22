@@ -18,6 +18,39 @@
  */
 export const DEADLINES = [
   {
+    id: "2026-campus-mandatory-edu",
+    title: {
+      ko: "2026학년도 서울캠퍼스 재학생 대상 법정의무교육 이수 안내",
+      en: "2026 Mandatory Statutory Education for Seoul Campus Students",
+    },
+    dept: { ko: "학생지원팀", en: "Student Support Team" },
+    category: "campus",
+    deadline: "2026-12-31T23:59:00+09:00",
+    url: "https://www.hufs.ac.kr/hufs/11281/subview.do?enc=Zm5jdDF8QEB8JTJGYmJzJTJGaHVmcyUyRjIxODAlMkYyNjc4MjAlMkZhcnRjbFZpZXcuZG8lM0ZwYWdlJTNEMSUyNnNyY2hDb2x1bW4lM0QlMjZzcmNoV3JkJTNEJTI2YmJzQ2xTZXElM0QlMjZiYnNPcGVuV3JkU2VxJTNEJTI2cmdzQmduZGVTdHIlM0QlMjZyZ3NFbmRkZVN0ciUzRCUyNmlzVmlld01pbmUlM0RmYWxzZSUyNnBhc3N3b3JkJTNEJTI2",
+  },
+  {
+    id: "2026-campus-reserve-forces-3rd",
+    title: {
+      ko: "(서울) 2026년도 후반기 학생예비군 기본 3차훈련(안내)",
+      en: "2026 Second Half Student Reserve Forces 3rd Basic Training (Seoul)",
+    },
+    dept: { ko: "예비군연대(서울)", en: "Reserve Forces Regiment (Seoul)" },
+    category: "campus",
+    deadline: "2026-12-07T09:00:00+09:00",
+    url: "https://www.hufs.ac.kr/hufs/11281/subview.do?enc=Zm5jdDF8QEB8JTJGYmJzJTJGaHVmcyUyRjIxODAlMkYyNzExODAlMkZhcnRjbFZpZXcuZG8lM0ZwYWdlJTNEMSUyNnNyY2hDb2x1bW4lM0QlMjZzcmNoV3JkJTNEJTI2YmJzQ2xTZXElM0QlMjZiYnNPcGVuV3JkU2VxJTNEJTI2cmdzQmduZGVTdHIlM0QlMjZyZ3NFbmRkZVN0ciUzRCUyNmlzVmlld01pbmUlM0RmYWxzZSUyNnBhc3N3b3JkJTNEJTI2",
+  },
+  {
+    id: "2026-external-eu-youth-forum",
+    title: {
+      ko: "제10회 노벨평화상 기념 EU Youth Forum 개최 및 참가자 모집 안내",
+      en: "10th Nobel Peace Prize Commemorative EU Youth Forum Participant Recruitment",
+    },
+    dept: { ko: "EU연구소", en: "EU Research Institute" },
+    category: "external",
+    deadline: "2026-12-10T13:00:00+09:00",
+    url: "https://www.hufs.ac.kr/hufs/11281/subview.do?enc=Zm5jdDF8QEB8JTJGYmJzJTJGaHVmcyUyRjIxODAlMkYyNzIxMTElMkZhcnRjbFZpZXcuZG8lM0ZwYWdlJTNEMSUyNnNyY2hDb2x1bW4lM0QlMjZzcmNoV3JkJTNEJTI2YmJzQ2xTZXElM0QlMjZiYnNPcGVuV3JkU2VxJTNEJTI2cmdzQmduZGVTdHIlM0QlMjZyZ3NFbmRkZVN0ciUzRCUyNmlzVmlld01pbmUlM0RmYWxzZSUyNnBhc3N3b3JkJTNEJTI2",
+  },
+  {
     id: "demo-scholarship",
     title: { ko: "[예시] 2027학년도 1학기 교내 장학금 신청", en: "[Example] Spring 2027 on-campus scholarship application" },
     dept: { ko: "학생지원팀 (예시)", en: "Student Support Team (example)" },
