@@ -46,6 +46,7 @@
 | 공용 카운터 | 같은 로그의 `limit` 값. `"db"` = 공용 카운터가 판단(정상), `"memory-first"` = 1분 10회 1차 제한에서 DB 호출 없이 끊음(정상, 연타 시 `"reason":"minute"`와 함께 나옴), **`"memory-fallback"`** = 공용 카운터를 못 씀. 원인은 바로 앞의 `usage limit unavailable: …` 줄(timeout · ask_hit 상태 코드 · network) | `"memory-fallback"`이나 `usage limit unavailable`이 나옴 → Supabase 호출 실패로 메모리 제한(인스턴스별 1분 10회)만 동작 중이라 하루 · 전체 상한이 꺼진 상태. `"reason":"day"`는 공용 카운터만 낼 수 있으므로, 이것이 보이면 공용 카운터는 동작 중 |
 | AI 비용 | CLOVA Studio 사용량, NCP 콘솔 비용 · **Budgets 알림**. 예산 화면은 크레딧을 쓰는 동안 0%로 보일 수 있으므로 **CLOVA Studio 사용량과 크레딧 잔액도 같이** 봄 | 하루 토큰이 평소(약 11만)의 2배 이상, 크레딧 잔액이 예상보다 빨리 줄어듦 |
 | 답 길이 | Vercel 로그 `/api/ask`의 `{"mode":"ai", …}` 줄: `completionTokens`(답에 쓴 토큰), `finishReason`, `chars`(답 글자 수), 검색어 정리 쪽은 `rewrite`로 시작하는 같은 값. 질문 · 검색어 · 답 내용은 남기지 않음 | `finishReason`이 `"length"`(상한에 걸려 답이 잘림), `completionTokens`가 `maxTokens`에 가까움 |
+| truncated 비율 (11/22~) | Vercel 로그 `/api/ask`에서 `"truncated":true`인 줄 수 ÷ `truncated` 값이 있는 줄 수(답변 출력 상한 `maxTokens` 400에 걸려 끝난 문장까지만 남긴 답, 끝난 문장이 없으면 `mode: "evidence"`) | 하루 5% 이상이거나 같은 질문 유형이 반복해서 잘림 → `api/ask.js` `ANSWER_MAX_TOKENS` 상향 검토(11/22 측정: 출력 토큰 최대 202) |
 | DB · 메일 | Supabase 대시보드 사용량, Auth 메일 발송 수 | 메일 한도 도달, 용량 급증 |
 | 검색 흐름 (#42 Merge 뒤) | Vercel 로그 `/api/ask`의 `rpc` · `subQueries` · `rewriteFormat` · `unsupportedNumbers`(근거에 없던 숫자만, 문장은 남기지 않음) | 실서비스 로그의 `rpc`가 `match_chunks`가 아님(시험 DB를 보고 있음), `rewriteFormat`이 `none`인 줄이 잦음(질문 쪼개기 지시문이 안 먹힘), `mode: "evidence"`가 잦음(숫자 검사에 자주 걸림 → `unsupportedNumbers` 값 공유) |
 
@@ -135,3 +136,4 @@
 | 2026-11-20 | 3장 점검표에 검색 흐름 로그(`rpc` · `subQueries` · `rewriteFormat` · `unsupportedNumbers`) 추가 | 이종헌 |
 | 2026-11-20 | 7장 학교 협의 기록: 11/19 진로취업지원센터 답신(공개 정보 활용 가능, 개인정보 제외 · 시스템 부담 유의, Open API는 회신 대기)과 그에 따른 운영 규칙 | 이종헌 |
 | 2026-11-18 | 첫 작성: 계정 주인 표, 키 노출 대응, 매일 점검, 배포 전 5분 점검, 질문표 운영, 현행화, 학교 협의, 개인정보 | 이종헌 |
+| 2026-11-22 | 3장 점검표에 truncated 비율(답변 출력 상한 400에 걸린 답) 추가 | 이종헌 |
