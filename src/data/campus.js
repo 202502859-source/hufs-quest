@@ -12,8 +12,8 @@ import { buildingInfo } from "./buildingInfo.js";
  */
 export const MAP_WIDTH = 88;
 export const MAP_HEIGHT = 90;
-// 정문 & 진입광장. 시작 화면에서 정문안내실 이름표가 상단 검색창에 가리지 않는 자리입니다.
-export const SPAWN = { x: 75, y: 57 };
+// 정문 & 진입광장. 시작 화면에서 정문안내실 간판이 상단 검색창 · 오른쪽 퀘스트 패널에 가리지 않는 자리입니다.
+export const SPAWN = { x: 77, y: 57 };
 
 // HUFS MAP 공식 좌표(기준점 37.5975, 127.0585에서 잰 미터, E=동쪽+, N=북쪽+)를 타일로 바꿉니다.
 export const officialToTile = (E, N) => ({ x: Math.floor((E + 152) / 4), y: Math.floor((128 - N) / 4) });
