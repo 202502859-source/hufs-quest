@@ -1,4 +1,4 @@
--- 초안: 설계 문서(docs/ANSWER_CACHE.md) Merge 후 Supabase SQL Editor에서 함께 실행할 예정입니다. (아직 실행하지 않음)
+-- 2026-11-23 Supabase SQL Editor에서 실행함 (실행: 이종헌). 함수 구분자 $$ -> $fn$ 반영 완료.
 -- HUFS Quest: 검색창(api/ask.js) 답변 캐시 테이블 및 데이터 버전 관리
 --
 -- 캐시 전체 비우기 (수동):
@@ -42,7 +42,7 @@ REVOKE ALL ON TABLE public.answer_cache FROM anon, authenticated;
 -- 캐시 조회 (함수 내부에서 answer_cache_meta의 현재 data_version과 비교하여 DB 왕복 1회 절약)
 CREATE OR REPLACE FUNCTION public.get_answer_cache(p_cache_key text)
 RETURNS TABLE (answer text, sources jsonb)
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $fn$
   SELECT c.answer, c.sources
   FROM public.answer_cache c
   JOIN public.answer_cache_meta m ON m.id = 1
@@ -50,7 +50,7 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = '' AS $$
     AND c.data_version = m.data_version
     AND c.expires_at > now()
   LIMIT 1;
-$$;
+$fn$;
 
 -- 캐시 저장 (함수 내부에서 answer_cache_meta의 현재 data_version을 읽어 함께 저장)
 CREATE OR REPLACE FUNCTION public.set_answer_cache(
@@ -60,7 +60,7 @@ CREATE OR REPLACE FUNCTION public.set_answer_cache(
   p_sources jsonb,
   p_ttl_seconds integer DEFAULT 86400
 )
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 DECLARE
   v_version text;
 BEGIN
@@ -89,11 +89,11 @@ BEGIN
     data_version = EXCLUDED.data_version,
     created_at = EXCLUDED.created_at,
     expires_at = EXCLUDED.expires_at;
-END; $$;
+END; $fn$;
 
 -- npm run ingest 완료 또는 수동 초기화 시 버전 갱신 및 기존 캐시 비우기
 CREATE OR REPLACE FUNCTION public.bump_answer_cache_version(p_new_version text)
-RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $fn$
 BEGIN
   INSERT INTO public.answer_cache_meta (id, data_version, updated_at)
   VALUES (1, p_new_version, now())
@@ -101,7 +101,7 @@ BEGIN
     data_version = EXCLUDED.data_version,
     updated_at = EXCLUDED.updated_at;
   DELETE FROM public.answer_cache WHERE data_version <> p_new_version;
-END; $$;
+END; $fn$;
 
 REVOKE ALL ON FUNCTION public.get_answer_cache(text) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.set_answer_cache(text, text, text, jsonb, integer) FROM PUBLIC, anon, authenticated;

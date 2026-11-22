@@ -95,6 +95,16 @@ if (!keepOld) {
 const count = await fetch(`${rest}/${TABLE}?select=id`, { headers: { ...supabaseHeaders, Prefer: "count=exact", Range: "0-0" } });
 console.log(`Supabase ${TABLE} 테이블: ${count.headers.get("content-range")?.split("/")[1] ?? "?"}행`);
 
+if (TABLE === "chunks") {
+  const cacheRes = await fetch(`${rest}/rpc/bump_answer_cache_version`, {
+    method: "POST",
+    headers: supabaseHeaders,
+    body: JSON.stringify({ p_new_version: new Date().toISOString() }),
+  });
+  if (cacheRes.ok) console.log("답변 캐시 버전 갱신 및 기존 캐시 비우기 완료");
+  else console.warn(`주의: 답변 캐시 버전 갱신 실패 (HTTP ${cacheRes.status})`);
+}
+
 async function embed(text, attempt = 1) {
   const res = await fetch(EMBED_URL, {
     method: "POST",
