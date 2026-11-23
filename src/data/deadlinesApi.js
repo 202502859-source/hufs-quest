@@ -1,14 +1,40 @@
-import { DEADLINES } from "../../shared/deadlines.js";
+import { DEADLINES, DEMO_DEADLINES } from "../../shared/deadlines.js";
 import { upcomingDeadlines } from "../../shared/deadlineCalc.js";
 
 const ENDPOINT = "/api/deadlines";
 const TIMEOUT_MS = 8_000;
 const REFRESH_MS = 5 * 60 * 1000;
 
-/*
- * 마감 임박 공지를 서버(api/deadlines.js)에서 받아 옵니다.
- * npm run dev처럼 서버 함수가 없으면 shared/deadlines.js를 직접 읽어 브라우저 시간으로 같은 계산을 합니다(source: "device").
- */
+function hasDemoFlag() {
+  try {
+    return typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demoDeadlines") === "1";
+  } catch {
+    return false;
+  }
+}
+
+function toClientItem(item) {
+  return {
+    id: item.id,
+    title: item.title,
+    dept: item.dept,
+    category: item.category,
+    startsAt: item.startsAt ?? null,
+    deadline: item.deadline,
+    url: item.url,
+    dday: item.dday,
+    status: item.status,
+    checkedOn: item.checkedOn ?? item.checked?.on ?? null,
+    ...(item.demo ? { demo: true } : {}),
+  };
+}
+
+function appendDemoIfRequested(items, nowMs) {
+  if (!hasDemoFlag()) return items;
+  const demoItems = upcomingDeadlines(DEMO_DEADLINES, nowMs).map(toClientItem);
+  return [...items, ...demoItems].sort((a, b) => Date.parse(a.deadline) - Date.parse(b.deadline));
+}
+
 export async function fetchDeadlines() {
   try {
     const response = await fetch(ENDPOINT, { cache: "no-store", signal: AbortSignal.timeout(TIMEOUT_MS) });
@@ -16,14 +42,15 @@ export async function fetchDeadlines() {
     if (!response.ok || !type.includes("json")) throw new Error(`deadlines ${response.status}`);
     const data = await response.json();
     if (!Array.isArray(data.items) || !data.serverTime) throw new Error("bad response");
-    return { ...data, source: "server" };
+    const now = Date.parse(data.serverTime) || Date.now();
+    return { ...data, items: appendDemoIfRequested(data.items, now), source: "server" };
   } catch {
     const now = Date.now();
-    return { serverTime: new Date(now).toISOString(), items: upcomingDeadlines(DEADLINES, now), source: "device" };
+    const items = upcomingDeadlines(DEADLINES, now).map(toClientItem);
+    return { serverTime: new Date(now).toISOString(), items: appendDemoIfRequested(items, now), source: "device" };
   }
 }
 
-// HUD 아이콘과 공지 창이 함께 쓰는 최신 결과입니다.
 const listeners = new Set();
 export const deadlineState = { data: null };
 
@@ -38,7 +65,6 @@ export async function refreshDeadlines() {
   return deadlineState.data;
 }
 
-// D-3 이하 항목 수(아이콘 배지에 표시)
 export const urgentCount = () => (deadlineState.data?.items ?? []).filter((item) => item.dday <= 3).length;
 
 let timer = null;
