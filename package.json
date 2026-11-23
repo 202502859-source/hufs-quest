@@ -10,7 +10,8 @@
     "collect": "node scripts/collect.mjs",
     "ingest": "node scripts/ingest.mjs",
     "eval": "node scripts/eval.mjs",
-    "test": "node --test \"scripts/lib/*.test.mjs\" \"tests/*.test.js\""
+    "test": "node --test \"scripts/lib/*.test.mjs\" \"tests/*.test.js\"",
+    "extract-notice": "node --env-file=.env scripts/extract-notice.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",
