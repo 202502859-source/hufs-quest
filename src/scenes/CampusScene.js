@@ -3,12 +3,13 @@ import { TILE_SIZE } from "../gfx/textures.js";
 import { buildCampusLayers } from "../data/campus.js";
 import { WORLD, findPlace } from "../data/world.js";
 import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
+import { placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
 import { isTouchDevice } from "../device.js";
 import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
 import { signOut } from "../data/auth.js";
 import { resetProgressCache } from "../data/progressApi.js";
-import { onLangChange, resetSession, t } from "../state.js";
+import { getLang, onLangChange, resetSession, t } from "../state.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
@@ -19,7 +20,9 @@ import { createSearchBar } from "../ui/searchBar.js";
 const CAMERA_ZOOM = 3;
 const PLAYER_SPEED = 90;
 const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
-const DEPTH = { NAME_TAG: 5000, DEST_ARROW: 5002, QUIZ_PROMPT: 5003 };
+// 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
+const DEPTH = { NAME_TAG: -5, DEST_ARROW: 5002, QUIZ_PROMPT: 5003 };
+const NAME_TAG_FONT = 10;
 const ARROW_ABOVE_DOOR = 26;
 const PLANNER_RANGE = 6 * TILE_SIZE;
 
@@ -44,7 +47,8 @@ export class CampusScene extends Phaser.Scene {
 
     this.nameTags = [...WORLD.buildings, ...WORLD.openSpaces].map((place) => this.addNameTag(place));
     // 로그아웃으로 이 장면이 멈추면 언어 변경 알림도 해제합니다(지워진 글자를 고치려다 오류가 나지 않게).
-    const offLang = onLangChange(() => this.nameTags.forEach(({ place, tag }) => tag.setText(placeName(place))));
+    // 언어를 바꾸면 이름 길이가 달라지므로 자리도 다시 계산합니다.
+    const offLang = onLangChange(() => this.nameTags.forEach(({ place, tag }) => this.layoutNameTag(place, tag)));
     this.events.once("shutdown", offLang);
     this.loggingOut = false;
 
@@ -227,20 +231,39 @@ export class CampusScene extends Phaser.Scene {
   }
 
   addNameTag(place) {
-    // 건물 위쪽 가운데(여러 동으로 된 건물도 한 번만), 열린 공간은 가운데. 월드 px(src/data/world.js)
-    const { x, y } = place.tag;
     const tag = this.add
-      .text(x, y, placeName(place), {
+      .text(0, 0, "", {
         fontFamily: "Galmuri9, sans-serif",
-        fontSize: "10px",
+        fontSize: `${NAME_TAG_FONT}px`,
         color: "#fff7cc",
         backgroundColor: "#10182a",
         padding: { x: 4, y: 2 },
+        align: "center",
         resolution: CAMERA_ZOOM,
       })
       .setOrigin(0.5)
       .setDepth(DEPTH.NAME_TAG);
+    this.layoutNameTag(place, tag);
     return { place, tag };
+  }
+
+  // 맵 v2의 건물: 입구에 가까운 지붕 위, 이름표가 통째로 지붕 안에 들어가는 자리(src/data/buildingLabels.js).
+  // 안 들어가면 글자를 줄이고 → 두 줄 → 지붕 가운데. 열린 공간과 옛 맵(?map=v1)은 지금처럼 place.tag 자리.
+  layoutNameTag(place, tag) {
+    const name = placeName(place);
+    if (WORLD.version !== "v2" || place.kind !== "building") {
+      tag.setText(name).setFontSize(NAME_TAG_FONT).setPosition(place.tag.x, place.tag.y);
+      return;
+    }
+    const measure = (scale, lines) => {
+      // 두 줄은 buildingInfo.js의 mapName(띄어 쓴 이름, 예: "정문 안내실")에서 나눕니다. 영어는 이름 그대로.
+      const twoLine = splitTwoLines(getLang() === "en" ? name : place.mapName ?? name);
+      tag.setFontSize(Math.round(NAME_TAG_FONT * scale)).setText(lines === 2 ? twoLine : name);
+      return { w: tag.width, h: tag.height };
+    };
+    const spot = placeBuildingLabel(place, measure);
+    measure(spot.scale, spot.lines);
+    tag.setPosition(spot.x, spot.y);
   }
 
   stopPlayer() {
