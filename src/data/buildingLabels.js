@@ -43,10 +43,20 @@ function nearestFit(b, w, h) {
 }
 
 // 가장 큰 사각형(다각형)의 가운데 — 마지막 대안. 전체 지도용 mapLabel(이웃과 겹치지 않게 비켜 둔 값)은 쓰지 않습니다.
+// 꺾인 모양이라 가운데 점이 건물 밖이면 그 점에서 가장 가까운 건물 안 점을 씁니다(이름표 중심은 반드시 건물 안).
 function roofCenter(b) {
   const area = (pts) => Math.abs(pts.reduce((s, [x, y], i) => s + x * pts[(i + 1) % pts.length][1] - pts[(i + 1) % pts.length][0] * y, 0)) / 2;
   const largest = b.polysPx.reduce((p, q) => (area(q) > area(p) ? q : p));
-  return { x: largest.reduce((s, q) => s + q[0], 0) / largest.length, y: largest.reduce((s, q) => s + q[1], 0) / largest.length };
+  const c = { x: largest.reduce((s, q) => s + q[0], 0) / largest.length, y: largest.reduce((s, q) => s + q[1], 0) / largest.length };
+  if (isOwn(b, c.x, c.y)) return c;
+  let best = null;
+  for (let y = Math.ceil(b.box.y0); y <= b.box.y1; y += 1) {
+    for (let x = Math.ceil(b.box.x0); x <= b.box.x1; x += 1) {
+      const d = Math.hypot(x + 0.5 - c.x, y + 0.5 - c.y);
+      if (isOwn(b, x + 0.5, y + 0.5) && (!best || d < best.d)) best = { x: x + 0.5, y: y + 0.5, d };
+    }
+  }
+  return best ?? c;
 }
 
 /*
@@ -63,9 +73,11 @@ export function placeBuildingLabel(b, measure) {
   return { x: c.x, y: c.y, scale: 0.8, lines: 2, fit: "center" };
 }
 
-// 이름을 두 줄로 나눕니다(가운데에 가까운 띄어쓰기, 없으면 글자 수 절반).
+// 이름을 두 줄로 나눕니다. buildingInfo.js mapName처럼 이미 줄바꿈("\n")이 있으면 그 자리에서,
+// 없으면 가운데에 가까운 띄어쓰기(영어), 그것도 없으면 글자 수 절반.
 export function splitTwoLines(name) {
-  const text = name.replace(/\n/g, " ");
+  if (name.includes("\n")) return name;
+  const text = name;
   const spaces = [...text.matchAll(/ /g)].map((m) => m.index);
   if (spaces.length) {
     const mid = text.length / 2;

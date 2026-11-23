@@ -301,7 +301,7 @@ export class CampusScene extends Phaser.Scene {
       return;
     }
     const measure = (scale, lines) => {
-      // 두 줄은 buildingInfo.js의 mapName(띄어 쓴 이름, 예: "정문 안내실")에서 나눕니다. 영어는 이름 그대로.
+      // 두 줄은 buildingInfo.js의 mapName(줄바꿈을 넣은 이름, 예: "정문\n안내실")을 씁니다. 영어는 띄어쓰기에서 나눔.
       const twoLine = splitTwoLines(getLang() === "en" ? name : place.mapName ?? name);
       tag.setFontSize(Math.round(NAME_TAG_FONT * scale)).setText(lines === 2 ? twoLine : name);
       return { w: tag.width, h: tag.height };
