@@ -24,6 +24,18 @@ test("실제 공지는 한국 시간 마감 일시를 직접 적음", () => {
   }
 });
 
+test("실제 공지는 확인 기록(checked.on · checked.by)과 올바른 신청 시작일(startsAt)을 가짐", () => {
+  for (const d of DEADLINES.filter((x) => !x.demo)) {
+    assert.match(d.checked?.on ?? "", /^\d{4}-\d{2}-\d{2}$/, `${d.id}: checked.on 형식`);
+    assert.ok(typeof d.checked?.by === "string" && d.checked.by.trim().length > 0, `${d.id}: checked.by 누락`);
+    if (d.startsAt !== undefined) {
+      assert.match(d.startsAt, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:00\+09:00$/, `${d.id}: startsAt 형식`);
+      assert.ok(Number.isFinite(Date.parse(d.startsAt)), `${d.id}: startsAt 날짜 오류`);
+      assert.ok(Date.parse(d.startsAt) < Date.parse(d.deadline), `${d.id}: startsAt이 deadline보다 앞이어야 함`);
+    }
+  }
+});
+
 test("공개 저장소: 전화번호 · 이메일 없음", () => {
   const text = JSON.stringify(DEADLINES);
   assert.doesNotMatch(text, /\d{2,4}-\d{3,4}-\d{4}/);
