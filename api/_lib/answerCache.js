@@ -19,7 +19,12 @@ export function normalizeQuestion(question) {
 // 데이터 버전 비교는 DB 함수(get_answer_cache · set_answer_cache) 내부에서 처리합니다.
 export function buildCacheKey(question, lang = "ko") {
   const safeLang = lang === "en" ? "en" : "ko";
-  return sha256(`${safeLang}:${normalizeQuestion(question)}`);
+  const deploymentEnv = process.env.VERCEL_ENV || "local";
+  const deploymentSha = process.env.VERCEL_GIT_COMMIT_SHA || "local";
+
+  return sha256(
+    `${deploymentEnv}:${deploymentSha}:${safeLang}:${normalizeQuestion(question)}`
+  );
 }
 
 // eval 요청이 아니고 날짜·시점 의존 표현이 없을 때만 캐시를 조회·저장합니다.

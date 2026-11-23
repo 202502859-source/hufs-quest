@@ -10,6 +10,37 @@ test("캐시 키 정규화 및 언어 분리", () => {
   assert.notEqual(buildCacheKey("휴학은 최대 몇 년이야?", "ko"), buildCacheKey("휴학은 최대 몇 년이야?", "en"));
   assert.match(buildCacheKey("이중전공 학점", "ko"), /^[0-9a-f]{64}$/);
 });
+test("배포 환경 및 커밋별 캐시 키 분리", () => {
+  const originalEnv = process.env.VERCEL_ENV;
+  const originalSha = process.env.VERCEL_GIT_COMMIT_SHA;
+
+  try {
+    process.env.VERCEL_ENV = "production";
+    process.env.VERCEL_GIT_COMMIT_SHA = "commit-A";
+    const productionA = buildCacheKey("이중전공 신청 방법은?", "ko");
+
+    process.env.VERCEL_ENV = "preview";
+    process.env.VERCEL_GIT_COMMIT_SHA = "commit-A";
+    const previewA = buildCacheKey("이중전공 신청 방법은?", "ko");
+
+    process.env.VERCEL_GIT_COMMIT_SHA = "commit-B";
+    const previewB = buildCacheKey("이중전공 신청 방법은?", "ko");
+
+    assert.notEqual(productionA, previewA);
+    assert.notEqual(previewA, previewB);
+    assert.equal(
+      previewB,
+      buildCacheKey("이중전공 신청 방법은?", "ko")
+    );
+  } finally {
+    if (originalEnv === undefined) delete process.env.VERCEL_ENV;
+    else process.env.VERCEL_ENV = originalEnv;
+
+    if (originalSha === undefined) delete process.env.VERCEL_GIT_COMMIT_SHA;
+    else process.env.VERCEL_GIT_COMMIT_SHA = originalSha;
+  }
+});
+
 test("시간 표현 제외 및 영어 단어 경계(\\b)", () => {
   for (const q of ["오늘 도서관 열어?", "이번 학기 수강신청 언제야?", "다음 달 등록금", "마감됐나요?", "What is the schedule today?", "Can I apply now?", "Is registration still open?"]) { assert.equal(hasTimeSensitiveWords(q), true, q); assert.equal(canUseAnswerCache({ evalMode: false, question: q }), false, q); }
   for (const q of ["휴학은 최대 몇 년이야?", "이중전공과 부전공은 각각 몇 학점이야?", "I want to know double major credits", "Unknown graduation requirements"]) { assert.equal(hasTimeSensitiveWords(q), false, q); assert.equal(canUseAnswerCache({ evalMode: false, question: q }), true, q); }
