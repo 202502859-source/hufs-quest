@@ -29,6 +29,21 @@ function asOfText(data) {
   return data.source === "device" ? `${text} ${t("deadlineDevice")}` : text;
 }
 
+function startsAtTitle(startsAt, lang) {
+  if (!startsAt) return "";
+  const ms = Date.parse(startsAt);
+  if (!Number.isFinite(ms)) return "";
+  const p = kstParts(ms);
+  const time = `${pad(p.hh)}:${pad(p.mm)}`;
+  return lang === "en" ? `Opens ${MONTHS[p.m]} ${p.d} ${time} KST` : `${p.m + 1}/${p.d} ${time} 접수 시작`;
+}
+
+function checkedLabel(checkedOn, lang) {
+  if (!checkedOn) return "";
+  const shortDate = checkedOn.slice(5).replace("-", ".");
+  return lang === "en" ? `${t("deadlineCheckedOn")} ${checkedOn.slice(5)}` : `${t("deadlineCheckedOn")} ${shortDate}`;
+}
+
 const el = (tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -37,7 +52,7 @@ const el = (tag, className, text) => {
 };
 
 /*
- * 마감 임박 공지 창(표 형식)입니다. 표 본문 스크롤, 두 줄 말줄임, 새 탭 링크가 필요해 HTML로 게임 위에 띄웁니다.
+ * 마감 임박 공지 창(표 형식)입니다. 긴 본문 스크롤, 두 줄 말줄임, 외부 링크가 필요해 HTML로 게임 위에 띄웁니다.
  * 960x540 게임 화면 안에 맞추고, 화면 전체를 어두운 막으로 덮어 뒤쪽 게임 조작을 막습니다.
  */
 export function createDeadlineOverlay(game, onClose) {
@@ -102,16 +117,30 @@ export function createDeadlineOverlay(game, onClose) {
       clamp.title = item.title?.[lang] ?? "";
       content.append(clamp);
       tr.append(content);
+
       const note = el("td");
       const category = CATEGORY[item.category];
       if (category) note.append(el("span", `dl-tag ${category.className}`, t(category.key)));
+      if (item.status === "upcoming") {
+        const badge = el("span", "dl-tag upcoming", t("deadlineUpcoming"));
+        const tip = startsAtTitle(item.startsAt, lang);
+        if (tip) badge.title = tip;
+        note.append(badge);
+      }
       tr.append(note);
+
       const linkCell = el("td");
       const link = el("a", "dl-link", t("deadlineLink"));
       link.href = item.url;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       linkCell.append(link);
+      const checked = checkedLabel(item.checkedOn, lang);
+      if (checked) {
+        const meta = el("span", "dl-checked", checked);
+        meta.title = item.checkedOn;
+        linkCell.append(meta);
+      }
       tr.append(linkCell);
       rows.append(tr);
     });
