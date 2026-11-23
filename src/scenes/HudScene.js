@@ -11,7 +11,7 @@ import { COLOR, addButton, addLabel, addLangButtons, drawPanel } from "../ui/wid
 // 미니맵 가로(px, 세로는 맵 비율대로). PC는 왼쪽 아래 1.5배, 휴대폰은 이동 패드를 피해 상태창 아래 1.25배(기존 176px 기준).
 const MINIMAP = { pc: { width: 264, dot: 1.5 }, touch: { width: 220, dot: 1.25 } };
 // 미니맵 건물명: 시연 동선 건물을 먼저 놓고, 나머지는 넓은 건물 순. 다른 이름표와 겹치면 숨깁니다.
-const MINIMAP_LABEL_FIRST = ["gatehouse", "cyber", "main", "library", "flc"];
+const MINIMAP_LABEL_FIRST = ["gatehouse", "cyber", "main", "library", "flc", "club"];
 const MIN_TOUCH_PX = 52; // 실제 화면에서 최소 48px 이상이 되도록 약간 여유를 둡니다.
 const PAD_ALPHA = 0.55;
 const REWARD_TOAST_MS = 2500;
@@ -246,7 +246,8 @@ export class HudScene extends Phaser.Scene {
     zone.on("pointerdown", () => this.scene.get("Campus").openMap());
   }
 
-  // 미니맵 건물명(buildingInfo.js의 mapName → 없으면 name, 영어는 nameEn → 없으면 한국어). 겹치면 덜 중요한 것을 숨깁니다.
+  // 미니맵 건물명(한 줄: buildingInfo.js의 name, 영어는 nameEn → 없으면 한국어). 미니맵 끝에 걸리면 안쪽으로 당기고,
+  // 그래도 이미 놓인 이름표와 겹치면 덜 중요한 것을 숨깁니다.
   renderMinimapLabels() {
     const lang = getLang();
     const rank = (b) => {
@@ -256,23 +257,31 @@ export class HudScene extends Phaser.Scene {
     const areaOf = (b) => (b.box ? (b.box.x1 - b.box.x0) * (b.box.y1 - b.box.y0) : b.w * b.h);
     const order = [...WORLD.buildings].sort((a, b) => rank(a) - rank(b) || areaOf(b) - areaOf(a));
     const placed = [];
-    const inside = (r) => r.x >= this.minimap.x && r.y >= this.minimap.y && r.x + r.w <= this.minimap.x + this.minimap.w && r.y + r.h <= this.minimap.y + this.minimap.h;
+    const m = this.minimap;
     order.forEach((b) => {
-      const name = (lang === "en" ? b.nameEn : b.mapName) ?? b.name;
+      const name = (lang === "en" ? b.nameEn : null) ?? b.name;
       const { x, y } = this.toMini(b.mapLabel[0], b.mapLabel[1]);
-      const label = addLabel(this, x, y, name.replace(/\n/g, " "), {
+      const label = addLabel(this, x, y, name, {
         size: 9,
         fontFamily: "Galmuri9, sans-serif",
         backgroundColor: "rgba(16, 24, 42, 0.78)",
         padding: { x: 2, y: 1 },
       }).setOrigin(0.5);
-      const r = { x: label.x - label.width / 2, y: label.y - label.height / 2, w: label.width, h: label.height };
-      const overlaps = placed.some((o) => r.x < o.x + o.w + 1 && o.x < r.x + r.w + 1 && r.y < o.y + o.h + 1 && o.y < r.y + r.h + 1);
-      if (overlaps || !inside(r)) {
+      // 미니맵 가장자리 건물(외국어연수평가원 등)은 지우지 않고 안쪽으로 당깁니다.
+      // 이미 놓인 이름표와 겹치면 위 · 아래 · 옆으로 한 칸씩 비켜 보고, 그래도 겹치면 숨깁니다.
+      const { width: w, height: h } = label;
+      const clampX = (v) => Phaser.Math.Clamp(v, m.x + w / 2 + 1, m.x + m.w - w / 2 - 1);
+      const clampY = (v) => Phaser.Math.Clamp(v, m.y + h / 2 + 1, m.y + m.h - h / 2 - 1);
+      const overlaps = (r) => placed.some((o) => r.x < o.x + o.w + 1 && o.x < r.x + r.w + 1 && r.y < o.y + o.h + 1 && o.y < r.y + r.h + 1);
+      const spot = [[0, 0], [0, -h - 1], [0, h + 1], [-w / 2, 0], [w / 2, 0]]
+        .map(([dx, dy]) => ({ x: clampX(x + dx) - w / 2, y: clampY(y + dy) - h / 2, w, h }))
+        .find((r) => !overlaps(r));
+      if (!spot) {
         label.destroy();
         return;
       }
-      placed.push(r);
+      label.setPosition(spot.x + w / 2, spot.y + h / 2);
+      placed.push(spot);
     });
   }
 
