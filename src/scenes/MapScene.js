@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { MAP_BASE_DATE, OFFICIAL_MAP_URL, REPORT_FORM_URL, reportFormUrl } from "../data/buildingInfo.js";
-import { WORLD } from "../data/world.js";
+import { WORLD, findPlace } from "../data/world.js";
 import { getLang, t } from "../state.js";
 import { nearestPlace, overviewInfo, overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
 import { addButton, addLabel, addShade, centerLayout, drawPanel } from "../ui/widgets.js";
@@ -16,7 +16,8 @@ export class MapScene extends Phaser.Scene {
     super("Map");
   }
 
-  create() {
+  // data.highlight: 행사 창의 "지도에서 보기"로 열었을 때 강조할 건물 id
+  create(data = {}) {
     centerLayout(this);
     // 뒤쪽 버튼이 눌리지 않게 화면 전체를 막습니다.
     addShade(this, 0.7);
@@ -37,6 +38,7 @@ export class MapScene extends Phaser.Scene {
 
     this.drawQuizBoxes();
     this.drawDestinationMarker();
+    this.drawHighlight(data.highlight);
     this.drawPlayerMarker();
 
     this.drawMapBasis();
@@ -133,6 +135,20 @@ export class MapScene extends Phaser.Scene {
 
     addLabel(this, INFO.x, 152, t("destination"), { size: 14, color: "#ff8f92" });
     addLabel(this, INFO.x, 172, placeName(destination.building), { size: 16, wordWrap: { width: INFO.width, useAdvancedWrap: true } });
+  }
+
+  // 행사 장소 강조: 건물 위에 깜빡이는 노란 고리와 "행사 장소" 표시, 오른쪽 정보 칸에 건물 이름
+  drawHighlight(id) {
+    const place = id ? findPlace(id) : null;
+    if (!place) return;
+    const { x, y } = this.toMap(place.mapLabel[0], place.mapLabel[1]);
+    const ring = this.add.circle(x, y, 18).setStrokeStyle(3, 0xf2c94c);
+    this.tweens.add({ targets: ring, scale: 1.35, alpha: 0.35, duration: 600, yoyo: true, repeat: -1 });
+    this.addMapTag(x, y, `★ ${placeName(place)}`, "#f2c94c", "#231a00");
+    if (!trackedDestination()) {
+      addLabel(this, INFO.x, 152, t("mapHighlight"), { size: 14, color: "#f2c94c" });
+      addLabel(this, INFO.x, 172, placeName(place), { size: 16, wordWrap: { width: INFO.width, useAdvancedWrap: true } });
+    }
   }
 
   drawPlayerMarker() {
