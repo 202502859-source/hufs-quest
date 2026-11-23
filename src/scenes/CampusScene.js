@@ -9,12 +9,15 @@ import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
 import { signOut } from "../data/auth.js";
 import { resetProgressCache } from "../data/progressApi.js";
-import { getLang, onLangChange, resetSession, t } from "../state.js";
+import { activeQuests, getLang, onLangChange, resetSession, t } from "../state.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
 import { createDeadlineOverlay } from "../ui/deadlineOverlay.js";
 import { startDeadlineRefresh } from "../data/deadlinesApi.js";
+import { startEventRefresh } from "../data/eventsApi.js";
+import { createEventOverlay } from "../ui/eventOverlay.js";
+import { createQuestOverlay } from "../ui/questOverlay.js";
 import { createSearchBar } from "../ui/searchBar.js";
 
 const CAMERA_ZOOM = 3;
@@ -88,8 +91,12 @@ export class CampusScene extends Phaser.Scene {
     this.mapKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
     this.openKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     this.noticeKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.N);
+    // 퀘스트 Q · 학교 행사 V (E는 다른 게임에서 상호작용 키라 헷갈려 쓰지 않음). 퀘스트가 없으면 Q는 아무것도 하지 않습니다.
+    this.questKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
+    this.eventKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
     // 마감 임박 공지를 불러오고 5분마다 다시 계산합니다(HUD 아이콘의 배지·깜빡임에 씀).
     startDeadlineRefresh();
+    startEventRefresh();
     this.touchMove = { x: 0, y: 0 };
 
     this.scene.launch("Hud");
@@ -110,11 +117,12 @@ export class CampusScene extends Phaser.Scene {
     this.dialog.openAnswer(question, () => this.input.keyboard.resetKeys());
   }
 
-  openMap() {
+  // highlight: 행사 창의 "지도에서 보기"로 열면 그 건물 id를 강조합니다.
+  openMap(highlight = null) {
     if (this.dialog.isOpen) return;
     this.stopPlayer();
     this.searchBar.setVisible(false);
-    this.scene.launch("Map");
+    this.scene.launch("Map", { highlight });
     this.scene.pause();
   }
 
@@ -157,13 +165,48 @@ export class CampusScene extends Phaser.Scene {
 
   // HUD의 빨간 '!' 아이콘이나 N 키로 마감 임박 공지 창을 엽니다. 수강신청 추천 서비스 창과 같은 방식입니다.
   openDeadlines() {
-    if (this.dialog.isOpen || this.deadlineOverlay?.isOpen() || this.plannerOverlay?.isOpen()) return;
+    if (this.anyOverlayOpen()) return;
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
     this.searchBar.setVisible(false);
     this.input.keyboard.enabled = false;
     this.deadlineOverlay ??= createDeadlineOverlay(this.game, () => this.closeOverlay());
     this.deadlineOverlay.show();
+    this.scene.pause();
+  }
+
+  // HUD의 퀘스트 버튼이나 Q 키로 퀘스트 창을 엽니다. 진행 중인 퀘스트가 없으면 버튼이 숨겨지고 Q도 무시합니다.
+  openQuests() {
+    if (!activeQuests().length || this.anyOverlayOpen()) return;
+    this.pauseForOverlay();
+    this.questOverlay ??= createQuestOverlay(this.game, (result) => {
+      this.closeOverlay();
+      if (result?.questId) this.openQuestInfo(result.questId);
+    });
+    this.questOverlay.show();
+  }
+
+  // HUD의 행사 버튼이나 V 키로 학교 행사 창을 엽니다. "지도에서 보기"를 누르면 창을 닫고 전체 지도에서 그 건물을 강조합니다.
+  openEvents() {
+    if (this.anyOverlayOpen()) return;
+    this.pauseForOverlay();
+    this.eventOverlay ??= createEventOverlay(this.game, (result) => {
+      this.closeOverlay();
+      if (result?.showOnMap) this.openMap(result.showOnMap);
+    });
+    this.eventOverlay.show();
+  }
+
+  anyOverlayOpen() {
+    return Boolean(this.dialog.isOpen || this.deadlineOverlay?.isOpen() || this.plannerOverlay?.isOpen() || this.eventOverlay?.isOpen() || this.questOverlay?.isOpen());
+  }
+
+  // HTML 창(마감 공지 · 행사 · 퀘스트)이 열려 있는 동안 캐릭터 · 검색창 · 키 입력을 멈춥니다.
+  pauseForOverlay() {
+    this.stopPlayer();
+    this.quizPrompt.setVisible(false);
+    this.searchBar.setVisible(false);
+    this.input.keyboard.enabled = false;
     this.scene.pause();
   }
 
@@ -203,6 +246,8 @@ export class CampusScene extends Phaser.Scene {
     this.stopPlayer();
     if (this.dialog?.isOpen) this.dialog.close();
     if (this.deadlineOverlay?.isOpen()) this.deadlineOverlay.hide();
+    if (this.eventOverlay?.isOpen()) this.eventOverlay.hide();
+    if (this.questOverlay?.isOpen()) this.questOverlay.hide();
     if (this.plannerOverlay?.isOpen()) this.plannerOverlay.hide();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
@@ -295,6 +340,16 @@ export class CampusScene extends Phaser.Scene {
 
     if (Phaser.Input.Keyboard.JustDown(this.mapKey)) {
       this.openMap();
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.questKey)) {
+      this.openQuests();
+      return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.eventKey)) {
+      this.openEvents();
       return;
     }
 
