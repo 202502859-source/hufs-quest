@@ -21,7 +21,7 @@ test("새 계정은 Lv.1 · 경험치 0 · 포인트 0, 응답 모양이 문서�
   assert.deepEqual(progress, {
     level: 1,
     exp: 0,
-    expMax: 100,
+    expMax: 10, // 레벨 n → n+1에 10·n
     points: 0,
     completedQuests: [],
     quiz: { rewarded: [], answered: [], todayExp: 0, dailyCap: 50 },
@@ -35,15 +35,18 @@ test("정답이면 경험치 10, 같은 문제를 다시 맞히면 already", () 
   assert.equal(first.result, "ok");
   assert.equal(first.correct, true);
   assert.deepEqual(first.gained, { exp: 10, points: 0 });
-  assert.equal(first.leveledUp, false);
-  assert.equal(first.progress.exp, 10);
+  // 새 레벨 규칙: Lv.1 → Lv.2에 10이 필요해 첫 정답에서 Lv.2(0/20)
+  assert.equal(first.leveledUp, true);
+  assert.equal(first.progress.level, 2);
+  assert.equal(first.progress.exp, 0);
   assert.deepEqual(first.progress.quiz.rewarded, [q.id]);
   assert.equal(first.progress.quiz.todayExp, 10);
 
   const again = server.answerQuiz({ questionId: q.id, choice: right(q) });
   assert.equal(again.result, "already");
   assert.deepEqual(again.gained, { exp: 0, points: 0 });
-  assert.equal(again.progress.exp, 10);
+  assert.equal(again.leveledUp, false);
+  assert.equal(again.progress.exp, 0);
 });
 
 test("오답이면 wrong, 경험치는 그대로이고 푼 문제(answered)에는 들어간다", () => {
@@ -86,7 +89,8 @@ test("하루 50을 넘기면 cap, 한국 시간 날짜가 바뀌면 다시 받�
   const capped = server.answerQuiz({ questionId: sixth.id, choice: right(sixth) });
   assert.equal(capped.result, "cap");
   assert.equal(capped.progress.quiz.todayExp, 50);
-  assert.equal(capped.progress.exp, 50);
+  assert.equal(capped.progress.level, 3); // 누적 50 = Lv.3(30) + 20
+  assert.equal(capped.progress.exp, 20);
 
   setTime("2026-11-19T14:59:59Z"); // 한국 시간 23:59:59 — 아직 같은 날
   assert.equal(server.answerQuiz({ questionId: sixth.id, choice: right(sixth) }).result, "cap");
@@ -95,7 +99,8 @@ test("하루 50을 넘기면 cap, 한국 시간 날짜가 바뀌면 다시 받�
   const nextDay = server.answerQuiz({ questionId: sixth.id, choice: right(sixth) });
   assert.equal(nextDay.result, "ok");
   assert.equal(nextDay.progress.quiz.todayExp, 10);
-  assert.equal(nextDay.progress.exp, 60);
+  assert.equal(nextDay.progress.level, 4); // 누적 60 = Lv.4 0/40
+  assert.equal(nextDay.progress.exp, 0);
 });
 
 test("출석은 하루 한 번 ok, 두 번째는 already, 다음 날 다시 ok", () => {
@@ -131,20 +136,20 @@ test("퀘스트 완료는 경험치 10 · 포인트 10, 두 번째는 already, �
   assert.throws(() => server.completeQuest({ questId: "mockReg" }), (e) => e.status === 400);
 });
 
-test("레벨 계산: 경험치 100마다 레벨 업", () => {
-  assert.deepEqual(levelFromTotalExp(0), { level: 1, exp: 0, expMax: 100 });
-  assert.deepEqual(levelFromTotalExp(99), { level: 1, exp: 99, expMax: 100 });
-  assert.deepEqual(levelFromTotalExp(100), { level: 2, exp: 0, expMax: 100 });
-  assert.deepEqual(levelFromTotalExp(250), { level: 3, exp: 50, expMax: 100 });
+test("레벨 계산: 레벨 n → n+1에 10·n, 도달하면 레벨업 · 이월", () => {
+  assert.deepEqual(levelFromTotalExp(0), { level: 1, exp: 0, expMax: 10 });
+  assert.deepEqual(levelFromTotalExp(9), { level: 1, exp: 9, expMax: 10 });
+  assert.deepEqual(levelFromTotalExp(10), { level: 2, exp: 0, expMax: 20 });
+  assert.deepEqual(levelFromTotalExp(250), { level: 7, exp: 40, expMax: 70 }); // Lv.7 시작 누적 210
 
-  // 이틀에 걸쳐 10문제를 맞히면 10번째 정답에서 Lv.2가 됩니다.
+  // 이틀에 걸쳐 10문제(누적 10 → 100): 누적 10 · 30 · 60 · 100에서 Lv.2 · 3 · 4 · 5
   const { server, setTime } = setup();
   const results = QUIZ.slice(0, 10).map((q, i) => {
     if (i === 5) setTime("2026-11-20T01:00:00Z");
     return server.answerQuiz({ questionId: q.id, choice: right(q) });
   });
-  assert.deepEqual(results.map((r) => r.leveledUp), [false, false, false, false, false, false, false, false, false, true]);
-  assert.equal(results[9].progress.level, 2);
+  assert.deepEqual(results.map((r) => r.leveledUp), [true, false, true, false, false, true, false, false, false, true]);
+  assert.equal(results[9].progress.level, 5);
   assert.equal(results[9].progress.exp, 0);
 });
 
@@ -152,7 +157,8 @@ test("?mock=cap 계정: 오늘 이미 50을 받아 새 문제를 맞혀도 cap",
   const { server } = setup("cap");
   const { progress } = server.getProgress();
   assert.equal(progress.quiz.todayExp, 50);
-  assert.equal(progress.exp, 50);
+  assert.equal(progress.level, 3); // 누적 50
+  assert.equal(progress.exp, 20);
   const fresh = QUIZ[10];
   assert.equal(server.answerQuiz({ questionId: fresh.id, choice: right(fresh) }).result, "cap");
 });
@@ -162,8 +168,9 @@ test("?mock=already 계정: 퀴즈·퀘스트·출석 모두 already, 숫자가 
   const { progress } = server.getProgress();
   assert.equal(progress.quiz.rewarded.length, QUIZ.length);
   assert.equal(progress.quiz.todayExp, 0);
-  assert.equal(progress.level, 7); // 60문제 600 + 퀘스트 2개 20 = 620
-  assert.equal(progress.exp, 20);
+  assert.equal(progress.level, 11); // 60문제 600 + 퀘스트 2개 20 = 620 → Lv.11 시작 누적 550
+  assert.equal(progress.exp, 70);
+  assert.equal(progress.expMax, 110);
   assert.equal(progress.points, 25); // 퀘스트 2개 20 + 출석 5
   const q = QUIZ[0];
   assert.equal(server.answerQuiz({ questionId: q.id, choice: right(q) }).result, "already");

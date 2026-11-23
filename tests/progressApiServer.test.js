@@ -187,7 +187,7 @@ test("재학생 진행 조회 · 출석 · 퀴즈 · 퀘스트 전체 흐름 및
   assert.deepEqual(r1.body.progress, {
     level: 1,
     exp: 0,
-    expMax: 100,
+    expMax: 10, // 레벨 n → n+1에 10·n
     points: 0,
     completedQuests: [],
     quiz: { rewarded: [], answered: [], todayExp: 0, dailyCap: QUIZ_DAILY_CAP },
