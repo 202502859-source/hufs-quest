@@ -19,6 +19,19 @@ export const TILE = {
   PLAZA: 14,
   FIELD: 15,
   FIELD_LINE: 16,
+  // 2단계(배치) 바닥 · 시설. 색은 docs/GRAPHICS.md 3장 팔레트를 씁니다.
+  ROAD: 17,
+  DIRT: 18,
+  PARKING: 19,
+  TRACK: 20,
+  OUTER_ROAD: 21,
+  OUTSIDE: 22,
+  CROSSWALK: 23,
+  SKYLIGHT: 24,
+  FOUNTAIN: 25,
+  FIELD_LINE_V: 26,
+  ENTRANCE: 27,
+  STAIRS: 28,
 };
 
 const TILE_COUNT = Object.keys(TILE).length;
@@ -118,6 +131,55 @@ function createTileCanvas() {
   tile(TILE.FIELD_LINE, (px) => {
     px("#4f9d52", 0, 0, 16, 16);
     px("#f3f6ef", 0, 7, 16, 2);
+  });
+  tile(TILE.FIELD_LINE_V, (px) => {
+    px("#4f9d52", 0, 0, 16, 16);
+    px("#478f4a", 0, 0, 8, 16);
+    px("#f3f6ef", 7, 0, 2, 16);
+  });
+  tile(TILE.ROAD, (px) => speckle(px, "#6b7176", ["#646a6f", "#737a7f"], 18));
+  tile(TILE.DIRT, (px) => speckle(px, "#b99b6f", ["#a98b60", "#c4a87e", "#997d55"], 24));
+  tile(TILE.PARKING, (px) => {
+    speckle(px, "#6b7176", ["#646a6f", "#737a7f"], 14);
+    px("#eef0e8", 0, 2, 1, 12); // 주차선
+  });
+  tile(TILE.TRACK, (px) => speckle(px, "#b5573f", ["#a64d37", "#c0634b"], 20));
+  tile(TILE.OUTER_ROAD, (px) => {
+    speckle(px, "#5d6368", ["#565c61", "#656b70"], 16);
+    px("#d9dbd2", 6, 7, 4, 2); // 차선 점선
+  });
+  tile(TILE.OUTSIDE, (px) => {
+    px("#50565b", 0, 0, 16, 16);
+    for (let i = -16; i < 16; i += 4) for (let k = 0; k < 16; k++) if (i + k >= 0 && i + k < 16) px("#3f4a45", i + k, 15 - k);
+  });
+  tile(TILE.CROSSWALK, (px) => {
+    px("#6b7176", 0, 0, 16, 16);
+    for (let x = 1; x < 16; x += 4) px("#eef0e8", x, 0, 2, 16);
+  });
+  tile(TILE.SKYLIGHT, (px) => {
+    px("#4b6878", 0, 0, 16, 16);
+    for (let x = 1; x < 16; x += 3) px("#9fbccb", x, 0, 1, 16);
+    px("#6f7b79", 0, 0, 16, 1);
+    px("#6f7b79", 0, 15, 16, 1);
+  });
+  tile(TILE.FOUNTAIN, (px) => {
+    px("#d9c9a3", 0, 0, 16, 16);
+    px("#b9ad8f", 2, 2, 12, 12);
+    px("#6fb3d6", 3, 3, 10, 10);
+    px("#b8dcf0", 5, 5, 3, 3);
+  });
+  tile(TILE.ENTRANCE, (px) => {
+    // 남쪽이 아닌 쪽 입구: 위에서 본 차양과 발판
+    px("#d9c9a3", 0, 0, 16, 16);
+    px("#3d4954", 2, 2, 12, 9);
+    px("#5d6d7c", 3, 3, 10, 7);
+    px("#8a5c3c", 4, 11, 8, 4);
+  });
+  tile(TILE.STAIRS, (px) => {
+    // 지하 건물로 내려가는 계단
+    px("#9ba7a4", 0, 0, 16, 16);
+    for (let y = 1; y < 16; y += 3) px("#6f7b79", 1, y, 14, 1);
+    px("#50565b", 1, 13, 14, 3);
   });
   return canvas;
 }

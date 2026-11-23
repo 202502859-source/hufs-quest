@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { QUEST_LIST, getLang, isGuest, session, t, trackQuest } from "../state.js";
-import { BUILDINGS } from "../data/campus.js";
+import { WORLD } from "../data/world.js";
 import { placeName } from "../ui/campusMap.js";
 import { COLOR, addButton, addLabel, addShade, centerLayout, drawPanel } from "../ui/widgets.js";
 
@@ -30,7 +30,7 @@ export class QuestInfoScene extends Phaser.Scene {
     addLabel(this, left, BOX.y + 22, quest.name[lang], { size: 22, color: "#f2c94c", wordWrap: wrap });
     addLabel(this, left, BOX.y + 66, quest.description[lang], { size: 16, lineSpacing: 7, wordWrap: wrap });
 
-    const building = BUILDINGS.find((b) => b.id === quest.destination);
+    const building = WORLD.buildings.find((b) => b.id === quest.destination);
     const status = locked ? t("studentOnly") : done ? t("questDone") : "";
     const where = building ? placeName(building) : t("questAskHere");
     addLabel(this, left, BOX.y + 176, `${t("destination")}: ${where}`, { size: 16, color: "#ff8f92", wordWrap: wrap });
