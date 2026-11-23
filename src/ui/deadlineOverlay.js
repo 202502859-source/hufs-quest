@@ -1,10 +1,19 @@
-import { kstParts } from "../../shared/deadlineCalc.js";
+import { filterDeadlinesByCategory, kstParts, splitDeadlineGroups } from "../../shared/deadlineCalc.js";
 import { deadlineState, refreshDeadlines } from "../data/deadlinesApi.js";
 import { getLang, onLangChange, t } from "../state.js";
 
 const BASE = { width: 960, height: 540 };
 const MARGIN = 24; // 960x540 화면 가장자리와 창 사이 여백(게임 좌표)
 const BASE_FONT = 14; // 게임 좌표 기준 글자 크기. 화면 크기에 맞춰 함께 줄어들고 늘어납니다.
+const HUFS_NOTICE_BOARD_URL = "https://www.hufs.ac.kr/hufs/11282/subview.do";
+
+const FILTERS = [
+  { id: "all", key: "catAll" },
+  { id: "academic", key: "catAcademic" },
+  { id: "scholarship", key: "catScholarship" },
+  { id: "campus", key: "catCampus" },
+  { id: "external", key: "catExternal" },
+];
 
 const CATEGORY = {
   academic: { key: "catAcademic", className: "academic" },
@@ -52,8 +61,8 @@ const el = (tag, className, text) => {
 };
 
 /*
- * 마감 임박 공지 창(표 형식)입니다. 긴 본문 스크롤, 두 줄 말줄임, 외부 링크가 필요해 HTML로 게임 위에 띄웁니다.
- * 960x540 게임 화면 안에 맞추고, 화면 전체를 어두운 막으로 덮어 뒤쪽 게임 조작을 막습니다.
+- 마감 임박 공지 창(표 형식)입니다. 긴 본문 스크롤, 두 줄 말줄임, 외부 링크가 필요해 HTML로 게임 위에 띄웁니다.
+- 960x540 게임 화면 안에 맞추고, 화면 전체를 어두운 막으로 덮어 뒤쪽 게임 조작을 막습니다.
  */
 export function createDeadlineOverlay(game, onClose) {
   const backdrop = el("div", "dl-overlay");
@@ -71,13 +80,83 @@ export function createDeadlineOverlay(game, onClose) {
   close.type = "button";
   header.append(titleWrap, close);
 
+  const filterBar = el("div", "dl-filters");
+  filterBar.setAttribute("role", "group");
+
   const body = el("div", "dl-body");
   const footer = el("p", "dl-footer");
-  box.append(header, body, footer);
+  box.append(header, filterBar, body, footer);
   backdrop.append(box);
   document.body.append(backdrop);
 
   let open = false;
+  let selectedCategory = "all";
+
+  const renderFilters = () => {
+    filterBar.setAttribute("aria-label", t("deadlineFilterLabel"));
+    filterBar.replaceChildren();
+    FILTERS.forEach(({ id, key }) => {
+      const active = selectedCategory === id;
+      const btn = el("button", `dl-filter-btn${active ? " active" : ""}`, t(key));
+      btn.type = "button";
+      btn.setAttribute("aria-pressed", String(active));
+      btn.addEventListener("click", () => {
+        if (selectedCategory === id) return;
+        selectedCategory = id;
+        renderTable();
+      });
+      filterBar.append(btn);
+    });
+  };
+
+  const renderRow = (item, lang, muted) => {
+    const tr = el("tr", muted ? "dl-row-upcoming" : "");
+    const urgency = item.dday <= 1 ? "red" : item.dday <= 3 ? "orange" : "";
+    tr.append(el("td", `dl-dday ${urgency}`, item.dday === 0 ? "D-DAY" : `D-${item.dday}`));
+    tr.append(el("td", "dl-dept", item.dept?.[lang] ?? ""));
+    const content = el("td");
+    const clamp = el("div", "dl-clamp", item.title?.[lang] ?? "");
+    clamp.title = item.title?.[lang] ?? "";
+    content.append(clamp);
+    tr.append(content);
+
+    const note = el("td");
+    const category = CATEGORY[item.category];
+    if (category) note.append(el("span", `dl-tag ${category.className}`, t(category.key)));
+    if (item.status === "upcoming") {
+      const badge = el("span", "dl-tag upcoming", t("deadlineUpcoming"));
+      const tip = startsAtTitle(item.startsAt, lang);
+      if (tip) badge.title = tip;
+      note.append(badge);
+    }
+    tr.append(note);
+
+    const linkCell = el("td");
+    const link = el("a", "dl-link", t("deadlineLink"));
+    link.href = item.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    linkCell.append(link);
+    const checked = checkedLabel(item.checkedOn, lang);
+    if (checked) {
+      const meta = el("span", "dl-checked", checked);
+      meta.title = item.checkedOn;
+      linkCell.append(meta);
+    }
+    tr.append(linkCell);
+    return tr;
+  };
+
+  const renderGroupSection = (rows, items, groupLabel, lang, muted) => {
+    if (!items.length) return;
+    const groupRow = el("tr", `dl-group-row${muted ? " upcoming" : ""}`);
+    const th = el("th", "", groupLabel);
+    th.colSpan = 5;
+    th.scope = "colgroup";
+    groupRow.append(th);
+    rows.append(groupRow);
+    items.forEach((item) => rows.append(renderRow(item, lang, muted)));
+  };
 
   const renderTable = () => {
     const data = deadlineState.data;
@@ -86,10 +165,27 @@ export function createDeadlineOverlay(game, onClose) {
     close.textContent = t("deadlineClose");
     footer.textContent = t("deadlineFooter");
     asOf.textContent = data ? asOfText(data) : t("deadlineLoading");
+    renderFilters();
     body.replaceChildren();
     if (!data) return;
+
     if (!data.items.length) {
-      body.append(el("p", "dl-empty", t("deadlineEmpty")));
+      const emptyBox = el("div", "dl-empty");
+      emptyBox.append(el("p", "", t("deadlineEmpty")));
+      const boardLink = el("a", "dl-empty-link", t("deadlineBoardLink"));
+      boardLink.href = HUFS_NOTICE_BOARD_URL;
+      boardLink.target = "_blank";
+      boardLink.rel = "noopener noreferrer";
+      emptyBox.append(boardLink);
+      body.append(emptyBox);
+      return;
+    }
+
+    const filtered = filterDeadlinesByCategory(data.items, selectedCategory);
+    if (!filtered.length) {
+      const emptyBox = el("div", "dl-empty");
+      emptyBox.append(el("p", "", t("deadlineCategoryEmpty")));
+      body.append(emptyBox);
       return;
     }
 
@@ -107,43 +203,10 @@ export function createDeadlineOverlay(game, onClose) {
     head.append(headRow);
 
     const rows = el("tbody");
-    data.items.forEach((item) => {
-      const tr = el("tr");
-      const urgency = item.dday <= 1 ? "red" : item.dday <= 3 ? "orange" : "";
-      tr.append(el("td", `dl-dday ${urgency}`, item.dday === 0 ? "D-DAY" : `D-${item.dday}`));
-      tr.append(el("td", "dl-dept", item.dept?.[lang] ?? ""));
-      const content = el("td");
-      const clamp = el("div", "dl-clamp", item.title?.[lang] ?? "");
-      clamp.title = item.title?.[lang] ?? "";
-      content.append(clamp);
-      tr.append(content);
+    const { thisWeek, upcoming } = splitDeadlineGroups(filtered);
+    renderGroupSection(rows, thisWeek, t("deadlineGroupThisWeek"), lang, false);
+    renderGroupSection(rows, upcoming, t("deadlineGroupUpcoming"), lang, true);
 
-      const note = el("td");
-      const category = CATEGORY[item.category];
-      if (category) note.append(el("span", `dl-tag ${category.className}`, t(category.key)));
-      if (item.status === "upcoming") {
-        const badge = el("span", "dl-tag upcoming", t("deadlineUpcoming"));
-        const tip = startsAtTitle(item.startsAt, lang);
-        if (tip) badge.title = tip;
-        note.append(badge);
-      }
-      tr.append(note);
-
-      const linkCell = el("td");
-      const link = el("a", "dl-link", t("deadlineLink"));
-      link.href = item.url;
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      linkCell.append(link);
-      const checked = checkedLabel(item.checkedOn, lang);
-      if (checked) {
-        const meta = el("span", "dl-checked", checked);
-        meta.title = item.checkedOn;
-        linkCell.append(meta);
-      }
-      tr.append(linkCell);
-      rows.append(tr);
-    });
     table.append(colgroup, head, rows);
     body.append(table);
   };
@@ -166,6 +229,7 @@ export function createDeadlineOverlay(game, onClose) {
   const hide = () => {
     if (!open) return;
     open = false;
+    selectedCategory = "all";
     backdrop.hidden = true;
     onClose();
   };
@@ -194,6 +258,7 @@ export function createDeadlineOverlay(game, onClose) {
     async show() {
       if (open) return;
       open = true;
+      selectedCategory = "all";
       backdrop.hidden = false;
       place();
       renderTable();

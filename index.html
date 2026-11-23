@@ -46,7 +46,18 @@
       .dl-checked { display: block; margin-top: 0.2em; font-size: 0.78em; color: #7f8ca6; white-space: nowrap; }
       .dl-link { color: #9fd0ff; white-space: nowrap; }
       .dl-link:hover { color: #ffffff; }
+      .dl-filters { display: flex; flex-wrap: wrap; gap: 0.45em; margin-top: 0.65em; }
+      .dl-filter-btn { min-height: 2.2em; padding: 0 0.75em; font: inherit; font-size: 0.9em; color: #c9d4e8; background: #0e1626; border: 2px solid #4a5f88; border-radius: 0; cursor: pointer; }
+      .dl-filter-btn:hover { background: #22304d; color: #ffffff; }
+      .dl-filter-btn.active { color: #231a00; background: #f2c94c; border-color: #fff0b8; }
+      .dl-filter-btn:focus-visible, .dl-empty-link:focus-visible { outline: 2px solid #f2c94c; outline-offset: 2px; }
+      .dl-group-row th { position: static; padding: 0.42em 0.6em; font-size: 0.88em; color: #f2c94c; background: #18233a; border-top: 2px solid #4a5f88; border-bottom: 2px solid #4a5f88; }
+      .dl-group-row.upcoming th { color: #9fb0cf; background: #141e33; }
+      .dl-row-upcoming { opacity: 0.78; }
       .dl-empty { margin: 0; padding: 2em 1em; text-align: center; color: #a9b6cf; }
+      .dl-empty p { margin: 0; }
+      .dl-empty-link { display: inline-block; margin-top: 0.8em; color: #9fd0ff; }
+      .dl-empty-link:hover { color: #ffffff; }
       .dl-footer { margin: 0.6em 0 0; font-size: 0.82em; color: #a9b6cf; }
       /* 학교 이메일 로그인 창: 마감 공지 창(.dl-box)과 같은 노란 테두리 · 남색 배경 · 도트 글꼴 */
       .login-overlay { position: fixed; inset: 0; z-index: 16; background: rgba(6, 10, 20, 0.75); }

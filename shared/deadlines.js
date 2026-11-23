@@ -1,16 +1,23 @@
-// 마감 임박 공지 데이터 (팀이 직접 입력하는 파일)
-// ※ 실제 공지는 팀원이 학교 공지를 확인하고 직접 추가합니다. 기본 목록에는 예시(demo)를 넣지 않습니다.
-// ※ 학교 공지 게시판은 robots.txt로 자동 수집이 금지되어 있습니다. 크롤링하지 말고 이 파일에 손으로 적어 주세요.
-//
-// 형식
-//   id       : 고유 이름
-//   title    : { ko, en } 공지 내용
-//   dept     : { ko, en } 문서를 낸 부서
-//   category : "academic"(학사정보) | "scholarship"(장학) | "campus"(학교생활) | "external"(대외활동)
-//   startsAt : (선택) 접수 시작 일시, 한국 시간 문자열 (예: "2026-11-23T09:00:00+09:00")
-//   deadline : 마감 일시, 한국 시간 문자열 (예: "2026-11-27T16:00:00+09:00")
-//   url      : 학교 사이트 원문 공지 링크 (*.hufs.ac.kr)
-//   checked  : { on: "YYYY-MM-DD", by: "확인 주체" } 원문 대조 기록 (API 응답에서 by는 제외됨)
+/*
+ * 마감 임박 공지 데이터 (팀이 직접 입력하는 파일)
+ *
+ * ※ 실제 공지는 팀원이 학교 공지를 확인하고 직접 추가합니다. 기본 목록(DEADLINES)에는 예시(demo)를 넣지 않습니다.
+ * ※ 학교 공지 게시판은 robots.txt로 자동 수집이 금지되어 있습니다. 크롤링하지 말고 이 파일에 손으로 적어 주세요.
+ *
+ * 형식
+ *   id          : 고유 이름
+ *   title       : { ko, en } 공지 내용
+ *   dept        : { ko, en } 문서를 낸 부서
+ *   category    : "academic"(학사정보) | "scholarship"(장학) | "campus"(학교생활) | "external"(대외활동)
+ *   startsAt    : (선택) 접수 시작 일시, 한국 시간 문자열 (예: "2026-11-23T09:00:00+09:00")
+ *   deadline    : 마감 일시, 한국 시간 문자열 (예: "2026-11-27T16:00:00+09:00")
+ *   url         : 학교 사이트 원문 공지 링크 (*.hufs.ac.kr)
+ *   checked     : { on: "YYYY-MM-DD", by: "팀원 실명" } 원문 대조 기록 (API 응답에서 by는 제외됨)
+ *   demo        : 시연용 예시이면 true (DEMO_DEADLINES에만 사용)
+ *   daysFromNow : demo 항목만 사용. 마감일을 "오늘로부터 며칠 뒤 17:00(한국 시간)"으로 계산
+ *
+ * 예시 항목의 url은 가짜 공지 주소를 만들지 않고, 학교 공식 안내 페이지를 적습니다.
+ */
 
 export const DEMO_DEADLINES = [
   {
@@ -71,19 +78,19 @@ export const DEADLINES = [
     category: "academic",
     deadline: "2026-11-27T16:00:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2181/270769/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-11-dept-major",
     title: {
-      ko: "[서울] 학부/계열 입학생의 학과·세부전공 신청 공고",
+      ko: "[서울] 학부/계열 입학자의 학과·세부전공 신청 공고",
       en: "[Seoul] Application for Department and Track Selection (Undergraduate/Division Entrants)",
     },
     dept: { ko: "학사종합지원센터(서울)", en: "Academic Support Center (Seoul)" },
     category: "academic",
     deadline: "2026-11-27T16:00:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2181/271666/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-winter-dorm",
@@ -95,7 +102,7 @@ export const DEADLINES = [
     category: "campus",
     deadline: "2026-11-27T23:59:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2180/271685/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-11-startup-scholarship",
@@ -107,7 +114,7 @@ export const DEADLINES = [
     category: "scholarship",
     deadline: "2026-11-27T23:59:00+09:00",
     url: "https://student.hufs.ac.kr/bbs/student/2431/269128/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-11-double-major",
@@ -119,32 +126,32 @@ export const DEADLINES = [
     category: "academic",
     deadline: "2026-11-30T16:00:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2181/270884/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-12-cuhufs-winter-exchange",
     title: {
-      ko: "한국외대생 대상 사이버한국외대 26-동계 계절학기 학점교류 신청 안내",
+      ko: "한국외국어대학교-사이버한국외대 26-동계 계절학기 학점교류 신청 안내",
       en: "Cyber HUFS Winter 2026 Credit Exchange Application for HUFS Students",
     },
     dept: { ko: "학사종합지원센터", en: "Academic Support Center" },
     category: "academic",
     deadline: "2026-12-02T23:59:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2181/271826/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-12-hufs-dream-scholarship",
     title: {
       ko: "[서울][교내] 2026학년도 2학기 서울캠퍼스 HUFS Dream 장학금 신청 안내 (11/23~12/4)",
-      en: "[Seoul][On-Campus] Fall 2026 Seoul Campus HUFS Dream Scholarship Application (11/23–12/4)",
+      en: "[Seoul][On-Campus] Fall 2026 Seoul Campus HUFS Dream Scholarship Application (11/23~12/4)",
     },
     dept: { ko: "서울캠퍼스 장학팀", en: "Seoul Campus Scholarship Team" },
     category: "scholarship",
     startsAt: "2026-11-23T09:00:00+09:00",
     deadline: "2026-12-04T16:00:00+09:00",
     url: "https://student.hufs.ac.kr/bbs/student/2431/272166/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-external-eu-youth-forum",
@@ -156,19 +163,19 @@ export const DEADLINES = [
     category: "external",
     deadline: "2026-12-10T13:00:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2180/272111/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-24", by: "임현규" },
   },
   {
     id: "2026-12-kfas-munwoorim-scholarship",
     title: {
-      ko: "[공통][교외]한국고등교육재단 문우림 제6기 장학생 선발(~12/11)",
+      ko: "[공통][교외]한국고등교육재단 문우림 6기 장학생 선발(~12/11)",
       en: "[Common][Off-Campus] KFAS Munwoorim 6th Scholarship Selection (~12/11)",
     },
     dept: { ko: "장학팀", en: "Scholarship Team" },
     category: "scholarship",
     deadline: "2026-12-11T23:59:00+09:00",
     url: "https://student.hufs.ac.kr/bbs/student/2431/271345/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-23", by: "임현규" },
   },
   {
     id: "2026-12-mandatory-education",
@@ -180,7 +187,7 @@ export const DEADLINES = [
     category: "campus",
     deadline: "2026-12-31T23:59:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2180/267820/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-24", by: "임현규" },
   },
   {
     id: "2027-01-kosaf-national-scholarship",
@@ -192,6 +199,6 @@ export const DEADLINES = [
     category: "scholarship",
     deadline: "2027-01-07T18:00:00+09:00",
     url: "https://student.hufs.ac.kr/bbs/student/2431/272011/artclView.do",
-    checked: { on: "2026-11-23", by: "팀원 직접 확인" },
+    checked: { on: "2026-11-24", by: "임현규" },
   },
 ];
