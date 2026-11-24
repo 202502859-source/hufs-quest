@@ -24,8 +24,8 @@ test("offices 줄마다 있는 src · 이름 · 하는 일(한국어 · 영어)"
     assert.ok(office.name.ko, `${label}: 한국어 이름`);
     assert.ok(office.name.en === null || (typeof office.name.en === "string" && office.name.en), `${label}: 영어 이름은 문자열 또는 null`);
     assert.ok(office.does.ko && office.does.en, `${label}: 하는 일`);
-    // "1F" · "LF"(로비층) · "B1F", 여러 층이면 " · "로 잇기
-    assert.ok(office.floor === null || /^(B?\d+F|LF)( · (B?\d+F|LF))*$/.test(office.floor), `${label}: floor 형식 '${office.floor}'`);
+    // "1F" · "LF"(라운지층), 여러 층이면 " · "로 잇기. 지하층은 넣지 않음
+    assert.ok(office.floor === null || /^(\d+F|LF)( · (\d+F|LF))*$/.test(office.floor), `${label}: floor 형식 '${office.floor}'`);
     assert.ok(office.room === null || /^\d+(-\d+)?호$/.test(office.room), `${label}: room 형식 '${office.room}'`);
   }
 });
@@ -100,7 +100,7 @@ test("글로벌캠퍼스 전용 건물 이름이 들어가지 않음", () => {
   for (const name of globalOnly) assert.ok(!text.includes(name), `글로벌 전용 이름 '${name}'`);
 });
 
-test("도서관 자유열람실: 옛 시간 줄은 없고, 층별(홈페이지 층별안내 · 이용시간) 줄과 시험기간 줄이 있음", () => {
+test("도서관 자유열람실: 옛 시간 줄은 없고, 층별(홈페이지 층별안내 · 이용시간) 줄에 시험기간 비고가 있음", () => {
   const names = BUILDING_INFO.library.offices.map((office) => office.name.ko);
   for (const old of ["제1 · 제2자유열람실", "제3 · 제4자유열람실", "제1 · 5 자유열람실", "제2~4 자유열람실"]) assert.ok(!names.includes(old), `${old} 줄이 남아 있음`);
   const byName = Object.fromEntries(BUILDING_INFO.library.offices.map((office) => [office.name.ko, office]));
@@ -113,5 +113,7 @@ test("도서관 자유열람실: 옛 시간 줄은 없고, 층별(홈페이지 �
     assert.match(byName[name]?.hours?.ko ?? "", /^06:00~23:00/, name);
     assert.ok(byName[name]?.details?.ko.some((line) => line.includes("시험기간에는 24시간 개방")), `${name}: 시험기간 비고`);
   }
-  assert.equal(byName["시험기간 자유열람실"]?.src, "team1124");
+  // 도서관은 층 안내 없는 줄을 두지 않음(맨 위 건물 안내 한 줄만 예외)
+  const noFloor = BUILDING_INFO.library.offices.filter((office) => !office.floor && !office.top).map((office) => office.name.ko);
+  assert.deepEqual(noFloor, []);
 });

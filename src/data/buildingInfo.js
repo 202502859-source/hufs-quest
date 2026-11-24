@@ -15,12 +15,13 @@
  *
  * offices 한 줄: { name: {ko,en}, floor, room, does: {ko,en}, src, category, phone, hours, details, extraSrc?, checkedAt? }
  * - name.en: 근거에 적힌 영어 공식 표기만. 없으면 null(화면은 한국어 이름으로 대신 보여 줌)
- * - floor: "1F" · "LF"(로비층) · "B1F"처럼 근거 페이지에 층이 적혀 있을 때만, 여러 층이면 "2F · 3F". 호수만 있으면 null(호수로 층을 짐작해 넣지 않음)
- *   안내 창은 이 값으로 층별 묶음을 만듭니다(높은 층 → 1F → LF → B1F → 층 안내 없음).
+ * - floor: "1F" · "LF"(라운지층, 도서관)처럼 근거 페이지에 층이 적혀 있을 때만, 여러 층이면 "2F · 3F". 지하층은 다루지 않습니다.
+ *   호수만 있으면 null(호수로 층을 짐작해 넣지 않음). 안내 창은 이 값으로 층별 묶음을 만듭니다(라운지층 → 1층 → … → 6층 → 층 안내 없음).
+ * - top: true면 층 묶음 위, 목록 맨 위에 묶음 제목 없이 보여 줍니다(건물 전체 안내 한 줄용)
  * - room: "118호"처럼 근거에 적힌 그대로. 없으면 null
  * - does: 하는 일 한 줄. 근거 페이지에 적힌 범위 안에서만
  * - src: 아래 SOURCES의 키. 항목마다 근거가 다를 수 있어 줄마다 붙입니다
- * - category: "office"(행정 · 센터 · 도서관 안 시설) · "amenity"(식당 · 카페 · 매점 등 편의시설). 목록을 두 묶음으로 나눌 때 씁니다
+ * - category: "office"(행정 · 센터 · 도서관 안 시설) · "amenity"(식당 · 카페 · 매점 · 휴게 공간 등 편의시설). 편의시설은 화면에서 이름 뒤에 "(편의시설)"
  * - phone: 학교 부서 번호 문자열 배열(02-2173- · 02-6235-로 시작, 근거에 적힌 그대로 "02-2173-2152~4"). 없으면 null.
  *   전화번호는 이 칸에만 넣습니다(does · details · hours 글에 넣지 않음). 휴대폰 · 가게 직통 · 팩스 · 이메일은 넣지 않습니다
  * - hours: 운영시간 { ko, en }. 없으면 null(화면에 "안내 없음")
@@ -106,6 +107,7 @@ const o = (ko, en, floor, room, doesKo, doesEn, src, extra = {}) => ({
   details: extra.details ?? null,
   ...(extra.extraSrc ? { extraSrc: extra.extraSrc } : {}),
   ...(extra.checkedAt ? { checkedAt: extra.checkedAt } : {}),
+  ...(extra.top ? { top: true } : {}),
 });
 const OFFICE = { category: "office" };
 const AMENITY = { category: "amenity" };
@@ -554,25 +556,28 @@ export const BUILDING_INFO = {
       en: "General collection on 3F, research collection on 4F.",
     },
     offices: [
-      o("서울도서관 안내", null, null, null, "서울도서관 이용 문의", "Seoul Library inquiries", "lifeguide2026", {
+      o("서울캠퍼스 도서관 안내", null, null, null, "서울캠퍼스 도서관 이용 문의", "Seoul Campus Library inquiries", "lifeguide2026", {
         ...OFFICE,
+        top: true,
         phone: ["02-2173-2472~4"],
+        hours: LIB_HOURS,
         details: L(
           [
-            "지상 6층 · 지하층, 60만 권 자료실 · 70만 권 보존서고",
+            "지상 6층, 60만 권 자료실 · 70만 권 보존서고",
             "자유열람실 5개 900석, 특수열람실 159석",
             "컨퍼런스룸 180석, 캐럴 59실, 그룹스터디룸 16실",
             "멀티미디어실(PC 90석 · 노트북 129석), 세미나룸",
             "출입: 학생증 또는 모바일ID(QR · NFC)",
           ],
           [
-            "Six floors above ground plus a lower level; stacks for 600,000 and storage for 700,000 volumes",
+            "Six floors above ground; stacks for 600,000 and storage for 700,000 volumes",
             "Five reading rooms with 900 seats, special reading rooms with 159 seats",
             "Conference room for 180, 59 carrels, 16 group study rooms",
             "Multimedia room (90 PCs, 129 laptop seats) and seminar rooms",
             "Entry: student ID or mobile ID (QR or NFC)",
           ]
         ),
+        extraSrc: { hours: "team1124" },
         checkedAt: ADDED,
       }),
       // 6F (서울도서관 홈페이지 층별안내)
@@ -656,7 +661,7 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
       o("세미나룸", null, "2F", null, "35석", "35 seats", "libFloor", { ...OFFICE, checkedAt: ADDED }),
-      // 1F · 로비층(LF): 이 두 층의 시설은 스마트플라자와 여는 · 닫는 시간이 같습니다(이종헌 확인, team1124).
+      // 1F · 라운지층(LF): 이 두 층의 시설은 스마트플라자와 여는 · 닫는 시간이 같습니다(이종헌 확인, team1124).
       o("안내실", null, "1F", null, "도서관 1층 안내", "Library 1st-floor information desk", "libFloor", {
         ...OFFICE,
         hours: LIB_HOURS,
@@ -699,8 +704,8 @@ export const BUILDING_INFO = {
         extraSrc: { hours: "libHours", details: "libFloor" },
         checkedAt: ADDED,
       }),
-      // 로비층(LF)
-      o("카페라운지(이문일공칠)", null, "LF", null, "로비층 카페, 좌석 배정 없이 이용 · 음료 가능", "Lobby-floor café; no seat booking, drinks allowed", "libFloor", {
+      // 라운지층(LF)
+      o("카페라운지(이문일공칠)", null, "LF", null, "라운지층 카페, 좌석 배정 없이 이용 · 음료 가능", "Lounge-floor café; no seat booking, drinks allowed", "libFloor", {
         ...AMENITY,
         hours: LIB_HOURS,
         details: L(["커피 · 음료 · 베이커리(이문일공칠 인더북)"], ["Coffee, drinks and bakery (Imun 107 In the Book)"]),
@@ -714,12 +719,12 @@ export const BUILDING_INFO = {
         extraSrc: { hours: "team1124" },
         checkedAt: ADDED,
       }),
-      o("무인반납기", null, null, null, "로비층 · 1층 부출입구에서 도서 직접 반납", "Self-return machines on the lobby floor and at the 1st-floor side entrance", "lifeguide2026", {
+      o("일반자료실", "General collection", "3F", null, "정보봉사파트 자료실", "Information services collection", "phone", {
         ...OFFICE,
-        phone: ["02-2173-2474"],
+        hours: LIB_HOURS,
+        extraSrc: { hours: "libHours" },
         checkedAt: ADDED,
       }),
-      o("일반자료실", "General collection", "3F", null, "정보봉사파트 자료실", "Information services collection", "phone", OFFICE),
       o("복사실", "Copy room", "3F", null, "복사", "Copying", "phone", AMENITY),
       o("무인 복사실", "Self-service copy room", "1F · 2F · 3F", null, "복사 · 프린트", "Copying and printing", "welfare", AMENITY),
       o("학술연구자료실", "Research collection", "4F", null, "정보봉사파트 자료실", "Information services collection", "phone", {
@@ -749,22 +754,6 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
       o("매점", "Snack shop", "6F", null, "간식 · 음료 판매", "Snacks and drinks", "phone", AMENITY),
-      o("빵명장", "Bbang Myeongjang bakery", null, null, "건물 뒤 베이커리 카페", "Bakery café behind the building", "welfare", AMENITY),
-      o("자료실 이용시간", "Collection hours", null, null, "학기 중 평일 09:00~21:00, 학기 중 토요일 09:00~17:00, 방학 중 평일·토요일 09:00~17:00, 공휴일 폐실", "Semester weekdays 09:00-21:00, semester Saturdays 09:00-17:00, vacation weekdays and Saturdays 09:00-17:00, closed on holidays", "guide2026", {
-        ...OFFICE,
-        hours: LIB_HOURS,
-        details: L(
-          ["일반자료실 · 학술연구자료실 · 스마트플라자 같은 시간", "법정공휴일 휴관", "방학 중 시간은 학교 지침에 따라 바뀔 수 있음(도서관 홈페이지 공지)"],
-          ["Same hours for the general and research collections and Smart Plaza", "Closed on public holidays", "Vacation hours may change by university policy (see library notices)"]
-        ),
-        extraSrc: "lifeguide2026",
-        checkedAt: ADDED,
-      }),
-      o("시험기간 자유열람실", null, null, null, "시험기간 2주 전부터 제1~5 자유열람실 모두 24시간 개방", "From two weeks before exams, Reading Rooms 1-5 are all open 24 hours", "team1124", {
-        ...OFFICE,
-        hours: L("시험기간 2주 전부터 24시간 개방", "Open 24 hours from two weeks before exams"),
-        checkedAt: ADDED,
-      }),
     ],
     checkedAt: CHECKED,
   },

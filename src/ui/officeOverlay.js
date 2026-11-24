@@ -22,7 +22,7 @@ const baseDateText = () => {
 
 /*
  * 건물 입구에서 여는 사무실 · 시설 안내 창입니다. 행사 · 퀘스트 창과 같은 틀(hudOverlay.js)을 씁니다.
- * - 목록: 건물 이름 · 맵 기준일, 층별 묶음(높은 층 → 1층 → 로비층 → 지하 → 층 안내 없음), 항목마다 이름 + 위치 한 줄.
+ * - 목록: 건물 이름 · 맵 기준일, 맨 위 건물 전체 안내(top) → 층별 묶음(라운지층 → 1층 → … → 6층 → 층 안내 없음), 항목마다 이름 + 위치 한 줄.
  *   여러 층에 걸친 항목은 각 층에 모두 보이고, 편의시설은 이름 뒤에 "(편의시설)"을 붙입니다.
  * - 상세: 위치 · 학교 전화 · 운영시간 · 하는 일 · 주요 기능 · 출처 · "실제와 달라요" 신고, 목록으로 돌아가기
  * 모든 글자는 textContent로만 넣습니다. 출처 url이 null(팀 확인)이면 링크 없이 제목만 보여 줍니다.
@@ -37,8 +37,9 @@ export function createOfficeOverlay(game, onClose) {
     asOf.textContent = baseDateText();
     footer.textContent = t("officeListHint");
     const suffix = t("officeAmenitySuffix");
-    groupByFloor(info.offices).forEach(({ floor, items }) => {
-      body.append(el("h3", "ho-group", floor ? floorLabel(floor, lang) : t("officeFloorNone")));
+    groupByFloor(info.offices).forEach(({ top, floor, items }) => {
+      // 건물 전체 안내(top)는 묶음 제목 없이 맨 위에 둡니다.
+      if (!top) body.append(el("h3", "ho-group", floor ? floorLabel(floor, lang) : t("officeFloorNone")));
       const list = el("ul", "ho-offices");
       items.forEach(({ office, index }) => {
         const item = el("li");

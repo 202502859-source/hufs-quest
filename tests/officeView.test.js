@@ -39,50 +39,46 @@ test("위치 한 줄: 층 · 호수, 없으면 null", () => {
   assert.equal(locationText({ floor: "1F", room: "122호" }, "en"), "1F, Room 122");
   assert.equal(locationText({ floor: null, room: "603호" }, "ko"), "603호");
   assert.equal(locationText({ floor: "2F · 3F · 4F · 5F", room: null }, "ko"), "2층 · 3층 · 4층 · 5층");
-  assert.equal(locationText({ floor: "B1", room: null }, "ko"), "지하 1층");
-  assert.equal(locationText({ floor: "B1F", room: null }, "en"), "B1");
-  assert.equal(locationText({ floor: "LF", room: null }, "ko"), "로비층");
-  assert.equal(locationText({ floor: "LF", room: null }, "en"), "Lobby");
+  assert.equal(locationText({ floor: "LF", room: null }, "ko"), "라운지층");
+  assert.equal(locationText({ floor: "LF", room: null }, "en"), "Lounge");
   assert.equal(locationText({ floor: null, room: null }, "ko"), null);
 });
 
-test("층 읽기 · 묶음 제목: 6층 · 로비층 · 지하 1층 / 6F · Lobby · B1", () => {
+test("층 읽기 · 묶음 제목: 6층 · 라운지층 / 6F · Lounge, 지하층은 다루지 않음", () => {
   assert.deepEqual(parseFloor("6F"), { kind: "up", n: 6 });
-  assert.deepEqual(parseFloor("LF"), { kind: "lobby", n: 0 });
-  assert.deepEqual(parseFloor("B1F"), { kind: "basement", n: 1 });
-  assert.deepEqual(parseFloor("B1"), { kind: "basement", n: 1 });
-  assert.equal(parseFloor("옥상"), null);
+  assert.deepEqual(parseFloor("LF"), { kind: "lounge", n: 0 });
+  for (const token of ["B1F", "B1", "옥상"]) assert.equal(parseFloor(token), null, token);
   assert.equal(floorLabel(parseFloor("6F"), "ko"), "6층");
-  assert.equal(floorLabel(parseFloor("LF"), "ko"), "로비층");
-  assert.equal(floorLabel(parseFloor("B1F"), "ko"), "지하 1층");
+  assert.equal(floorLabel(parseFloor("LF"), "ko"), "라운지층");
   assert.equal(floorLabel(parseFloor("6F"), "en"), "6F");
-  assert.equal(floorLabel(parseFloor("LF"), "en"), "Lobby");
-  assert.equal(floorLabel(parseFloor("B1F"), "en"), "B1");
+  assert.equal(floorLabel(parseFloor("LF"), "en"), "Lounge");
 });
 
 const o = (name, floor, category = "office") => ({ name: { ko: name, en: null }, floor, category });
-const order = (groups) => groups.map((g) => (g.floor ? floorLabel(g.floor, "ko") : "없음"));
+const order = (groups) => groups.map((g) => (g.top ? "맨 위" : g.floor ? floorLabel(g.floor, "ko") : "없음"));
 
-test("층별 묶음: 높은 층 → 1층 → 로비층 → 지하 → 층 안내 없음(마지막)", () => {
-  const groups = groupByFloor([o("가", "1F"), o("나", null), o("다", "B1F"), o("라", "6F"), o("마", "LF"), o("바", "3F")]);
-  assert.deepEqual(order(groups), ["6층", "3층", "1층", "로비층", "지하 1층", "없음"]);
+test("층별 묶음: 맨 위 안내(top) → 라운지층 → 1층 → … → 6층 → 층 안내 없음(마지막)", () => {
+  const groups = groupByFloor([o("가", "1F"), o("나", null), { ...o("건물 안내", null), top: true }, o("라", "6F"), o("마", "LF"), o("바", "3F")]);
+  assert.deepEqual(order(groups), ["맨 위", "라운지층", "1층", "3층", "6층", "없음"]);
+  assert.deepEqual(groups[0].items.map((i) => i.office.name.ko), ["건물 안내"]);
 });
 
 test("여러 층 항목은 각 층 묶음에 모두, floor null은 '층 안내 없음'에(호수로 층을 짐작하지 않음)", () => {
   const offices = [o("무인 복사실", "1F · 2F · 3F", "amenity"), o("학생상담센터", null), { ...o("인권센터", null), room: "346호" }];
   const groups = groupByFloor(offices);
-  assert.deepEqual(order(groups), ["3층", "2층", "1층", "없음"]);
+  assert.deepEqual(order(groups), ["1층", "2층", "3층", "없음"]);
   for (const g of groups.slice(0, 3)) assert.deepEqual(g.items.map((i) => i.index), [0]);
   assert.deepEqual(groups.at(-1).items.map((i) => i.office.name.ko), ["학생상담센터", "인권센터"]);
 });
 
-test("실제 데이터: 모든 항목이 한 번 이상 들어가고, 도서관은 6층부터 '층 안내 없음'까지", () => {
+test("실제 데이터: 모든 항목이 한 번 이상 들어가고, 도서관은 안내 → 라운지층 → 1층 → 6층(층 안내 없음 없음)", () => {
   for (const [id, info] of Object.entries(BUILDING_INFO)) {
     const seen = new Set(groupByFloor(info.offices).flatMap((g) => g.items.map((i) => i.index)));
     assert.equal(seen.size, info.offices.length, id);
   }
-  const library = order(groupByFloor(BUILDING_INFO.library.offices));
-  assert.deepEqual(library, ["6층", "5층", "4층", "3층", "2층", "1층", "로비층", "없음"]);
+  const library = groupByFloor(BUILDING_INFO.library.offices);
+  assert.deepEqual(order(library), ["맨 위", "라운지층", "1층", "2층", "3층", "4층", "5층", "6층"]);
+  assert.deepEqual(library[0].items.map((i) => i.office.name.ko), ["서울캠퍼스 도서관 안내"]);
 });
 
 test("전화 링크는 첫 번호로(표시는 원문 그대로)", () => {
