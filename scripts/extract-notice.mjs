@@ -1,18 +1,33 @@
 import { readFile } from "node:fs/promises";
 import { validateNotice } from "./lib/noticeExtract.mjs";
 import { attachNoticeEvidence } from "./lib/noticeEvidence.mjs";
-
+import { extractCourseRegistrationPeriod, extractApplicationPeriod } from "./lib/noticeDate.mjs";
 const CHAT_URL =
   "https://clovastudio.stream.ntruss.com/v3/chat-completions/HCX-005";
 
 const NOTICE_PATH = ".local/notice.txt";
+const [inputPath = NOTICE_PATH, sourceUrl] = process.argv.slice(2);
+
+if (sourceUrl) {
+  const url = new URL(sourceUrl);
+
+  if (
+    url.protocol !== "https:" ||
+    !(
+      url.hostname === "hufs.ac.kr" ||
+      url.hostname.endsWith(".hufs.ac.kr")
+    )
+  ) {
+    throw new Error("한국외국어대학교 공식 HTTPS 공지 URL만 사용할 수 있습니다.");
+  }
+}
 
 async function main() {
   if (!process.env.CLOVA_API_KEY) {
     throw new Error("CLOVA_API_KEY가 설정되지 않았습니다.");
   }
 
-  const raw = await readFile(NOTICE_PATH, "utf8");
+  const raw = await readFile(inputPath, "utf8");
 
   if (!raw.trim()) {
     throw new Error("공지 원문이 비어 있습니다.");
@@ -114,7 +129,6 @@ evidence는 설명문이 아니라 원문에서 복사한 정확한 문자열이
     }),
     signal: AbortSignal.timeout(30000),
   });
-
   if (!response.ok) {
     throw new Error(`HCX API 요청 실패: HTTP ${response.status}`);
   }
@@ -133,9 +147,108 @@ evidence는 설명문이 아니라 원문에서 복사한 정확한 문자열이
 
   const extracted = JSON.parse(cleaned);
 
+  console.log("\n=== AI 원본 추출 결과 ===");
+  console.log(JSON.stringify(extracted, null, 2));
+
+  const coursePeriod = extractCourseRegistrationPeriod(raw);
+
+  const applicationPeriod = extractApplicationPeriod(raw);
+  const candidatePeriod = coursePeriod ?? applicationPeriod;
+
+  const verifiedPeriod =
+    candidatePeriod?.deadline &&
+    (
+      candidatePeriod.startsAt === null ||
+      candidatePeriod.startsAt <= candidatePeriod.deadline
+    )
+      ? candidatePeriod
+      : null;
+  const dateConflicts = [];
+
+  if (verifiedPeriod) {
+    for (const field of ["startsAt", "deadline"]) {
+      const aiValue = extracted[field]?.value ?? null;
+      const verifiedValue = verifiedPeriod[field];
+
+      if (aiValue !== null && aiValue !== verifiedValue) {
+        dateConflicts.push({
+          field,
+          aiValue,
+          verifiedValue,
+        });
+      }
+
+      extracted[field] = {
+        value: verifiedValue,
+        evidence: "",
+      };
+    }
+  }
+
+  if (dateConflicts.length > 0) {
+    console.log("\n=== AI 날짜 충돌 기록 ===");
+    console.log(JSON.stringify(dateConflicts, null, 2));
+  }
+
+  const firstLine = raw.split(/\r?\n/)
+    .map(line => line.trim())
+    .find(Boolean) ?? "";
+
+  const aiTitle = extracted.title?.value ?? "";
+
+  const normalizeTitle = value => value.replace(/\s+/g, "");
+
+  if (
+    aiTitle &&
+    normalizeTitle(aiTitle).length >= 10 &&
+    normalizeTitle(firstLine).startsWith(normalizeTitle(aiTitle))
+  ) {
+    extracted.title = {
+      value: firstLine,
+      evidence: firstLine,
+    };
+  }
+
+  const title = extracted.title?.value ?? "";
+  const titleInRaw = raw.split(/\r?\n/)
+    .some(line => line.trim() === title);
+
+  const isAcademicNotice =
+    titleInRaw &&
+    /수강신청|이중전공|전공신청|학적변동|졸업신청|학과[·・\s]*세부전공\s*신청/.test(title);
+
+  const isScholarshipNotice =
+    titleInRaw &&
+    /장학금|장학생/.test(title);
+
+  const verifiedCategory = isScholarshipNotice
+    ? "scholarship"
+    : isAcademicNotice
+      ? "academic"
+      : null;
+
+  if (
+    verifiedCategory &&
+    extracted.category?.value !== verifiedCategory
+  ) {
+    console.log("\n=== AI 카테고리 충돌 기록 ===");
+    console.log({
+      aiValue: extracted.category?.value ?? null,
+      verifiedValue: verifiedCategory,
+    });
+
+    extracted.category = {
+      value: verifiedCategory,
+      evidence: title,
+    };
+  }
+
   const withEvidence = attachNoticeEvidence(raw, extracted);
   const result = validateNotice(raw, withEvidence);
 
+  console.log("\n=== 원문 정보 ===");
+  console.log(`파일: ${inputPath}`);
+  console.log(`원문 URL: ${sourceUrl || "미입력 - 확인 필요"}`);
   console.log("\n=== 공지 추출 JSON 초안 ===");
   console.log(JSON.stringify(result, null, 2));
 
@@ -145,6 +258,36 @@ evidence는 설명문이 아니라 원문에서 복사한 정확한 문자열이
     console.log(`${field}: ${quote || "확인 필요"}`);
   }
 
+  const deadlineDraft = {
+  id: "",
+  title: {
+    ko: result.title === "확인 필요" ? "" : result.title ?? "",
+    en: "",
+  },
+  dept: {
+    ko: result.dept === "확인 필요" ? "" : result.dept ?? "",
+    en: "",
+  },
+  category: result.category === "확인 필요" ? "" : result.category ?? "",
+  startsAt:
+    typeof result.startsAt === "string" &&
+    result.startsAt !== "확인 필요"
+      ? result.startsAt
+      : null,
+  deadline:
+    typeof result.deadline === "string" &&
+    result.deadline !== "확인 필요"
+      ? result.deadline
+      : null,
+  url: sourceUrl || "",
+  checked: {
+    on: "",
+    by: "",
+  },
+};
+
+console.log("\n=== shared/deadlines.js 입력용 초안 ===");
+console.log(JSON.stringify(deadlineDraft, null, 2));
   console.log("\n※ 사람이 확인한 후에만 공지 데이터에 반영하세요.");
 }
 
