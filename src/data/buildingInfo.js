@@ -4,7 +4,8 @@
  *
  * 건물 항목
  * - name / nameEn: 화면에 쓰는 한국어 · 영어 이름
- * - mapName: 전체 지도에서 줄바꿈해서 보여 줄 이름(없으면 name)
+ * - mapName: 전체 지도 · 게임 이름표에서 두 줄로 보여 줄 이름. 줄바꿈은 띄어쓰기가 아니라 "\n"으로 넣습니다
+ *   (띄어쓰기를 넣으면 한 줄로 쓰는 화면에서 "인문 과학관"처럼 보임). 없으면 name
  * - use: 건물 용도 한 줄 { ko, en }. offices에 적힌 내용만 요약합니다. 확인 전에는 null
  * - offices: 건물 안의 사무실 · 시설 · 주요 기능 목록(아래 형식). 확인 전에는 []
  * - checkedAt: 마지막으로 공식 페이지와 대조한 날짜 "YYYY-MM-DD". 확인 전에는 null
@@ -93,7 +94,7 @@ export const BUILDING_INFO = {
   humanities: {
     ...empty,
     name: "인문과학관",
-    mapName: "인문 과학관",
+    mapName: "인문\n과학관",
     nameEn: "Humanities Hall",
     use: {
       ko: "1층에 학생 식당 · 우편취급국 · 문구점 · 복사실이 있어요.",
@@ -113,7 +114,7 @@ export const BUILDING_INFO = {
   tlc: {
     ...empty,
     name: "교수학습개발원",
-    mapName: "교수학습 개발원",
+    mapName: "교수학습\n개발원",
     nameEn: "Teaching Center",
     use: { ko: "301호에 정보지원팀(강의실 기자재 · 교내 컴퓨터 민원)이 있어요.", en: "The IT Support Team (classroom equipment, campus computer help) is in Room 301." },
     offices: [
@@ -174,7 +175,7 @@ export const BUILDING_INFO = {
   flc: {
     ...empty,
     name: "외국어연수평가원",
-    mapName: "외국어 연수평가원",
+    mapName: "외국어\n연수평가원",
     nameEn: "Language Center",
     use: {
       ko: "외국어 교육 과정과 외국어 평가를 운영해요.",
@@ -243,7 +244,7 @@ export const BUILDING_INFO = {
   gatehouse: {
     ...empty,
     name: "정문안내실",
-    mapName: "정문 안내실",
+    mapName: "정문\n안내실",
     nameEn: "Gate Office",
     use: { ko: "정문 안내실이 있어요.", en: "Has the main gate information desk." },
     offices: [

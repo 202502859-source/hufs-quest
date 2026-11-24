@@ -14,6 +14,7 @@ flowchart LR
         search["빠른 검색창<br/>공식 문서 근거 답변"]
         quiz["O/X 퀴즈<br/>60문항 · 경험치"]
         notice["마감 임박 공지<br/>D-day 정렬"]
+        events["학교 행사 표<br/>14일 안 · 팀 손 입력"]
         mapInfo["건물 정보 · 맵 기준일<br/>buildingInfo.js · 형식·화면 완료, 내용 입력 중"]
         progress["진행 저장 연결<br/>progressApi.js · 지금은 가짜 모드"]
         login["학교 이메일 로그인<br/>메일 아이디 · 6자리 코드 · 진짜 메일 로그인 완료"]
@@ -24,6 +25,7 @@ flowchart LR
     subgraph server["서버 함수 · api/ (Vercel)"]
         ask["ask.js<br/>질문 쪼개기 · 하위 질문별 동시 검색 · 답변 생성 · 날짜 근거 검사"]
         deadlines["deadlines.js<br/>공지 D-day 계산"]
+        eventsApi["events.js<br/>행사 14일 계산"]
         newApi["진행 저장 서버 함수<br/>progress · quiz · quest · check-in"]
         limiter["사용량 제한 · 답변 캐시<br/>학생 계정 · 게스트 IP 해시 · 하루 상한"]
     end
@@ -44,6 +46,7 @@ flowchart LR
     login -->|"로그인 토큰"| progress
     search --> ask
     notice --> deadlines
+    events --> eventsApi
     quiz --> progress
     progress -.->|"서버 완성 후 real 모드"| newApi
     rules --> progress
@@ -62,7 +65,7 @@ flowchart LR
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect,supaAuth done
-    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext partial
+    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi partial
 ```
 
 | 색 | 상태 |
@@ -79,7 +82,7 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect,supaAuth done      ← 동작 중
-class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext partial    ← 일부 구현
+class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi partial    ← 일부 구현(행사는 화면 · 서버 완료, 데이터 입력 전)
 (만들 것 todo: 11/19 기준 없음. 새로 만들 기능이 생기면 `class 이름 todo` 줄을 다시 추가)
 ```
 
@@ -93,10 +96,12 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 
 | 상자 | 주요 파일 | 담당 |
 | --- | --- | --- |
-| 캠퍼스 탐험 | `src/scenes/CampusScene.js`, `src/scenes/MapScene.js`(전체 지도 · 나침반), `src/data/world.js`(맵 선택: 기본 v2, `?map=v1`이면 옛 타일맵 — 12/2 동결 뒤 이상 없으면 v1 삭제). **v2**: `src/data/campusV2Data.js`(미터 좌표 다각형) → `src/data/campusV2.js`(정문 진입로 기준 65.6° 회전 · 픽셀 채우기 · 1m 판정 격자 · 발 상자 이동 · 입구 · 퀴즈 상자 자리) → `src/gfx/campusV2Paint.js` · `campusV2Texture.js`(2×2 조각 텍스처, 축소 지도). **v1**: `src/data/campus.js`(88×90 타일), `src/gfx/textures.js`. 기준은 [`docs/GRAPHICS.md`](GRAPHICS.md). 테스트 `tests/campusV2.test.js`(통로 · 끼임 방지 포함) · `tests/campusLayout.test.js`(v1) | 이종헌 |
+| 캠퍼스 탐험 | `src/scenes/CampusScene.js`, `src/scenes/MapScene.js`(전체 지도 · 나침반), `src/data/world.js`(맵 선택: 기본 v2, `?map=v1`이면 옛 타일맵 — 12/2 동결 뒤 이상 없으면 v1 삭제). **v2**: `src/data/campusV2Data.js`(미터 좌표 다각형) → `src/data/campusV2.js`(정문 진입로 기준 65.6° 회전 · 픽셀 채우기 · 1m 판정 격자 · 발 상자 이동 · 입구 · 퀴즈 상자 자리) → `src/gfx/campusV2Paint.js` · `campusV2Texture.js`(2×2 조각 텍스처, 축소 지도). **v1**: `src/data/campus.js`(88×90 타일), `src/gfx/textures.js`. 기준은 [`docs/GRAPHICS.md`](GRAPHICS.md). 테스트 `tests/campusV2.test.js`(통로 · 끼임 방지 포함) · `tests/campusDrawn.test.js`(모든 건물이 텍스처 · 축소 지도에 그려지고 윤곽선이 있는지, 두 줄 이름) · `tests/campusLayout.test.js`(v1) | 이종헌 |
 | 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` (11/20~ `shared/academicDate.js`: 한국 시간 오늘 날짜 · 현재 학기를 지시문에 붙이고, 답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거 조각에 없으면 "찾지 못함"으로 바꿈. 테스트 `tests/academicDate.test.js`. 11/20~ `api/_lib/decompose.js`: 질문을 하위 질문 최대 2개로 쪼개(`parseQueries`) 하위 질문마다 동시에 벡터 검색하고 `mergeDocs`로 합침, RPC는 `CHUNKS_RPC`(match_chunks · match_chunks_next만 허용). 테스트 `tests/decompose.test.js`. `api/_lib/answerFormat.js`: 답변의 줄 맨 앞 번호 목록을 지우고, 넘긴 자료 수를 넘는 인용 번호를 지움. 11/22~ 출력 상한(400)에 걸려 끊긴 답은 끝난 문장까지만(`trimTruncated`). 테스트 `tests/answerFormat.test.js`) | 신중혁 |
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`(상자 자리는 `world.js` `WORLD.quizSpots`), `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
+| 학교 행사 | `src/ui/eventOverlay.js`(표 창, 공통 틀 `src/ui/hudOverlay.js` · `hudOverlay.css`) ← `src/data/eventsApi.js`(서버 없으면 기기 계산, `?demoEvents=1`일 때만 [예시]) → `api/events.js`(GET, no-store, `checked.by` 제외) ← `shared/events.js`(팀이 원문을 보고 손 입력, 지금 빈 배열) · `shared/eventCalc.js`(오늘~14일 · 진행 중 계산, 출처 규칙 `eventProblems`). "지도에서 보기" → `MapScene` 건물 강조. 테스트 `tests/events.test.js`. 실시간 · 등록 폼은 계속 제외 | 이종헌(화면) · 팀(데이터) |
+| HUD | `src/scenes/HudScene.js`: 오른쪽 아래 아이콘 버튼 줄(퀘스트 Q — 진행 중 퀘스트가 있을 때만, 행사 V, 마감 공지 N), 미니맵(PC 왼쪽 아래 264px · 휴대폰 상태창 아래 220px, 건물명은 한 줄 `name`, 가장자리 이름표는 안쪽으로 당기고 겹치면 비켜 놓음). 퀘스트 창 `src/ui/questOverlay.js`. 테스트 `tests/quests.test.js` | 이종헌 |
 | 건물 정보 · 맵 기준일 | `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태, `MAP_BASE_DATE` · `OFFICIAL_MAP_URL` · `REPORT_FORM_URL` · `REPORT_FORM_PLACE_ENTRY` · `reportFormUrl()`) → `src/data/campus.js`(ID·위치만, 이름은 여기서 붙여 내보냄. `onMap: false`인 장소는 맵에 그리지 않음) · `src/data/npcs.js`(대사 없는 건물은 확인된 용도 표시) · `src/scenes/MapScene.js` `drawMapBasis`(기준일 · 공식 지도 · 신고 버튼, 폼 주소가 비면 신고 버튼 숨김) · `scripts/report-form/`(구글 폼 생성 Apps Script, 건물 이름 목록은 `buildPlaceList.mjs`가 `buildingInfo.js`에서 만듦) · `tests/reportFormUrl.test.js`. **형식·화면 완료, 신고 폼 연결 완료, 근처 건물 미리 채움**(폼에는 건물 이름 하나만 보냄). 용도·층별 사무실 내용은 아직 | 이종헌(형식·화면) · 임현규(내용) |
 | 사용량 제한 · 답변 캐시 | `api/_lib/usageLimit.js` (한도 상수 분당 10 · 학생 하루 50 · 게스트 IP 하루 150 · 전체 하루 500. **11/19~ 로그인 학생은 계정 기준**: 요청의 로그인 토큰을 Supabase `/auth/v1/user`로 확인해 `@hufs.ac.kr`이면 "user:<id>" 해시로, 아니면(게스트 · 토큰 오류 · 확인 실패) IP 해시로 셈. 해시 = SHA-256(`ASK_IP_SALT` + 한국 날짜 + 계정 또는 IP), 화면 `src/data/askApi.js`가 로그인 토큰을 붙여 보냄, 1차 메모리 제한 → 2차 `ask_hit`, Supabase 실패 시 메모리 제한으로 대체, eval 토큰은 IP 한도만 건너뜀) ← `api/ask.js`가 첫 AI 호출 전에 호출(429 `{ error, reason, retryAfter }`, 200자 초과 400). DB는 `supabase/003_usage_limits.sql`(11/18 실행). 화면 안내 `src/data/askApi.js`(`busy` · `limit`), 테스트 `tests/usageLimit.test.js`. **사용량 제한은 Preview 확인 전, 답변 캐시는 아직** | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |

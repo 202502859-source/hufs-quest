@@ -150,7 +150,6 @@ const STRINGS = {
   points: { ko: "포인트", en: "Points" },
   guestBadge: { ko: "게스트 모드", en: "Guest Mode" },
   guestNote: { ko: "레벨과 포인트는 재학생 전용", en: "Levels and points: students only" },
-  todayEvent: { ko: "오늘의 행사: 외대 축제 부스 오픈!", en: "Today's event: HUFS festival booths open!" },
   quests: { ko: "퀘스트", en: "Quests" },
   studentOnly: { ko: "재학생 전용", en: "Students only" },
   searchPlaceholder: { ko: "학사 정보를 물어보세요 (예: 이중전공 신청 기간은?)", en: "Ask about academics (e.g. double major application)" },
@@ -187,6 +186,40 @@ const STRINGS = {
   plannerClose: { ko: "닫기 (ESC)", en: "Close (ESC)" },
   plannerNotice: { ko: "과목·시간·평점은 모두 시연용 가상 데이터입니다.", en: "All courses, times and ratings are fictional demo data." },
   deadlineTooltip: { ko: "마감 임박 공지", en: "Upcoming deadlines" },
+  // HUD 버튼(퀘스트 Q · 행사 V · 마감 공지 N)과 행사 · 퀘스트 창
+  questTooltip: { ko: "퀘스트", en: "Quests" },
+  mapHighlight: { ko: "행사 장소", en: "Event venue" },
+  questEmpty: { ko: "진행 중인 퀘스트가 없어요", en: "No active quests" },
+  eventTooltip: { ko: "학교 행사", en: "Campus events" },
+  eventTitle: { ko: "학교 행사 (오늘~{days}일 안)", en: "Campus Events (next {days} days)" },
+  eventColStatus: { ko: "상태", en: "Status" },
+  eventColTitle: { ko: "행사 · 내용", en: "Event" },
+  eventColHost: { ko: "주최", en: "Host" },
+  eventColTime: { ko: "일시", en: "When" },
+  eventColPlace: { ko: "장소", en: "Where" },
+  eventColSource: { ko: "출처", en: "Source" },
+  eventColNote: { ko: "비고", en: "Note" },
+  eventStatusOngoing: { ko: "진행 중", en: "Ongoing" },
+  eventStatusToday: { ko: "오늘", en: "Today" },
+  eventStatusUpcoming: { ko: "예정", en: "Upcoming" },
+  eventTarget: { ko: "대상", en: "For" },
+  eventSignup: { ko: "신청", en: "Sign-up" },
+  eventShowOnMap: { ko: "지도에서 보기", en: "Show on map" },
+  eventSourceLink: { ko: "원문 ↗", en: "Source ↗" },
+  eventSourceHost: { ko: "주최 측 제공", en: "Provided by host" },
+  eventChecked: { ko: "확인 {date}", en: "Checked {date}" },
+  eventEmpty: { ko: "등록된 행사가 없어요. 학교 공지에서 확인해 주세요", en: "No events listed. Please check the school notices" },
+  eventNoticeLink: { ko: "학교 공지 ↗", en: "School notices ↗" },
+  eventFooter: {
+    ko: "팀이 원문을 직접 확인해 옮긴 행사예요. 일시 · 장소 · 신청 방법은 원문에서 다시 확인하세요.",
+    en: "Events copied by our team after checking the original posts. Please confirm details in the source.",
+  },
+  eventDemoTag: { ko: "[예시]", en: "[Example]" },
+  eventCatFestival: { ko: "축제", en: "Festival" },
+  eventCatBriefing: { ko: "설명회", en: "Briefing" },
+  eventCatLecture: { ko: "특강", en: "Lecture" },
+  eventCatRecruit: { ko: "모집", en: "Recruiting" },
+  eventCatOther: { ko: "기타", en: "Other" },
   deadlineTitle: { ko: "마감 임박 공지 (14일 이내)", en: "Upcoming Deadlines (within 14 days)" },
   deadlineAsOf: { ko: "기준", en: "As of" },
   deadlineKst: { ko: "한국 시간", en: "KST" },
@@ -245,17 +278,9 @@ export const t = (key, vars) => {
 };
 
 // outOfScope: true인 퀘스트는 src/data/features.js의 SHOW_OUT_OF_SCOPE가 false면 목록에서 빠집니다.
+// 11/24: '이중전공 요건 알아보기'(doubleMajor) · '다국어 스탬프 랠리'(stampRally)는 화면 목록에서 뺐습니다.
+// 서버(shared/progressRules.js REWARD_QUESTS, api/quest-complete.js)와 이미 저장된 완료 기록은 그대로 둡니다.
 const ALL_QUESTS = [
-  {
-    id: "doubleMajor",
-    name: { ko: "이중전공 요건 알아보기", en: "Double major requirements" },
-    studentOnly: true,
-    destination: null, // 어디서든 상단 검색창으로 물어보면 됩니다.
-    description: {
-      ko: "화면 맨 위 검색창에 이중전공 신청 요건을 물어보세요.\n예: 이중전공 신청 요건이 뭐야?",
-      en: "Ask about double major requirements in the search bar at the top.\ne.g. What are the double major requirements?",
-    },
-  },
   {
     id: "mockReg",
     name: { ko: "모의 수강신청 도전", en: "Mock course registration" },
@@ -268,17 +293,10 @@ const ALL_QUESTS = [
       en: "A minigame where you add fictional courses within 30 seconds.\nThe faster you click, the better your odds.",
     },
   },
-  {
-    id: "stampRally",
-    name: { ko: "다국어 스탬프 랠리", en: "Language stamp rally" },
-    studentOnly: false,
-    destination: "flc",
-    description: {
-      ko: "여러 나라 말로 인사를 배우며 스탬프를 모으는 퀘스트예요.\n시연판에서는 아직 준비 중이라 목적지만 안내해요.",
-      en: "Collect stamps while learning greetings in many languages.\nStill in progress in this demo, so only the destination is shown.",
-    },
-  },
 ];
 
 // 화면(퀘스트 목록 · 안내 창 · 지도)이 쓰는 퀘스트 목록입니다.
 export const QUEST_LIST = SHOW_OUT_OF_SCOPE ? ALL_QUESTS : ALL_QUESTS.filter((q) => !q.outOfScope);
+
+// 진행 중인(아직 완료하지 않은) 퀘스트. 0개면 HUD의 퀘스트 버튼을 숨깁니다. 서버가 보낸 완료 기록 중 목록에 없는 id는 쓰지 않습니다.
+export const activeQuests = () => QUEST_LIST.filter((q) => !session.completed.has(q.id));

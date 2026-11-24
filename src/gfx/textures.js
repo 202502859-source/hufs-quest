@@ -313,6 +313,47 @@ function createQuizBoxCanvas() {
 }
 
 // 마감 임박 공지 아이콘 (16x16, HUD에서 4배로 키워 64x64로 표시). 빨간 상자에 흰 '!'
+// HUD 버튼 아이콘(16x16, HUD에서 4배). 마감 공지 '!' 상자와 같은 테두리 · 그림자 모양에 색과 그림만 다릅니다.
+function createHudIconCanvas(fill, light, dark, drawMark) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext("2d");
+  const px = (color, x, y, w = 1, h = 1) => {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  };
+  px("#10182a", 1, 0, 14, 1);
+  px("#10182a", 0, 1, 16, 14);
+  px("#10182a", 1, 15, 14, 1);
+  px(fill, 1, 1, 14, 14);
+  px(light, 1, 1, 13, 1);
+  px(light, 1, 2, 1, 12);
+  px(dark, 2, 14, 13, 1);
+  px(dark, 14, 2, 1, 12);
+  drawMark(px);
+  return canvas;
+}
+
+// 퀘스트: 파란 상자에 두루마리(목록) 그림
+const createQuestIconCanvas = () =>
+  createHudIconCanvas("#3d6098", "#7fa7e0", "#26406a", (px) => {
+    px("#fff3d6", 4, 3, 8, 10);
+    px("#c9a36b", 4, 3, 8, 1);
+    px("#c9a36b", 4, 12, 8, 1);
+    [5, 7, 9].forEach((y) => px("#3d6098", 6, y, 4, 1));
+  });
+
+// 학교 행사: 초록 상자에 달력 그림
+const createEventIconCanvas = () =>
+  createHudIconCanvas("#3e8b4f", "#7cc38a", "#2a6338", (px) => {
+    px("#ffffff", 3, 4, 10, 9);
+    px("#d93f3f", 3, 4, 10, 3);
+    px("#10182a", 5, 3, 1, 2);
+    px("#10182a", 10, 3, 1, 2);
+    [[5, 8], [8, 8], [11, 8], [5, 10], [8, 10]].forEach(([x, y]) => px("#3e8b4f", x - 1, y, 2, 1));
+  });
+
 function createAlertBoxCanvas() {
   const canvas = document.createElement("canvas");
   canvas.width = 16;
@@ -348,6 +389,8 @@ export function registerTextures(scene) {
   scene.textures.addCanvas("dest-arrow", createDestinationArrowCanvas());
   scene.textures.addCanvas("quiz-box", createQuizBoxCanvas());
   scene.textures.addCanvas("alert-box", createAlertBoxCanvas());
+  scene.textures.addCanvas("quest-icon", createQuestIconCanvas());
+  scene.textures.addCanvas("event-icon", createEventIconCanvas());
   addCharacterTexture(scene, "player", PLAYER_LOOK);
   NPC_LOOKS.forEach((look, i) => addCharacterTexture(scene, `npc-${i}`, look));
 
