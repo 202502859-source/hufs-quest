@@ -284,8 +284,9 @@ const STRINGS = {
   officePrompt: { ko: "[주요 기능 알아보기]", en: "[See what's inside]" },
   officeKeyHint: { ko: "Enter", en: "Enter" },
   officeKeyHintTouch: { ko: "터치", en: "Tap" },
-  officeGroupOffice: { ko: "행정 · 센터", en: "Offices & Centers" },
-  officeGroupAmenity: { ko: "편의시설", en: "Amenities" },
+  // 층별 묶음: 층 이름(6층 · 로비층 · 지하 1층)은 src/ui/officeView.js floorLabel이 만들고, floor가 없을 때만 아래 문구
+  officeFloorNone: { ko: "층 안내 없음", en: "Floor not listed" },
+  officeAmenitySuffix: { ko: "(편의시설)", en: " (Amenity)" },
   officeNoLocation: { ko: "위치 안내 없음", en: "Location not listed" },
   officeNone: { ko: "안내 없음", en: "Not listed" },
   officeListHint: { ko: "항목을 누르면 위치 · 전화 · 운영시간을 볼 수 있어요.", en: "Select an item to see its location, phone and hours." },

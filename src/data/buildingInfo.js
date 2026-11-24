@@ -15,7 +15,8 @@
  *
  * offices 한 줄: { name: {ko,en}, floor, room, does: {ko,en}, src, category, phone, hours, details, extraSrc?, checkedAt? }
  * - name.en: 근거에 적힌 영어 공식 표기만. 없으면 null(화면은 한국어 이름으로 대신 보여 줌)
- * - floor: "1F" · "B1" 처럼 근거 페이지에 층이 적혀 있을 때만. 호수만 있으면 null(호수로 층을 짐작해 넣지 않음)
+ * - floor: "1F" · "LF"(로비층) · "B1F"처럼 근거 페이지에 층이 적혀 있을 때만, 여러 층이면 "2F · 3F". 호수만 있으면 null(호수로 층을 짐작해 넣지 않음)
+ *   안내 창은 이 값으로 층별 묶음을 만듭니다(높은 층 → 1F → LF → B1F → 층 안내 없음).
  * - room: "118호"처럼 근거에 적힌 그대로. 없으면 null
  * - does: 하는 일 한 줄. 근거 페이지에 적힌 범위 안에서만
  * - src: 아래 SOURCES의 키. 항목마다 근거가 다를 수 있어 줄마다 붙입니다
@@ -71,6 +72,11 @@ export const SOURCES = {
   // 아래 두 개는 2026-11-24에 추가했습니다. lifeguide2026 주소는 학교 홈페이지 '대학생활 길라잡이' 게시판(2026판 게시)입니다.
   lifeguide2026: { title: "Life@HUFS 2026 대학생활 길라잡이(2026.3)", url: "https://www.hufs.ac.kr/hufs/11415/subview.do" },
   team1124: { title: "팀 확인(이종헌, 2026-11-24)", url: null },
+  // 서울도서관 홈페이지(2026-11-24 확인). 층별 상세는 floor-detail?tabIndex=1(B1F)~8(6F). 로그인 없이 열리는 공개 메뉴입니다.
+  libFloor: { title: "서울도서관 홈페이지 > 층별안내", url: "https://lib.hufs.ac.kr/service/facility/floor" },
+  libHours: { title: "서울도서관 홈페이지 > 이용시간", url: "https://lib.hufs.ac.kr/service/facility/hours" },
+  // 개인스터디룸 이용안내는 홈페이지에서 팝업으로 열려 따로 주소가 없습니다(문구는 이종헌이 홈페이지에서 옮김).
+  libStudyRoom: { title: "서울도서관 홈페이지 > 개인스터디룸 이용안내", url: "https://lib.hufs.ac.kr/" },
 };
 
 // 공식 페이지끼리 다르거나 건물이 분명하지 않아 아직 넣지 않은 것입니다. 확인되면 offices로 옮기고 여기서 지웁니다.
@@ -569,9 +575,107 @@ export const BUILDING_INFO = {
         ),
         checkedAt: ADDED,
       }),
-      o("이문일공칠 인더북", "Imun 107 In the Book café", "1F", null, "로비 카페(커피 · 음료 · 베이커리)", "Lobby café", "welfare", AMENITY),
+      // 6F (서울도서관 홈페이지 층별안내)
+      o("공공인재개발원", null, "6F", null, "국가고시 준비 연구실(고시반) · 공공인재열람실 · 세미나실 · 운영팀", "National exam study rooms, public service reading room, seminar room and office", "libFloor", {
+        ...OFFICE,
+        phone: ["02-2173-2235"],
+        details: L(
+          ["국립외교원시험 · 임용고시 · 행정고시(사민재) 연구실", "CPA시험(한림정) · 언론고시(데모스) 연구실", "HUFS Pre-Law School(의향재)", "연구실마다 선발, 개인 학습 공간 · 사물함 제공"],
+          [
+            "Study rooms for the diplomat, teacher and civil service (Saminjae) exams",
+            "Study rooms for the CPA (Hallimjeong) and media (Demos) exams",
+            "HUFS Pre-Law School (Uihyangjae)",
+            "Members selected by each room; personal study space and lockers",
+          ]
+        ),
+        extraSrc: { phone: "lifeguide2026", details: "lifeguide2026" },
+        checkedAt: ADDED,
+      }),
+      o("캐럴", null, "6F", null, "캐럴 51실", "51 carrels", "libFloor", {
+        ...OFFICE,
+        hours: L("24시간 개방(평일 · 토요일 · 공휴일)", "Open 24 hours (weekdays, Saturdays, holidays)"),
+        extraSrc: { hours: "libHours" },
+        checkedAt: ADDED,
+      }),
+      // 5F
+      o("제1자유열람실", null, "5F", null, "칸막이형 · 오픈형 열람테이블, 480석 규모", "Partitioned and open tables, about 480 seats", "libFloor", {
+        ...OFFICE,
+        hours: L("24시간 개방(평일 · 토요일 · 공휴일)", "Open 24 hours (weekdays, Saturdays, holidays)"),
+        extraSrc: { hours: "libHours" },
+        checkedAt: ADDED,
+      }),
+      o("제5자유열람실", null, "5F", null, "칸막이형 · 오픈형 열람테이블, 100석 규모", "Partitioned and open tables, about 100 seats", "libFloor", {
+        ...OFFICE,
+        hours: L("24시간 개방(평일 · 토요일 · 공휴일)", "Open 24 hours (weekdays, Saturdays, holidays)"),
+        extraSrc: { hours: "libHours" },
+        checkedAt: ADDED,
+      }),
+      o("개인스터디룸(캐럴)", null, "5F", null, "1인 독실 스터디룸 8실, 컨퍼런스홀 입구 쪽 복도", "8 single-person study rooms in the hallway by the conference hall", "libStudyRoom", {
+        ...OFFICE,
+        hours: L("학기 중 평일 09:00~17:00 · 토요일 · 공휴일 휴실", "Semester weekdays 09:00-17:00 · Closed Saturdays and holidays"),
+        details: L(
+          ["도서관 홈페이지 · 모바일 앱에서 예약 후 이용", "예약 시간에서 10분 지나도 이용하지 않으면 자동 취소"],
+          ["Book on the library website or mobile app", "Bookings are cancelled if unused 10 minutes after the start time"]
+        ),
+        extraSrc: { hours: "libHours" },
+        checkedAt: ADDED,
+      }),
+      o("컨퍼런스룸", null, "5F", null, "180석 규모", "About 180 seats", "libFloor", { ...OFFICE, checkedAt: ADDED }),
+      // 4F
+      o("제4자유열람실", null, "4F", null, "칸막이형 · 오픈형 열람테이블, 100석 규모", "Partitioned and open tables, about 100 seats", "libFloor", {
+        ...OFFICE,
+        hours: L("06:00~23:00(평일 · 토요일 · 공휴일)", "06:00-23:00 (weekdays, Saturdays, holidays)"),
+        details: L(["비고: 학교 공식 시험기간에는 24시간 개방"], ["Note: open 24 hours during official exam periods"]),
+        extraSrc: { hours: "libHours", details: "team1124" },
+        checkedAt: ADDED,
+      }),
+      // 3F
+      o("제3자유열람실", null, "3F", null, "칸막이형 · 오픈형 열람테이블, 100석 규모", "Partitioned and open tables, about 100 seats", "libFloor", {
+        ...OFFICE,
+        hours: L("06:00~23:00(평일 · 토요일 · 공휴일)", "06:00-23:00 (weekdays, Saturdays, holidays)"),
+        details: L(["비고: 학교 공식 시험기간에는 24시간 개방"], ["Note: open 24 hours during official exam periods"]),
+        extraSrc: { hours: "libHours", details: "team1124" },
+        checkedAt: ADDED,
+      }),
+      o("학술정보팀 정보봉사파트", null, "3F", null, "자료 대출 · 반납, 이용자 정보서비스", "Book loans and returns, user information services", "libFloor", {
+        ...OFFICE,
+        phone: ["02-2173-2471"],
+        details: L(
+          ["학부생 대출: 10권까지, 권당 14일", "권당 2회 연장(홈페이지 My Account)", "도서 예약: 2권까지"],
+          ["Undergraduate loans: up to 10 books, 14 days each", "Two renewals per book (My Account on the website)", "Holds: up to 2 books"]
+        ),
+        extraSrc: { phone: "libHours", details: "lifeguide2026" },
+        checkedAt: ADDED,
+      }),
+      // 2F
+      o("제2자유열람실", null, "2F", null, "칸막이형 · 오픈형 열람테이블, 80석 규모", "Partitioned and open tables, about 80 seats", "libFloor", {
+        ...OFFICE,
+        hours: L("06:00~23:00(평일 · 토요일 · 공휴일)", "06:00-23:00 (weekdays, Saturdays, holidays)"),
+        details: L(["비고: 학교 공식 시험기간에는 24시간 개방"], ["Note: open 24 hours during official exam periods"]),
+        extraSrc: { hours: "libHours", details: "team1124" },
+        checkedAt: ADDED,
+      }),
+      o("세미나룸", null, "2F", null, "35석", "35 seats", "libFloor", { ...OFFICE, checkedAt: ADDED }),
+      // 1F · 로비층(LF): 이 두 층의 시설은 스마트플라자와 여는 · 닫는 시간이 같습니다(이종헌 확인, team1124).
+      o("안내실", null, "1F", null, "도서관 1층 안내", "Library 1st-floor information desk", "libFloor", {
+        ...OFFICE,
+        hours: LIB_HOURS,
+        extraSrc: { hours: "team1124" },
+        checkedAt: ADDED,
+      }),
+      o("그룹스터디룸", null, "1F", null, "16실(4 · 6 · 8 · 12인실), 예약 후 이용", "16 rooms for 4, 6, 8 or 12 people; booking required", "libFloor", {
+        ...OFFICE,
+        hours: L("학기 중 평일 09:00~20:30 · 토요일 · 공휴일 휴실", "Semester weekdays 09:00-20:30 · Closed Saturdays and holidays"),
+        extraSrc: { hours: "libHours" },
+        checkedAt: ADDED,
+      }),
       o("자동심장충격기(AED)", "AED", "1F", null, "1층 로비", "1st-floor lobby", "health", AMENITY),
-      o("복사실", "Copy room", "1F", null, "복사", "Copying", "phone", AMENITY),
+      o("복사실", "Copy room", "1F", null, "복사", "Copying", "phone", {
+        ...AMENITY,
+        hours: LIB_HOURS,
+        extraSrc: { hours: "team1124" },
+        checkedAt: ADDED,
+      }),
       o("스마트플라자", null, "1F", null, "노트북 열람실 · 그룹스터디룸 · PC", "Laptop reading room, group study rooms and PCs", "lifeguide2026", {
         ...OFFICE,
         phone: ["02-2173-2472"],
@@ -588,12 +692,26 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
       o("휴플레이스", null, "2F", null, "리클라인 소파 · 빈백 · 평상형 소파 휴게 공간", "Lounge with recliners, beanbags and floor sofas", "lifeguide2026", {
-        ...OFFICE,
+        ...AMENITY,
         phone: ["02-2173-2472"],
+        hours: L("학기 중 평일 09:00~21:00 · 토요일 09:00~17:00 · 공휴일 휴실", "Semester weekdays 09:00-21:00 · Saturdays 09:00-17:00 · Closed on holidays"),
+        details: L(["휴게 열람실: 세미나 테이블 · 휴게 시설"], ["Rest and reading room with seminar tables and lounge furniture"]),
+        extraSrc: { hours: "libHours", details: "libFloor" },
         checkedAt: ADDED,
       }),
-      o("카페라운지", null, null, null, "로비층 개방형 열람공간(학습 · 토론 · 휴식), 카페", "Open study space on the lobby floor (study, discussion, rest) with a café", "lifeguide2026", {
-        ...OFFICE,
+      // 로비층(LF)
+      o("카페라운지(이문일공칠)", null, "LF", null, "로비층 카페, 좌석 배정 없이 이용 · 음료 가능", "Lobby-floor café; no seat booking, drinks allowed", "libFloor", {
+        ...AMENITY,
+        hours: LIB_HOURS,
+        details: L(["커피 · 음료 · 베이커리(이문일공칠 인더북)"], ["Coffee, drinks and bakery (Imun 107 In the Book)"]),
+        extraSrc: { hours: "team1124", details: "welfare" },
+        checkedAt: ADDED,
+      }),
+      o("스터디라운지", null, "LF", null, "개방형 열람실, 좌석 배정 없이 이용", "Open reading space; no seat booking", "libFloor", {
+        ...AMENITY,
+        hours: LIB_HOURS,
+        details: L(["북토크 · 음악회 · 전시회 등 행사 공간"], ["Used for book talks, concerts and exhibitions"]),
+        extraSrc: { hours: "team1124" },
         checkedAt: ADDED,
       }),
       o("무인반납기", null, null, null, "로비층 · 1층 부출입구에서 도서 직접 반납", "Self-return machines on the lobby floor and at the 1st-floor side entrance", "lifeguide2026", {
@@ -602,15 +720,6 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
       o("일반자료실", "General collection", "3F", null, "정보봉사파트 자료실", "Information services collection", "phone", OFFICE),
-      o("반납 창구", null, "3F", null, "도서 반납", "Book returns", "lifeguide2026", {
-        ...OFFICE,
-        phone: ["02-2173-2472"],
-        details: L(
-          ["학부생 대출: 10권까지, 권당 14일", "권당 2회 연장(홈페이지 My Account)", "도서 예약: 2권까지"],
-          ["Undergraduate loans: up to 10 books, 14 days each", "Two renewals per book (My Account on the website)", "Holds: up to 2 books"]
-        ),
-        checkedAt: ADDED,
-      }),
       o("복사실", "Copy room", "3F", null, "복사", "Copying", "phone", AMENITY),
       o("무인 복사실", "Self-service copy room", "1F · 2F · 3F", null, "복사 · 프린트", "Copying and printing", "welfare", AMENITY),
       o("학술연구자료실", "Research collection", "4F", null, "정보봉사파트 자료실", "Information services collection", "phone", {
@@ -626,7 +735,8 @@ export const BUILDING_INFO = {
             "Self-service copiers available",
           ]
         ),
-        extraSrc: { phone: "phone", details: "lifeguide2026" },
+        hours: LIB_HOURS,
+        extraSrc: { phone: "phone", hours: "libHours", details: "lifeguide2026" },
         checkedAt: ADDED,
       }),
       o("열람실 좌석 키오스크", null, "2F · 3F · 4F · 5F", null, "층마다 열람실 입구에 1대, 자유열람실 좌석 배정", "One per reading room entrance on each floor; seat assignment", "lifeguide2026", {
@@ -639,42 +749,6 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
       o("매점", "Snack shop", "6F", null, "간식 · 음료 판매", "Snacks and drinks", "phone", AMENITY),
-      o("국립외교원시험 연구실", null, null, "603호", "외교관후보자 선발시험 준비 고시반", "Study room for the diplomat candidate exam", "lifeguide2026", {
-        ...OFFICE,
-        phone: ["02-2173-2235"],
-        details: L(["약 25명 규모, 연 2회 선발(3월 중순 · 9월 중순)", "개인 학습 공간 · 사물함, 수험서적 열람", "합격생 멘토링 · 특강, PSAT 모의고사 지원"], ["About 25 members; selection twice a year (mid-March, mid-September)", "Personal study space, locker and shared exam books", "Mentoring and lectures by past passers, PSAT mock exams"]),
-        checkedAt: ADDED,
-      }),
-      o("임용고시 연구실", null, null, "604호", "중등교사 임용시험 준비 고시반", "Study room for the secondary teacher exam", "lifeguide2026", {
-        ...OFFICE,
-        phone: ["02-2173-2235"],
-        details: L(["약 25명 규모, 2월 중순 선발", "개인 좌석 · 사물함, 출결 관리", "임용 관련 서적, 인터넷 강의비 · 도서 · 인쇄 지원"], ["About 25 members; selection in mid-February", "Personal seat and locker, attendance management", "Exam books, online lecture, book and printing support"]),
-        checkedAt: ADDED,
-      }),
-      o("행정고시 연구실(사민재)", null, null, "605호", "행정고시 · 입법고시 등 고등고시 준비", "Study room for the civil service and legislative exams", "lifeguide2026", {
-        ...OFFICE,
-        phone: ["02-2173-2235"],
-        details: L(["매년 상반기(3~4월) · 하반기(9~10월) 선발", "개인 지정 좌석 · 사물함", "교수 · 강사 모의고사 · 강평, 시험 스터디 지원"], ["Selection in spring (Mar-Apr) and fall (Sep-Oct)", "Assigned seat and locker", "Mock exams and reviews by professors, study group support"]),
-        checkedAt: ADDED,
-      }),
-      o("CPA시험 연구실(한림정)", null, null, "606호", "공인회계사 시험 준비 고시반", "Study room for the CPA exam", "lifeguide2026", {
-        ...OFFICE,
-        phone: ["02-2173-2235"],
-        details: L(["개인 학습 공간 · 사물함, 수험서적 열람", "모의고사 · 서브노트 공유, 강의비 지원"], ["Personal study space, locker and shared exam books", "Mock exams, shared study notes and lecture fee support"]),
-        checkedAt: ADDED,
-      }),
-      o("HUFS Pre-Law School(의향재)", "HUFS Pre-Law School", null, "607호", "법학전문대학원(로스쿨) 진학 준비 고시반", "Study room for law school preparation", "lifeguide2026", {
-        ...OFFICE,
-        phone: ["02-2173-2235"],
-        details: L(["연 2회 선발(3월 · 12월)", "개인 학습 공간 · 사물함", "법학적성시험 대비 특강 · 모의고사, 논술 첨삭"], ["Selection twice a year (March, December)", "Personal study space and locker", "LEET lectures and mock exams, essay feedback"]),
-        checkedAt: ADDED,
-      }),
-      o("언론고시 연구실(데모스)", null, null, "608호", "기자 · PD · 아나운서 등 언론사 공채 준비", "Study room for journalist, PD and announcer exams", "lifeguide2026", {
-        ...OFFICE,
-        phone: ["02-2173-2235"],
-        details: L(["개인 지정 좌석 · 사물함", "일반도서 · 문제집 · 일간지 열람(약 1,600권)", "현직 언론인의 글쓰기 강의 · 논작문 첨삭"], ["Assigned seat and locker", "Books, workbooks and daily newspapers (about 1,600)", "Writing lectures and essay feedback from journalists"]),
-        checkedAt: ADDED,
-      }),
       o("빵명장", "Bbang Myeongjang bakery", null, null, "건물 뒤 베이커리 카페", "Bakery café behind the building", "welfare", AMENITY),
       o("자료실 이용시간", "Collection hours", null, null, "학기 중 평일 09:00~21:00, 학기 중 토요일 09:00~17:00, 방학 중 평일·토요일 09:00~17:00, 공휴일 폐실", "Semester weekdays 09:00-21:00, semester Saturdays 09:00-17:00, vacation weekdays and Saturdays 09:00-17:00, closed on holidays", "guide2026", {
         ...OFFICE,
@@ -684,16 +758,6 @@ export const BUILDING_INFO = {
           ["Same hours for the general and research collections and Smart Plaza", "Closed on public holidays", "Vacation hours may change by university policy (see library notices)"]
         ),
         extraSrc: "lifeguide2026",
-        checkedAt: ADDED,
-      }),
-      o("제1 · 5 자유열람실", null, null, null, "24시간 개방", "Open 24 hours", "lifeguide2026", {
-        ...OFFICE,
-        hours: L("24시간 개방", "Open 24 hours"),
-        checkedAt: ADDED,
-      }),
-      o("제2~4 자유열람실", null, null, null, "06:00~23:00", "06:00-23:00", "lifeguide2026", {
-        ...OFFICE,
-        hours: L("06:00~23:00", "06:00-23:00"),
         checkedAt: ADDED,
       }),
       o("시험기간 자유열람실", null, null, null, "시험기간 2주 전부터 제1~5 자유열람실 모두 24시간 개방", "From two weeks before exams, Reading Rooms 1-5 are all open 24 hours", "team1124", {

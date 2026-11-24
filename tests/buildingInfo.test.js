@@ -24,7 +24,8 @@ test("offices 줄마다 있는 src · 이름 · 하는 일(한국어 · 영어)"
     assert.ok(office.name.ko, `${label}: 한국어 이름`);
     assert.ok(office.name.en === null || (typeof office.name.en === "string" && office.name.en), `${label}: 영어 이름은 문자열 또는 null`);
     assert.ok(office.does.ko && office.does.en, `${label}: 하는 일`);
-    assert.ok(office.floor === null || /^(B?\d+F)( · B?\d+F)*$/.test(office.floor), `${label}: floor 형식 '${office.floor}'`);
+    // "1F" · "LF"(로비층) · "B1F", 여러 층이면 " · "로 잇기
+    assert.ok(office.floor === null || /^(B?\d+F|LF)( · (B?\d+F|LF))*$/.test(office.floor), `${label}: floor 형식 '${office.floor}'`);
     assert.ok(office.room === null || /^\d+(-\d+)?호$/.test(office.room), `${label}: room 형식 '${office.room}'`);
   }
 });
@@ -99,12 +100,18 @@ test("글로벌캠퍼스 전용 건물 이름이 들어가지 않음", () => {
   for (const name of globalOnly) assert.ok(!text.includes(name), `글로벌 전용 이름 '${name}'`);
 });
 
-test("도서관 자유열람실: 옛 시간 줄(제1 · 제2 / 제3 · 제4)은 없고, lifeguide2026 · team1124 줄이 있음", () => {
+test("도서관 자유열람실: 옛 시간 줄은 없고, 층별(홈페이지 층별안내 · 이용시간) 줄과 시험기간 줄이 있음", () => {
   const names = BUILDING_INFO.library.offices.map((office) => office.name.ko);
-  assert.ok(!names.includes("제1 · 제2자유열람실"), "제1 · 제2자유열람실 줄이 남아 있음");
-  assert.ok(!names.includes("제3 · 제4자유열람실"), "제3 · 제4자유열람실 줄이 남아 있음");
+  for (const old of ["제1 · 제2자유열람실", "제3 · 제4자유열람실", "제1 · 5 자유열람실", "제2~4 자유열람실"]) assert.ok(!names.includes(old), `${old} 줄이 남아 있음`);
   const byName = Object.fromEntries(BUILDING_INFO.library.offices.map((office) => [office.name.ko, office]));
-  assert.equal(byName["제1 · 5 자유열람실"]?.hours?.ko, "24시간 개방");
-  assert.equal(byName["제2~4 자유열람실"]?.hours?.ko, "06:00~23:00");
+  for (const [name, floor] of [["제1자유열람실", "5F"], ["제5자유열람실", "5F"]]) {
+    assert.equal(byName[name]?.floor, floor, name);
+    assert.match(byName[name]?.hours?.ko ?? "", /^24시간 개방/, name);
+  }
+  for (const [name, floor] of [["제2자유열람실", "2F"], ["제3자유열람실", "3F"], ["제4자유열람실", "4F"]]) {
+    assert.equal(byName[name]?.floor, floor, name);
+    assert.match(byName[name]?.hours?.ko ?? "", /^06:00~23:00/, name);
+    assert.ok(byName[name]?.details?.ko.some((line) => line.includes("시험기간에는 24시간 개방")), `${name}: 시험기간 비고`);
+  }
   assert.equal(byName["시험기간 자유열람실"]?.src, "team1124");
 });

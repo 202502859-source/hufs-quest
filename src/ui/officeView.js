@@ -28,11 +28,35 @@ export function nearestOfficePlace(places, x, y, range = OFFICE_RANGE, hasInfo =
   return best;
 }
 
-// "1F" → "1층", "B1" → "지하 1층", "2F · 3F" → "2 · 3층". 영어는 "1F"를 그대로 씁니다.
+// floor 칸 한 층("6F" · "LF" · "B1F" · 예전 표기 "B1")을 { kind, n }으로 읽습니다. 읽지 못하면 null.
+// kind: "up"(지상) · "lobby"(로비층) · "basement"(지하)
+export function parseFloor(token) {
+  const text = String(token).trim();
+  let m = /^(\d+)F$/.exec(text);
+  if (m) return { kind: "up", n: Number(m[1]) };
+  if (text === "LF") return { kind: "lobby", n: 0 };
+  m = /^B(\d+)F?$/.exec(text);
+  if (m) return { kind: "basement", n: Number(m[1]) };
+  return null;
+}
+
+// "1F · 2F · 3F"처럼 여러 층이면 각 층을 모두 돌려줍니다. null이면 빈 배열(= "층 안내 없음").
+export const floorsOf = (office) => (office.floor ? office.floor.split(" · ").map(parseFloor).filter(Boolean) : []);
+
+// 정렬 순서: 높은 층 → 1F → 로비층(LF) → 지하 1층 → 지하 2층 …
+const floorRank = (f) => (f.kind === "up" ? 1000 + f.n : f.kind === "lobby" ? 500 : 500 - f.n);
+const floorKey = (f) => `${f.kind}:${f.n}`;
+
+// 위치 한 줄에 쓰는 층 이름. 한국어 "6층" · "로비층" · "지하 1층", 영어 "6F" · "Lobby" · "B1"
+export function floorLabel(f, lang) {
+  if (f.kind === "lobby") return lang === "en" ? "Lobby" : "로비층";
+  if (f.kind === "basement") return lang === "en" ? `B${f.n}` : `지하 ${f.n}층`;
+  return lang === "en" ? `${f.n}F` : `${f.n}층`;
+}
+
 function floorText(floor, lang) {
-  if (lang === "en") return floor;
-  const parts = floor.split(" · ").map((f) => (f.startsWith("B") ? `지하 ${f.slice(1).replace(/F$/, "")}` : f.replace(/F$/, "")));
-  return parts.length > 1 ? `${parts.join(" · ")}층` : `${parts[0]}층`;
+  const floors = floorsOf({ floor });
+  return floors.length ? floors.map((f) => floorLabel(f, lang)).join(" · ") : floor;
 }
 
 // 목록 · 상세의 위치 한 줄. 층 · 호수가 모두 없으면 null(화면에 "위치 안내 없음").
@@ -52,9 +76,27 @@ export function firstTel(phone) {
 // 영어 화면에서 영어 이름이 없으면(null) 한국어 이름을 보여 줍니다.
 export const officeName = (office, lang) => (lang === "en" && office.name.en ? office.name.en : office.name.ko);
 
-// 목록을 "행정 · 센터" / "편의시설" 두 묶음으로 나눕니다. 원래 순서는 그대로, 원래 번호(index)를 함께 돌려줍니다.
-export function groupOffices(offices) {
-  const groups = { office: [], amenity: [] };
-  offices.forEach((office, index) => groups[office.category === "amenity" ? "amenity" : "office"].push({ office, index }));
-  return groups;
+// 편의시설(category "amenity")은 이름 뒤에 "(편의시설)"을 붙여 보여 줍니다. 데이터의 name은 바꾸지 않습니다.
+// suffix는 화면 언어의 문구(state.js officeAmenitySuffix)를 넘겨받습니다.
+export const displayName = (office, lang, suffix) => `${officeName(office, lang)}${office.category === "amenity" ? suffix : ""}`;
+
+// 목록을 층별로 묶습니다. 높은 층부터, 마지막에 "층 안내 없음"(floor null). 여러 층에 걸친 항목은 각 층 묶음에 모두 넣습니다.
+// 묶음 안에서는 원래 순서 그대로, 원래 번호(index)를 함께 돌려줍니다. 반환: [{ floor: {kind, n} | null, items: [{ office, index }] }]
+export function groupByFloor(offices) {
+  const groups = new Map();
+  const none = [];
+  offices.forEach((office, index) => {
+    const floors = floorsOf(office);
+    if (!floors.length) {
+      none.push({ office, index });
+      return;
+    }
+    floors.forEach((f) => {
+      const key = floorKey(f);
+      if (!groups.has(key)) groups.set(key, { floor: f, items: [] });
+      groups.get(key).items.push({ office, index });
+    });
+  });
+  const sorted = [...groups.values()].sort((a, b) => floorRank(b.floor) - floorRank(a.floor));
+  return none.length ? [...sorted, { floor: null, items: none }] : sorted;
 }
