@@ -1,6 +1,6 @@
 // 게임 상태입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답(progress)으로만 바뀝니다(applyProgress).
 // 서버와 주고받는 것은 src/data/progressApi.js가 맡고, 게스트는 지금처럼 메모리에서만 동작합니다.
-import { REWARD_QUESTS } from "../shared/progressRules.js";
+import { REWARD_QUESTS, expToNextLevel } from "../shared/progressRules.js";
 import { SHOW_OUT_OF_SCOPE } from "./data/features.js";
 
 const listeners = new Set();
@@ -25,16 +25,21 @@ export const session = {
   mode: "guest", // "student" 또는 "guest"
   level: 1,
   exp: 0,
-  expMax: 100,
+  expMax: expToNextLevel(1), // 레벨 n → n+1에 10·n (shared/progressRules.js)
   points: 0,
   completed: new Set(),
   quiz: null, // 서버의 퀴즈 기록(progress.quiz) 복사본. 다음 문제를 고를 때만 읽습니다.
+  progressLoaded: false, // 서버 진행 상태를 한 번이라도 받았는지(처음 불러올 때는 레벨 업 알림을 띄우지 않음)
+  pendingLevelUp: null, // 캠퍼스 화면에서 알릴 레벨 업(마지막 레벨만, 저장 안 함)
   trackedQuest: null, // 목적지를 안내 중인 퀘스트 (저장 안 함)
   pendingReward: null, // 캠퍼스 화면에서 알릴 보상 (저장 안 함)
 };
 
 // 서버 응답의 progress로 session을 덮어씁니다. 화면에서 경험치·포인트를 따로 더하거나 빼지 않습니다.
 export function applyProgress(progress) {
+  // 이미 불러온 뒤 레벨이 오르면 알림을 한 번 쌓습니다. 여러 레벨이 한 번에 올라도 마지막 레벨만 남습니다.
+  if (session.progressLoaded && progress.level > session.level) session.pendingLevelUp = progress.level;
+  session.progressLoaded = true;
   session.level = progress.level;
   session.exp = progress.exp;
   session.expMax = progress.expMax;
@@ -58,12 +63,14 @@ export function resetSession() {
     mode: "guest",
     level: 1,
     exp: 0,
-    expMax: 100,
+    expMax: expToNextLevel(1),
     points: 0,
     completed: new Set(),
     quiz: null,
     trackedQuest: null,
     pendingReward: null,
+    progressLoaded: false,
+    pendingLevelUp: null,
   });
 }
 
@@ -87,15 +94,18 @@ export function completeQuest(id) {
   if (session.trackedQuest === id) session.trackedQuest = null;
 }
 
-// 경험치를 더하고, 레벨이 올랐으면 true를 돌려줍니다.
+// 경험치를 더하고(게스트 · 메모리), 레벨이 올랐으면 true를 돌려줍니다. 서버와 같은 규칙(레벨 n → n+1에 10·n),
+// 필요량에 닿으면 레벨업하고 남은 경험치는 이월, 한 번에 여러 레벨도 오릅니다.
 export function gainExp(amount) {
   session.exp += amount;
   let leveledUp = false;
   while (session.exp >= session.expMax) {
     session.exp -= session.expMax;
     session.level += 1;
+    session.expMax = expToNextLevel(session.level);
     leveledUp = true;
   }
+  if (leveledUp) session.pendingLevelUp = session.level;
   return leveledUp;
 }
 
@@ -220,6 +230,7 @@ const STRINGS = {
   eventCatLecture: { ko: "특강", en: "Lecture" },
   eventCatRecruit: { ko: "모집", en: "Recruiting" },
   eventCatOther: { ko: "기타", en: "Other" },
+  levelUp: { ko: "레벨 업! Lv.{level}", en: "Level up! Lv.{level}" },
   deadlineTitle: { ko: "마감 임박 공지 (14일 이내)", en: "Upcoming Deadlines (within 14 days)" },
   deadlineAsOf: { ko: "기준", en: "As of" },
   deadlineKst: { ko: "한국 시간", en: "KST" },

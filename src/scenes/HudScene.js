@@ -161,19 +161,29 @@ export class HudScene extends Phaser.Scene {
   }
 
   // 받은 보상(퀴즈·퀘스트·출석·미니게임)을 캠퍼스 화면에서 잠깐 알립니다.
+  // 레벨이 올랐으면 그 아래에 "레벨 업! Lv.N"을 한 번만 띄웁니다(여러 레벨이 한 번에 올라도 마지막 레벨만).
   showRewardToast() {
     const reward = session.pendingReward;
+    const levelUp = session.pendingLevelUp;
     session.pendingReward = null;
-    if (!reward || (!reward.exp && !reward.points)) return;
-    // 퀴즈처럼 포인트 없이 경험치만 받은 경우에는 "+0 포인트"를 빼고 보여 줍니다.
-    const parts = [reward.exp && `+${reward.exp} EXP`, reward.points && `+${reward.points} ${t("points")}`].filter(Boolean);
-    this.showToast(reward.label ? t(reward.label, reward) : parts.join(", "));
+    session.pendingLevelUp = null;
+    // 휴대폰은 위쪽 HTML 검색창이 커서 알림을 조금 아래에 띄웁니다(가려지지 않게).
+    const y = isTouchDevice() ? 110 : 74;
+    if (reward && (reward.exp || reward.points)) {
+      // 퀴즈처럼 포인트 없이 경험치만 받은 경우에는 "+0 포인트"를 빼고 보여 줍니다.
+      const parts = [reward.exp && `+${reward.exp} EXP`, reward.points && `+${reward.points} ${t("points")}`].filter(Boolean);
+      this.showToast(reward.label ? t(reward.label, reward) : parts.join(", "), { y });
+    }
+    if (levelUp) this.showToast(t("levelUp", { level: levelUp }), { y: y + 50, size: 24 });
   }
 
   // 화면 위쪽 가운데에 잠깐 문구를 띄웁니다. error면 빨간색입니다.
-  showToast(text, { error = false } = {}) {
-    const toast = addLabel(this, this.scale.width / 2, 74, text, {
-      size: 20,
+  // HUD를 다시 그리면(render) 화면 요소가 모두 지워지므로, 아직 보여 줄 시간이 남은 알림은 기억해 두었다가 다시 띄웁니다.
+  showToast(text, { error = false, y = 74, size = 20 } = {}, until = this.time.now + REWARD_TOAST_MS) {
+    this.toasts = (this.toasts ?? []).filter((x) => x.until > this.time.now);
+    if (!this.toasts.some((x) => x.text === text && x.y === y)) this.toasts.push({ text, error, y, size, until });
+    const toast = addLabel(this, this.scale.width / 2, y, text, {
+      size,
       color: error ? "#ffffff" : "#231a00",
       backgroundColor: error ? "#b3261e" : "#f2c94c",
       padding: { x: 14, y: 8 },
@@ -181,10 +191,16 @@ export class HudScene extends Phaser.Scene {
     this.tweens.add({
       targets: toast,
       alpha: 0,
-      delay: REWARD_TOAST_MS,
+      delay: Math.max(0, until - this.time.now),
       duration: 400,
       onComplete: () => toast.destroy(),
     });
+  }
+
+  // render 뒤에 아직 남은 알림을 다시 띄웁니다.
+  restoreToasts() {
+    const now = this.time.now;
+    (this.toasts ?? []).filter((x) => x.until > now).forEach(({ text, error, y, size, until }) => this.showToast(text, { error, y, size }, until));
   }
 
   setPadDirection(dx, dy, pointerId) {
@@ -319,6 +335,7 @@ export class HudScene extends Phaser.Scene {
     this.renderTalkControls();
     this.renderHudButtons();
     this.renderPlannerButton();
+    this.restoreToasts();
     this.showRewardToast();
   }
 
