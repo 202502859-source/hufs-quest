@@ -2,7 +2,11 @@
 // 보상 값이나 하루 상한을 바꾸려면 docs/PROGRESS_API.md를 먼저 PR로 고친 뒤 이 파일을 고칩니다.
 // 서버(api/*)와 화면(src/*)이 같은 값을 쓰도록, 이 파일에는 브라우저 전용 코드를 넣지 않습니다.
 
-export const EXP_PER_LEVEL = 100;
+// 레벨 n에서 다음 레벨까지 필요한 경험치 = 10 × n (Lv.1 → 10, Lv.2 → 20, Lv.3 → 30 …). 2026-11-24 변경(이전: 레벨마다 100).
+export const EXP_STEP = 10;
+export const expToNextLevel = (level) => EXP_STEP * level;
+// Lv.L에 처음 닿는 누적 경험치 = 10 × (1 + 2 + … + (L − 1)) = 5 · L · (L − 1)
+export const totalExpForLevel = (level) => (EXP_STEP * level * (level - 1)) / 2;
 
 // 퀴즈: 처음 맞힌 문제마다 경험치 10, 한국 시간 하루 50까지.
 export const QUIZ_REWARD_EXP = 10;
@@ -17,13 +21,16 @@ export const CHECKIN_POINTS = 5;
 // 완료 보상을 주는 퀘스트. mockReg(모의 수강신청)는 범위 밖이라 넣지 않습니다.
 export const REWARD_QUESTS = ["doubleMajor", "stampRally"];
 
-// 누적 경험치(total_exp)로 레벨을 계산합니다. level = floor(total / 100) + 1, exp = total % 100
+// 누적 경험치(total_exp)로 레벨을 계산합니다. 필요량에 "도달하면" 레벨업하고 남은 경험치는 이월합니다.
+// level = 5·L·(L − 1) ≤ total인 가장 큰 L, exp = total − 5·L·(L − 1), expMax = 10·L
+// 서버(api/*) · 가짜 진행 저장 · 게스트 모두 이 함수를 씁니다. DB에는 total_exp만 있어 규칙을 바꿔도 저장 데이터는 그대로입니다.
 export function levelFromTotalExp(totalExp) {
-  return {
-    level: Math.floor(totalExp / EXP_PER_LEVEL) + 1,
-    exp: totalExp % EXP_PER_LEVEL,
-    expMax: EXP_PER_LEVEL,
-  };
+  const total = Math.max(0, Math.floor(Number(totalExp) || 0));
+  // 근의 공식으로 어림한 뒤 정수 계산으로 경계(예: 정확히 10, 30, 60)를 바로잡습니다.
+  let level = Math.max(1, Math.floor((1 + Math.sqrt(1 + (8 * total) / EXP_STEP)) / 2));
+  while (totalExpForLevel(level + 1) <= total) level += 1;
+  while (level > 1 && totalExpForLevel(level) > total) level -= 1;
+  return { level, exp: total - totalExpForLevel(level), expMax: expToNextLevel(level) };
 }
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000; // 한국은 서머타임이 없어 항상 UTC+9입니다.

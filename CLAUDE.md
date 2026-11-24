@@ -13,7 +13,7 @@
 - **`docs/OPERATIONS.md`** — 키 관리, 배포 전 5분 점검, 질문표 운영, 개인정보. 서버·입력창·DB를 고치는 작업이면 먼저 읽는다.
 - 요청이 로드맵의 '범위 밖' 기능이거나 🔴 항목보다 우선순위가 낮으면, 진행하기 전에 사용자에게 한 번 알린다.
 - 12/2(기능 동결) 이후에는 새 기능을 만들지 않고 버그 수정만 한다.
-- **11/24까지는 무료 기간**이다. 유료 플랜·유료 서비스가 필요한 방법을 제안하지 말고 무료 대안을 먼저 낸다.
+- **개발지원비 입금이 확인될 때까지는 무료 기간**이다(11/27 금까지 입금 예상, 입금 전 결제 없음). 유료 플랜·유료 서비스가 필요한 방법을 제안하지 말고 무료 대안을 먼저 낸다. 입금 뒤에도 결제는 `docs/ROADMAP.md` 5장 순서대로 팀이 한다.
 
 ## 기술
 
@@ -48,7 +48,7 @@ Phaser 3 + Vite, JavaScript. 서버 함수는 Vercel(`api/`), DB는 Supabase, AI
 - 실행: `npm run dev` → http://localhost:5173 (Windows PowerShell에서는 `npm.cmd run dev`)
 - 로컬에는 서버 함수가 없어 검색창은 "AI 연결 없이 찾은 원문" 모드로만 동작한다. AI 답변은 PR의 Vercel Preview 링크에서 확인한다.
 - 학사 페이지 추가: `scripts/urls.txt`에 한 줄 추가 → `npm run collect` → 조각 점검 → `npm run ingest -- --target next`(시험 DB) → Preview에서 eval → 통과하면 실서비스 `npm run ingest`
-- 정확도 테스트: `npm run eval`(실서비스) 또는 `npm run eval -- <Preview 주소>`. 62문항(학사 47 · 범위 밖 3 · 까다로운 12). 11/24까지 하루 1회(11/21만 기준선 + 비교 2회 예외). 기대 답은 사람이 원문을 보고 정하고, 미검증 문항이 있으면 스크립트가 멈춘다.
+- 정확도 테스트: `npm run eval`(실서비스) 또는 `npm run eval -- <Preview 주소>`. 62문항(학사 47 · 범위 밖 3 · 까다로운 12). NCP 크레딧 등록 전(개발지원비 입금 확인 전)까지 하루 1회(11/21만 기준선 + 비교 2회 예외). 기대 답은 사람이 원문을 보고 정하고, 미검증 문항이 있으면 스크립트가 멈춘다.
 - 시험 DB: Supabase `chunks_next` · `match_chunks_next`(`supabase/005_chunks_next.sql`). Preview는 Vercel 환경 변수 `CHUNKS_RPC=match_chunks_next`로 시험 DB를, 실서비스는 `chunks`를 본다. 지우거나 바꾸지 않는다(`docs/STATUS.md` 3장).
 - **`npm run ingest`(대상 지정 없음)는 실제 서비스 DB를 바꾼다.** 누가 하든 사용자가 명시적으로 요청할 때만 실행하고, 실행했다는 사실과 조각 수 변화를 PR에 적는다. Supabase 테이블 구조 변경, Vercel 환경 변수 변경도 같은 규칙을 따른다.
 

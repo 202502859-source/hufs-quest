@@ -19,6 +19,8 @@ export const PALETTE = {
   court: "#dcc79c", water: "#6fb3d6", waterLight: "#8fc6e2",
   steps: "#d9cbab", stepsLine: "#c2b391",
   wall: "#e7e0cf", wallLine: "#d8cdb6", window: "#4b6878", windowLight: "#9fbccb", eave: "#6f7b79", door: "#5b3a26", doorFrame: "#8a5c3c",
+  outline: "#2b3135", // 건물 윤곽 1px: 녹색 옥상(교수회관 · 외국어연수평가원)이 잔디 · 숲에 묻히지 않게
+
   roof: { gray: "#9ba7a4", white: "#dde3df", green: "#5d9676", greenDark: "#3f7058", teal: "#5f8f9a", solar: "#4b6878", glass: "#4b6878", stairs: "#9ba7a4" },
   roofRim: { gray: "#7f8b88", white: "#b9c2bf", green: "#467a5d", greenDark: "#2f5643", teal: "#4a737c", solar: "#3a5361", glass: "#3a5361", stairs: "#6f7b79" },
 };
@@ -72,6 +74,8 @@ function buildingColor(b, x, y, mat, W, H) {
     if (roofKey === "stairs") return y % 3 === 0 ? RIM.stairs : ROOF.stairs;
     return x % 3 === 0 ? C.windowLight : C.window;
   }
+  // 바깥 둘레 1px는 어두운 윤곽선(옥상 · 벽 모두). 지붕색이 주변 바닥과 비슷해도 건물 경계가 보입니다.
+  if (!same(x - 1, y) || !same(x + 1, y) || !same(x, y - 1) || !same(x, y + 1)) return C.outline;
   const wallPx = WALL_PX[b.height] ?? 10;
   let run = 0; // 아래로 같은 건물이 이어지는 픽셀 수
   while (run <= wallPx + 1 && same(x, y + run + 1)) run++;
@@ -81,7 +85,8 @@ function buildingColor(b, x, y, mat, W, H) {
     return (x + b.index) % 6 >= 2 && (x + b.index) % 6 <= 4 && floor >= 2 ? (floor === 4 ? C.windowLight : C.window) : C.wall;
   }
   if (run <= wallPx + 1) return C.eave;
-  if (!same(x - 1, y) || !same(x + 1, y) || !same(x, y - 1)) return RIM[roofKey];
+  // 윤곽선 바로 안쪽 1px는 옥상 테두리(같은 계열 어두운 색)
+  if (!same(x - 2, y) || !same(x + 2, y) || !same(x, y - 2)) return RIM[roofKey];
   if (roofKey === "solar") return x % 6 === 0 || y % 5 === 0 ? C.windowLight : ROOF.solar;
   return ROOF[roofKey];
 }
@@ -137,6 +142,7 @@ const matAt = (x, y) => {
 export function paintOverview() {
   const { mat } = rasterize();
   const out = new Uint8ClampedArray(GRID_W * GRID_H * 4);
+  const cellMat = (i, j) => (i < 0 || j < 0 || i >= GRID_W || j >= GRID_H ? MAT.outside : mat[(j * 4 + 2) * WORLD_W + i * 4 + 2]);
   const flat = {
     [MAT.outside]: C.outside, [MAT.outerRoad]: C.outerRoad, [MAT.road]: C.road, [MAT.pave]: C.pave, [MAT.parking]: C.road,
     [MAT.dirt]: C.dirt, [MAT.lawn]: C.lawn, [MAT.grove]: C.canopyLight, [MAT.forest]: C.forest, [MAT.field]: C.field,
@@ -146,7 +152,9 @@ export function paintOverview() {
     for (let i = 0; i < GRID_W; i++) {
       const m = mat[(j * 4 + 2) * WORLD_W + i * 4 + 2];
       const b = m >= BUILDING_BASE ? BUILDINGS[m - BUILDING_BASE] : null;
-      const c = b ? (b.underground ? C.window : ROOF[b.roof]) : flat[m] ?? C.lawn;
+      // 지상 건물은 둘레 칸을 윤곽선 색으로(1m = 1px라 벽 · 테두리가 없어 녹색 옥상이 잔디에 묻힘)
+      const edge = b && !b.underground && [[-1, 0], [1, 0], [0, -1], [0, 1]].some(([di, dj]) => cellMat(i + di, j + dj) !== m);
+      const c = edge ? C.outline : b ? (b.underground ? C.window : ROOF[b.roof]) : flat[m] ?? C.lawn;
       const o = (j * GRID_W + i) * 4;
       out[o] = c[0]; out[o + 1] = c[1]; out[o + 2] = c[2]; out[o + 3] = 255;
     }
