@@ -31,3 +31,16 @@
 .ho-quest { display: flex; width: 100%; align-items: center; gap: 0.8em; padding: 0.8em 1em; font: inherit; text-align: left; color: #ffffff; background: transparent; border: 0; border-bottom: 2px solid #22304d; cursor: pointer; }
 .ho-quest .ho-check { flex: none; width: 0.8em; height: 0.8em; border: 2px solid #f2c94c; }
 .ho-quest.locked { color: #7f8ca6; }
+/* 사무실 · 시설 안내 창(officeOverlay.js) */
+.ho-group { margin: 0; padding: 0.55em 1em; font-size: 1em; font-weight: normal; color: #f2c94c; background: #22304d; border-bottom: 3px solid #4a5f88; }
+.ho-offices { margin: 0; padding: 0; list-style: none; }
+.ho-office { display: flex; width: 100%; flex-direction: column; align-items: flex-start; padding: 0.65em 1em; font: inherit; text-align: left; color: #ffffff; background: transparent; border: 0; border-bottom: 2px solid #22304d; cursor: pointer; }
+.ho-office:hover { background: #2d3f63; }
+.ho-office:focus-visible, .ho-report:focus-visible { outline: 2px solid #f2c94c; outline-offset: -2px; }
+.ho-back { margin: 0.8em 1em 0; }
+.ho-detail { display: grid; grid-template-columns: 9em 1fr; margin: 0.6em 0 0; }
+.ho-detail dt { padding: 0.55em 1em; color: #f2c94c; border-bottom: 2px solid #22304d; }
+.ho-detail dd { margin: 0; padding: 0.55em 1em 0.55em 0; line-height: 1.45; word-break: keep-all; overflow-wrap: anywhere; border-bottom: 2px solid #22304d; }
+.ho-lines { margin: 0; padding-left: 1.1em; }
+.ho-lines li { margin: 0.1em 0; }
+.ho-report { margin: 0.9em 1em; color: #ff8f92; text-decoration: none; }

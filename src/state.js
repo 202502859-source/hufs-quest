@@ -280,6 +280,23 @@ const STRINGS = {
   mapBaseDate: { ko: "{year}년 {month}월 기준 캠퍼스", en: "Campus as of {month}/{year}" },
   mapOfficial: { ko: "공식 캠퍼스 지도 ↗", en: "Official campus map ↗" },
   mapReport: { ko: "실제와 달라요 (신고) ↗", en: "Report a difference ↗" },
+  // 건물 입구의 [주요 기능 알아보기] 문구와 사무실 · 시설 안내 창(src/ui/officeOverlay.js)
+  officePrompt: { ko: "[주요 기능 알아보기]", en: "[See what's inside]" },
+  officeKeyHint: { ko: "Enter", en: "Enter" },
+  officeKeyHintTouch: { ko: "터치", en: "Tap" },
+  officeGroupOffice: { ko: "행정 · 센터", en: "Offices & Centers" },
+  officeGroupAmenity: { ko: "편의시설", en: "Amenities" },
+  officeNoLocation: { ko: "위치 안내 없음", en: "Location not listed" },
+  officeNone: { ko: "안내 없음", en: "Not listed" },
+  officeListHint: { ko: "항목을 누르면 위치 · 전화 · 운영시간을 볼 수 있어요.", en: "Select an item to see its location, phone and hours." },
+  officeBack: { ko: "← 목록으로", en: "← Back to list" },
+  officeLocation: { ko: "위치", en: "Location" },
+  officePhone: { ko: "학교 전화", en: "Phone" },
+  officeHours: { ko: "운영시간", en: "Hours" },
+  officeDoes: { ko: "하는 일", en: "What it does" },
+  officeDetails: { ko: "주요 기능 · 지원 사업", en: "Services & programs" },
+  officeSource: { ko: "출처", en: "Source" },
+  officeHoursNote: { ko: "운영시간은 학사일정에 따라 바뀔 수 있어요.", en: "Hours may change with the academic calendar." },
 };
 
 // 문구 안의 {이름}은 vars 값으로 바꿉니다. 예: t("quizCap", { cap: 50 })
