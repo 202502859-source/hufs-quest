@@ -145,3 +145,25 @@ test("원문에 날짜와 시간이 없으면 null 유지", () => {
   assert.equal(result.startsAt, null);
   assert.equal(result.deadline, null);
 });
+
+test("학교 공지의 점과 요일이 포함된 날짜 검증", () => {
+  const notice = `2026학년도 장학금 신청 안내
+학생지원팀
+신청기간: 2026. 11. 24.(화) 09:00 ~ 11. 27.(금) 17:00`;
+
+  const result = validateNotice(notice, {
+    ...valid,
+    startsAt: {
+      value: "2026-11-24T09:00:00+09:00",
+      evidence: "2026. 11. 24.(화) 09:00 ~ 11. 27.(금) 17:00",
+    },
+    deadline: {
+      value: "2026-11-27T17:00:00+09:00",
+      evidence: "2026. 11. 24.(화) 09:00 ~ 11. 27.(금) 17:00",
+    },
+  });
+
+  assert.equal(result.startsAt, "2026-11-24T09:00:00+09:00");
+  assert.equal(result.deadline, "2026-11-27T17:00:00+09:00");
+  assert.deepEqual(result.issues, []);
+});
