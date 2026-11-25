@@ -1,21 +1,25 @@
 import Phaser from "phaser";
-import { QUEST_LIST, getLang, isGuest, onLangChange, session, t } from "../state.js";
+import { activeQuests, getLang, isGuest, onLangChange, session, t } from "../state.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
+import { WORLD } from "../data/world.js";
 import { overviewInfo, overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
 import { isTouchDevice, onTouchDetected } from "../device.js";
 import { onDeadlinesChange, urgentCount } from "../data/deadlinesApi.js";
+import { eventBadgeCount, onEventsChange } from "../data/eventsApi.js";
 import { COLOR, addButton, addLabel, addLangButtons, drawPanel } from "../ui/widgets.js";
 
-const MINIMAP_W = 176; // 미니맵 가로(px). 세로는 맵 비율대로
+// 미니맵 가로(px, 세로는 맵 비율대로). PC는 왼쪽 아래 1.5배, 휴대폰은 이동 패드를 피해 상태창 아래 1.25배(기존 176px 기준).
+const MINIMAP = { pc: { width: 264, dot: 1.5 }, touch: { width: 220, dot: 1.25 } };
+// 미니맵 건물명: 시연 동선 건물을 먼저 놓고, 나머지는 넓은 건물 순. 다른 이름표와 겹치면 숨깁니다.
+const MINIMAP_LABEL_FIRST = ["gatehouse", "cyber", "main", "library", "flc", "club"];
 const MIN_TOUCH_PX = 52; // 실제 화면에서 최소 48px 이상이 되도록 약간 여유를 둡니다.
 const PAD_ALPHA = 0.55;
 const REWARD_TOAST_MS = 2500;
 const MARGIN = 12;
-const BANNER_Y = MARGIN + 44; // 맨 위 줄(검색창, KO/EN) 아래
-const QUEST_WIDTH = 272;
 const PLANNER_LINE_GAP = 4;
 const QUIZ_DOT_COLOR = 0xff9f1c; // 내 위치(노란 점)와 구분되는 주황색
-const ALERT_ICON = { size: 64, inset: 16, gap: 12 };
+// 오른쪽 아래 아이콘 버튼 줄(퀘스트 · 행사 · 마감 공지). PC는 아이콘 아래에 단축키를 쓰므로 바닥 여백이 더 큽니다.
+const HUD_BUTTON = { size: 64, inset: 16, insetWithKey: 30, gap: 12 };
 
 // 게임 화면 위에 고정으로 그리는 정보 화면입니다. 카메라 확대의 영향을 받지 않습니다.
 export class HudScene extends Phaser.Scene {
@@ -41,6 +45,11 @@ export class HudScene extends Phaser.Scene {
     onDeadlinesChange(() => {
       this.dirty = true;
     });
+    // 행사 목록이 새로 계산되면 행사 버튼의 배지를 다시 그립니다.
+    const offEvents = onEventsChange(() => {
+      this.dirty = true;
+    });
+    this.events.once("shutdown", offEvents);
     // 화면이 회전하거나 크기가 바뀌면 터치 버튼 크기를 다시 계산합니다.
     this.scale.on("resize", () => {
       this.dirty = true;
@@ -152,19 +161,29 @@ export class HudScene extends Phaser.Scene {
   }
 
   // 받은 보상(퀴즈·퀘스트·출석·미니게임)을 캠퍼스 화면에서 잠깐 알립니다.
+  // 레벨이 올랐으면 그 아래에 "레벨 업! Lv.N"을 한 번만 띄웁니다(여러 레벨이 한 번에 올라도 마지막 레벨만).
   showRewardToast() {
     const reward = session.pendingReward;
+    const levelUp = session.pendingLevelUp;
     session.pendingReward = null;
-    if (!reward || (!reward.exp && !reward.points)) return;
-    // 퀴즈처럼 포인트 없이 경험치만 받은 경우에는 "+0 포인트"를 빼고 보여 줍니다.
-    const parts = [reward.exp && `+${reward.exp} EXP`, reward.points && `+${reward.points} ${t("points")}`].filter(Boolean);
-    this.showToast(reward.label ? t(reward.label, reward) : parts.join(", "));
+    session.pendingLevelUp = null;
+    // 휴대폰은 위쪽 HTML 검색창이 커서 알림을 조금 아래에 띄웁니다(가려지지 않게).
+    const y = isTouchDevice() ? 110 : 74;
+    if (reward && (reward.exp || reward.points)) {
+      // 퀴즈처럼 포인트 없이 경험치만 받은 경우에는 "+0 포인트"를 빼고 보여 줍니다.
+      const parts = [reward.exp && `+${reward.exp} EXP`, reward.points && `+${reward.points} ${t("points")}`].filter(Boolean);
+      this.showToast(reward.label ? t(reward.label, reward) : parts.join(", "), { y });
+    }
+    if (levelUp) this.showToast(t("levelUp", { level: levelUp }), { y: y + 50, size: 24 });
   }
 
   // 화면 위쪽 가운데에 잠깐 문구를 띄웁니다. error면 빨간색입니다.
-  showToast(text, { error = false } = {}) {
-    const toast = addLabel(this, this.scale.width / 2, 74, text, {
-      size: 20,
+  // HUD를 다시 그리면(render) 화면 요소가 모두 지워지므로, 아직 보여 줄 시간이 남은 알림은 기억해 두었다가 다시 띄웁니다.
+  showToast(text, { error = false, y = 74, size = 20 } = {}, until = this.time.now + REWARD_TOAST_MS) {
+    this.toasts = (this.toasts ?? []).filter((x) => x.until > this.time.now);
+    if (!this.toasts.some((x) => x.text === text && x.y === y)) this.toasts.push({ text, error, y, size, until });
+    const toast = addLabel(this, this.scale.width / 2, y, text, {
+      size,
       color: error ? "#ffffff" : "#231a00",
       backgroundColor: error ? "#b3261e" : "#f2c94c",
       padding: { x: 14, y: 8 },
@@ -172,10 +191,16 @@ export class HudScene extends Phaser.Scene {
     this.tweens.add({
       targets: toast,
       alpha: 0,
-      delay: REWARD_TOAST_MS,
+      delay: Math.max(0, until - this.time.now),
       duration: 400,
       onComplete: () => toast.destroy(),
     });
+  }
+
+  // render 뒤에 아직 남은 알림을 다시 띄웁니다.
+  restoreToasts() {
+    const now = this.time.now;
+    (this.toasts ?? []).filter((x) => x.until > now).forEach(({ text, error, y, size, until }) => this.showToast(text, { error, y, size }, until));
   }
 
   setPadDirection(dx, dy, pointerId) {
@@ -192,28 +217,32 @@ export class HudScene extends Phaser.Scene {
     if (dialogOpen && this.padPointerId !== null && this.padPointerId !== undefined) this.setPadDirection(0, 0, null);
   }
 
-  // 왼쪽의 미니맵입니다. 클릭하면 전체 지도가 열립니다.
+  // 미니맵입니다. PC는 왼쪽 아래, 휴대폰은 이동 패드(왼쪽 아래)를 피해 상태창 아래에 둡니다. 클릭하면 전체 지도가 열립니다.
   renderMinimap() {
-    const x = MARGIN;
-    const y = MARGIN + (isGuest() ? 70 : 96);
+    const size = isTouchDevice() ? MINIMAP.touch : MINIMAP.pc;
     const info = overviewInfo();
-    const scale = MINIMAP_W / info.width;
-    const mapW = MINIMAP_W;
+    const scale = size.width / info.width;
+    const mapW = size.width;
     const mapH = Math.round(info.height * scale);
+    const panelH = mapH + 40;
+    const x = MARGIN;
+    const y = isTouchDevice() ? MARGIN + (isGuest() ? 70 : 96) : this.scale.height - MARGIN - panelH;
     const g = this.add.graphics();
-    drawPanel(g, x, y, mapW + 16, mapH + 40, { border: COLOR.line });
-    this.minimap = { x: x + 8, y: y + 8 };
+    drawPanel(g, x, y, mapW + 16, panelH, { border: COLOR.line });
+    this.minimap = { x: x + 8, y: y + 8, w: mapW, h: mapH, dot: size.dot };
     // 월드 px → 미니맵 안 px
     this.toMini = (wx, wy) => ({ x: this.minimap.x + wx * info.perWorld * scale, y: this.minimap.y + wy * info.perWorld * scale });
-    this.minimapBottom = y + mapH + 44;
+    this.minimapBottom = y + panelH + 4;
     this.add.image(this.minimap.x, this.minimap.y, overviewTexture(this)).setOrigin(0).setScale(scale);
+    this.renderMinimapLabels();
     addLabel(this, x + 8 + mapW / 2, y + mapH + 14, t("mapButton"), { size: 13, color: "#f2c94c" }).setOrigin(0.5, 0);
 
+    const k = size.dot;
     const destination = trackedDestination();
     if (destination) {
       const { x: dx, y: dy } = this.toMini(destination.worldX, destination.worldY);
-      this.add.rectangle(dx, dy, 10, 10, 0xffffff);
-      const dot = this.add.rectangle(dx, dy, 6, 6, 0xe5484d);
+      this.add.rectangle(dx, dy, 10 * k, 10 * k, 0xffffff);
+      const dot = this.add.rectangle(dx, dy, 6 * k, 6 * k, 0xe5484d);
       this.tweens.add({ targets: dot, alpha: 0.25, duration: 400, yoyo: true, repeat: -1 });
       this.minimapDestination = { x: dx, y: dy };
     } else {
@@ -224,8 +253,8 @@ export class HudScene extends Phaser.Scene {
     this.quizDots = this.add.graphics();
     this.drawQuizDots();
 
-    this.markerShadow = this.add.rectangle(0, 0, 8, 8, 0x10182a);
-    this.marker = this.add.rectangle(0, 0, 4, 4, 0xffe14d);
+    this.markerShadow = this.add.rectangle(0, 0, 8 * k, 8 * k, 0x10182a);
+    this.marker = this.add.rectangle(0, 0, 4 * k, 4 * k, 0xffe14d);
     this.tweens.add({ targets: this.marker, alpha: 0.25, duration: 400, yoyo: true, repeat: -1 });
     this.moveMinimapMarker();
 
@@ -233,14 +262,54 @@ export class HudScene extends Phaser.Scene {
     zone.on("pointerdown", () => this.scene.get("Campus").openMap());
   }
 
+  // 미니맵 건물명(한 줄: buildingInfo.js의 name, 영어는 nameEn → 없으면 한국어). 미니맵 끝에 걸리면 안쪽으로 당기고,
+  // 그래도 이미 놓인 이름표와 겹치면 덜 중요한 것을 숨깁니다.
+  renderMinimapLabels() {
+    const lang = getLang();
+    const rank = (b) => {
+      const i = MINIMAP_LABEL_FIRST.indexOf(b.id);
+      return i >= 0 ? i : MINIMAP_LABEL_FIRST.length;
+    };
+    const areaOf = (b) => (b.box ? (b.box.x1 - b.box.x0) * (b.box.y1 - b.box.y0) : b.w * b.h);
+    const order = [...WORLD.buildings].sort((a, b) => rank(a) - rank(b) || areaOf(b) - areaOf(a));
+    const placed = [];
+    const m = this.minimap;
+    order.forEach((b) => {
+      const name = (lang === "en" ? b.nameEn : null) ?? b.name;
+      const { x, y } = this.toMini(b.mapLabel[0], b.mapLabel[1]);
+      const label = addLabel(this, x, y, name, {
+        size: 9,
+        fontFamily: "Galmuri9, sans-serif",
+        backgroundColor: "rgba(16, 24, 42, 0.78)",
+        padding: { x: 2, y: 1 },
+      }).setOrigin(0.5);
+      // 미니맵 가장자리 건물(외국어연수평가원 등)은 지우지 않고 안쪽으로 당깁니다.
+      // 이미 놓인 이름표와 겹치면 위 · 아래 · 옆으로 한 칸씩 비켜 보고, 그래도 겹치면 숨깁니다.
+      const { width: w, height: h } = label;
+      const clampX = (v) => Phaser.Math.Clamp(v, m.x + w / 2 + 1, m.x + m.w - w / 2 - 1);
+      const clampY = (v) => Phaser.Math.Clamp(v, m.y + h / 2 + 1, m.y + m.h - h / 2 - 1);
+      const overlaps = (r) => placed.some((o) => r.x < o.x + o.w + 1 && o.x < r.x + r.w + 1 && r.y < o.y + o.h + 1 && o.y < r.y + r.h + 1);
+      const spot = [[0, 0], [0, -h - 1], [0, h + 1], [-w / 2, 0], [w / 2, 0]]
+        .map(([dx, dy]) => ({ x: clampX(x + dx) - w / 2, y: clampY(y + dy) - h / 2, w, h }))
+        .find((r) => !overlaps(r));
+      if (!spot) {
+        label.destroy();
+        return;
+      }
+      label.setPosition(spot.x + w / 2, spot.y + h / 2);
+      placed.push(spot);
+    });
+  }
+
   drawQuizDots() {
     const boxes = this.scene.get("Campus").quizBoxes?.boxes;
     if (!this.quizDots || !boxes) return;
+    const k = this.minimap.dot;
     this.quizDots.clear();
     boxes.forEach((box) => {
       const { x, y } = this.toMini(box.x, box.y);
-      this.quizDots.fillStyle(0x10182a, 1).fillRect(x - 2, y - 2, 6, 6);
-      this.quizDots.fillStyle(QUIZ_DOT_COLOR, 1).fillRect(x - 1, y - 1, 4, 4);
+      this.quizDots.fillStyle(0x10182a, 1).fillRect(x - 2 * k, y - 2 * k, 6 * k, 6 * k);
+      this.quizDots.fillStyle(QUIZ_DOT_COLOR, 1).fillRect(x - 1 * k, y - 1 * k, 4 * k, 4 * k);
     });
   }
 
@@ -261,43 +330,57 @@ export class HudScene extends Phaser.Scene {
     this.setPadDirection(0, 0, null);
     this.renderStatus();
     this.renderMinimap();
-    this.renderBanner();
-    this.renderQuests();
     addLangButtons(this, this.scale.width - MARGIN, MARGIN);
     this.renderDestinationPointer();
     this.renderTalkControls();
-    this.renderAlertIcon();
+    this.renderHudButtons();
     this.renderPlannerButton();
+    this.restoreToasts();
     this.showRewardToast();
   }
 
-  // 본관 근처에서만 보이는 "수강신청 추천 서비스" 버튼입니다. 오른쪽 아래에 두 줄로 둡니다.
-  // 마감 임박 공지 아이콘의 위치입니다. 오른쪽 아래, 가장자리에서 16px 안쪽의 64x64 정사각형입니다.
-  alertIconRect() {
-    return {
-      x: this.scale.width - ALERT_ICON.inset - ALERT_ICON.size,
-      y: this.scale.height - ALERT_ICON.inset - ALERT_ICON.size,
-      size: ALERT_ICON.size,
-    };
+  // 오른쪽 아래 아이콘 버튼 줄: [퀘스트 Q] [행사 V] [마감 공지 N]. 진행 중인 퀘스트가 없으면 퀘스트 버튼은 숨기고
+  // 남은 버튼을 오른쪽 끝에 맞춰 줄 세웁니다. 배지: 퀘스트 = 진행 중 수, 행사 = 오늘 · 진행 중 수, 마감 공지 = D-3 이하 수.
+  hudButtons() {
+    const campus = this.scene.get("Campus");
+    const quests = activeQuests().length;
+    return [
+      quests > 0 && { key: "Q", icon: "quest-icon", tip: "questTooltip", badge: quests, open: () => campus.openQuests() },
+      { key: "V", icon: "event-icon", tip: "eventTooltip", badge: eventBadgeCount(), open: () => campus.openEvents() },
+      { key: "N", icon: "alert-box", tip: "deadlineTooltip", badge: urgentCount(), blink: true, open: () => campus.openDeadlines() },
+    ].filter(Boolean);
   }
 
-  // 빨간 '!' 상자 아이콘. D-3 이하 항목이 있으면 천천히 깜빡이고 오른쪽 위에 개수 배지를 붙입니다.
-  renderAlertIcon() {
-    const { x, y, size } = this.alertIconRect();
-    const icon = this.add.image(x, y, "alert-box").setOrigin(0).setScale(size / 16);
-    const urgent = urgentCount();
-    if (urgent > 0) {
-      this.tweens.add({ targets: icon, alpha: 0.45, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
+  renderHudButtons() {
+    const { size, gap } = HUD_BUTTON;
+    const showKeys = !isTouchDevice(); // 단축키 글자는 PC에서만
+    const y = this.scale.height - (showKeys ? HUD_BUTTON.insetWithKey : HUD_BUTTON.inset) - size;
+    const buttons = this.hudButtons();
+    let x = this.scale.width - HUD_BUTTON.inset - size;
+    // 오른쪽부터 채우므로 거꾸로 놓습니다(마감 공지가 맨 오른쪽).
+    [...buttons].reverse().forEach((b) => {
+      this.renderHudButton(b, x, y, size, showKeys);
+      x -= size + gap;
+    });
+    this.hudButtonsLeft = x + size + gap;
+  }
+
+  renderHudButton(b, x, y, size, showKeys) {
+    const icon = this.add.image(x, y, b.icon).setOrigin(0).setScale(size / 16);
+    if (b.badge > 0) {
+      // 마감 공지는 지금처럼 D-3 이하가 있으면 천천히 깜빡입니다.
+      if (b.blink) this.tweens.add({ targets: icon, alpha: 0.45, duration: 900, yoyo: true, repeat: -1, ease: "Sine.easeInOut" });
       const badge = this.add.graphics();
       const bx = x + size - 10;
       const by = y - 10;
       badge.fillStyle(0x10182a, 1).fillRect(bx - 2, by - 2, 24, 24);
       badge.fillStyle(0xffffff, 1).fillRect(bx, by, 20, 20);
-      addLabel(this, bx + 10, by + 10, String(urgent), { size: 13, color: "#d93f3f" }).setOrigin(0.5);
+      addLabel(this, bx + 10, by + 10, String(b.badge), { size: 13, color: "#d93f3f" }).setOrigin(0.5);
     }
+    if (showKeys) addLabel(this, x + size / 2, y + size + 3, b.key, { size: 12, color: "#c9d4e8" }).setOrigin(0.5, 0);
 
     // 마우스를 올리면 짧은 안내를 아이콘 위에 보여 줍니다.
-    const tip = addLabel(this, x + size, y - 18, t("deadlineTooltip"), {
+    const tip = addLabel(this, x + size, y - 18, showKeys ? `${t(b.tip)} (${b.key})` : t(b.tip), {
       size: 13,
       color: "#ffffff",
       backgroundColor: "#10182a",
@@ -310,7 +393,7 @@ export class HudScene extends Phaser.Scene {
     zone.on("pointerout", () => tip.setVisible(false));
     zone.on("pointerdown", () => {
       tip.setVisible(false);
-      this.scene.get("Campus").openDeadlines();
+      b.open();
     });
   }
 
@@ -328,9 +411,9 @@ export class HudScene extends Phaser.Scene {
     probe.destroy();
     const button = addButton(
       this,
-      // 오른쪽 아래 모서리는 마감 임박 공지 아이콘 자리라, 그 왼쪽에 바닥을 맞춰 둡니다.
-      this.alertIconRect().x - ALERT_ICON.gap - w,
-      this.scale.height - ALERT_ICON.inset - h,
+      // 오른쪽 아래는 아이콘 버튼 줄 자리라, 그 왼쪽에 바닥을 맞춰 둡니다.
+      this.hudButtonsLeft - HUD_BUTTON.gap - w,
+      this.scale.height - HUD_BUTTON.inset - h,
       w,
       h,
       t("plannerButton"),
@@ -375,60 +458,5 @@ export class HudScene extends Phaser.Scene {
       border: COLOR.line,
       color: "#c9d4e8",
     });
-  }
-
-  // 오늘의 행사 배너입니다. 맨 위 줄은 검색창이 쓰므로 퀘스트 목록 바로 위에 둡니다.
-  renderBanner() {
-    const rightEdge = this.scale.width - MARGIN;
-    const text = addLabel(this, 0, BANNER_Y + 7, t("todayEvent"), { size: 16, color: "#231a00" });
-    const w = Math.max(QUEST_WIDTH, text.width + 44);
-    const x = rightEdge - w;
-    const g = this.add.graphics();
-    drawPanel(g, x, BANNER_Y, w, 32, { fill: COLOR.gold, border: 0xfff0b8 });
-    text.setX(x + 30);
-    text.setDepth(1);
-    const dot = this.add.rectangle(x + 16, BANNER_Y + 16, 8, 8, 0xd93f3f).setDepth(1);
-    this.tweens.add({ targets: dot, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
-  }
-
-  // 퀘스트 줄을 누르면 설명 창이 열립니다.
-  addQuestLink(x, rowY, rowHeight, id) {
-    addLabel(this, x + QUEST_WIDTH - 24, rowY + 2, "▶", { size: 12, color: "#f2c94c" });
-    const hover = this.add.rectangle(x + 10, rowY - 4, QUEST_WIDTH - 20, rowHeight - 4, 0xffffff, 0.12).setOrigin(0).setVisible(false);
-    const zone = this.add.zone(x + 10, rowY - 4, QUEST_WIDTH - 20, rowHeight - 4).setOrigin(0).setInteractive({ useHandCursor: true });
-    zone.on("pointerover", () => hover.setVisible(true));
-    zone.on("pointerout", () => hover.setVisible(false));
-    zone.on("pointerdown", () => {
-      hover.setVisible(false);
-      this.scene.get("Campus").openQuestInfo(id);
-    });
-  }
-
-  renderQuests() {
-    const x = this.scale.width - MARGIN - QUEST_WIDTH;
-    const y = BANNER_Y + 40;
-    const rowHeight = isGuest() ? 44 : 30;
-    const destination = trackedDestination();
-    const h = 44 + QUEST_LIST.length * rowHeight + (destination ? 26 : 0);
-    const g = this.add.graphics();
-    drawPanel(g, x, y, QUEST_WIDTH, h, { alpha: 0.94 });
-    addLabel(this, x + 16, y + 12, t("quests"), { size: 16, color: "#f2c94c" });
-
-    QUEST_LIST.forEach((quest, i) => {
-      const rowY = y + 40 + i * rowHeight;
-      const locked = isGuest() && quest.studentOnly;
-      g.lineStyle(2, locked ? COLOR.line : COLOR.border, 1).strokeRect(x + 17, rowY + 3, 10, 10);
-      if (session.completed.has(quest.id)) g.fillStyle(COLOR.border, 1).fillRect(x + 20, rowY + 6, 4, 4);
-      const tracked = session.trackedQuest === quest.id;
-      addLabel(this, x + 36, rowY, quest.name[getLang()], { size: 14, color: locked ? "#7f8ca6" : tracked ? "#ff8f92" : "#ffffff" });
-      this.addQuestLink(x, rowY, rowHeight, quest.id);
-      if (isGuest()) {
-        addLabel(this, x + 36, rowY + 19, locked ? t("studentOnly") : "", { size: 12, color: "#7f8ca6" });
-      }
-    });
-
-    if (destination) {
-      addLabel(this, x + 17, y + 40 + QUEST_LIST.length * rowHeight, `${t("destination")}: ${placeName(destination.building)}`, { size: 13, color: "#ff8f92" });
-    }
   }
 }

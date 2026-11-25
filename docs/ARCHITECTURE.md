@@ -1,7 +1,7 @@
 # 🧩 HUFS Quest 기능 구조도
 
 > 기능이 어디에 있고 무엇과 연결되는지 한눈에 보는 문서입니다. **기능 상태가 바뀌면 이 파일도 같은 PR에서 고칩니다.**
-> 마지막 수정: 2026-11-19 · 일정과 담당자는 [ROADMAP.md](ROADMAP.md) · 만들지 않는 것은 [PRD.md](PRD.md)
+> 마지막 수정: 2026-11-25 · 일정과 담당자는 [ROADMAP.md](ROADMAP.md) · 만들지 않는 것은 [PRD.md](PRD.md)
 
 ## 구조도
 
@@ -11,9 +11,10 @@ flowchart LR
 
     subgraph game["게임 화면 · src/ (Phaser)"]
         explore["캠퍼스 탐험<br/>맵 이동 · 미니맵"]
-        search["빠른 검색창<br/>공식 문서 근거 답변"]
+        search["빠른 검색창<br/>공식 문서 근거 답변 · 출처 수집일"]
         quiz["O/X 퀴즈<br/>60문항 · 경험치"]
         notice["마감 임박 공지<br/>D-day 정렬"]
+        events["학교 행사 표<br/>14일 안 · 팀 손 입력"]
         mapInfo["건물 정보 · 맵 기준일<br/>buildingInfo.js · 형식·화면 완료, 내용 입력 중"]
         progress["진행 저장 연결<br/>progressApi.js · 지금은 가짜 모드"]
         login["학교 이메일 로그인<br/>메일 아이디 · 6자리 코드 · 진짜 메일 로그인 완료"]
@@ -23,7 +24,9 @@ flowchart LR
 
     subgraph server["서버 함수 · api/ (Vercel)"]
         ask["ask.js<br/>질문 쪼개기 · 하위 질문별 동시 검색 · 답변 생성 · 날짜 근거 검사"]
+        sourceDates["sourceDates.js<br/>조각 수집일 조회 · 한국 날짜 변환"]
         deadlines["deadlines.js<br/>공지 D-day 계산"]
+        eventsApi["events.js<br/>행사 14일 계산"]
         newApi["진행 저장 서버 함수<br/>progress · quiz · quest · check-in"]
         limiter["사용량 제한 · 답변 캐시<br/>학생 계정 · 게스트 IP 해시 · 하루 상한"]
     end
@@ -44,6 +47,7 @@ flowchart LR
     login -->|"로그인 토큰"| progress
     search --> ask
     notice --> deadlines
+    events --> eventsApi
     quiz --> progress
     progress -.->|"서버 완성 후 real 모드"| newApi
     rules --> progress
@@ -53,6 +57,9 @@ flowchart LR
     limiter --> userDb
     ask --> clova
     ask --> vector
+    ask --> sourceDates
+    sourceDates -->|"collected_at 조회"| vector
+    sourceDates -->|"시험 DB 사용 시"| vectorNext
     newApi --> userDb
     collect --> vector
     collect -.->|"ingest --target next"| vectorNext
@@ -62,7 +69,7 @@ flowchart LR
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect,supaAuth done
-    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext partial
+    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates partial
 ```
 
 | 색 | 상태 |
@@ -79,7 +86,7 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect,supaAuth done      ← 동작 중
-class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext partial    ← 일부 구현
+class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates partial    ← 일부 구현(행사는 화면 · 서버 완료, 데이터 입력 전)
 (만들 것 todo: 11/19 기준 없음. 새로 만들 기능이 생기면 `class 이름 todo` 줄을 다시 추가)
 ```
 
@@ -93,15 +100,19 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 
 | 상자 | 주요 파일 | 담당 |
 | --- | --- | --- |
-| 캠퍼스 탐험 | `src/scenes/CampusScene.js`, `src/scenes/MapScene.js`(전체 지도 · 나침반), `src/data/world.js`(맵 선택: 기본 v2, `?map=v1`이면 옛 타일맵 — 12/2 동결 뒤 이상 없으면 v1 삭제). **v2**: `src/data/campusV2Data.js`(미터 좌표 다각형) → `src/data/campusV2.js`(정문 진입로 기준 65.6° 회전 · 픽셀 채우기 · 1m 판정 격자 · 발 상자 이동 · 입구 · 퀴즈 상자 자리) → `src/gfx/campusV2Paint.js` · `campusV2Texture.js`(2×2 조각 텍스처, 축소 지도). **v1**: `src/data/campus.js`(88×90 타일), `src/gfx/textures.js`. 기준은 [`docs/GRAPHICS.md`](GRAPHICS.md). 테스트 `tests/campusV2.test.js`(통로 · 끼임 방지 포함) · `tests/campusLayout.test.js`(v1) | 이종헌 |
+| 캠퍼스 탐험 | `src/scenes/CampusScene.js`, `src/scenes/MapScene.js`(전체 지도 · 나침반), `src/data/world.js`(맵 선택: 기본 v2, `?map=v1`이면 옛 타일맵 — 12/2 동결 뒤 이상 없으면 v1 삭제). **v2**: `src/data/campusV2Data.js`(미터 좌표 다각형) → `src/data/campusV2.js`(정문 진입로 기준 65.6° 회전 · 픽셀 채우기 · 1m 판정 격자 · 발 상자 이동 · 입구 · 퀴즈 상자 자리) → `src/gfx/campusV2Paint.js` · `campusV2Texture.js`(2×2 조각 텍스처, 축소 지도). **v1**: `src/data/campus.js`(88×90 타일), `src/gfx/textures.js`. 기준은 [`docs/GRAPHICS.md`](GRAPHICS.md). 건물 이름표: `src/data/buildingLabels.js`(입구에 가까운 지붕 위, 넘치면 작게 → 두 줄 → 지붕 가운데, 캐릭터보다 아래 깊이). 테스트 `tests/campusV2.test.js`(통로 · 끼임 방지 포함) · `tests/buildingLabels.test.js` · `tests/campusDrawn.test.js`(모든 건물이 텍스처 · 축소 지도에 그려지고 윤곽선이 있는지, 두 줄 이름) · `tests/campusLayout.test.js`(v1) | 이종헌 |
 | 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` (11/20~ `shared/academicDate.js`: 한국 시간 오늘 날짜 · 현재 학기를 지시문에 붙이고, 답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거 조각에 없으면 "찾지 못함"으로 바꿈. 테스트 `tests/academicDate.test.js`. 11/20~ `api/_lib/decompose.js`: 질문을 하위 질문 최대 2개로 쪼개(`parseQueries`) 하위 질문마다 동시에 벡터 검색하고 `mergeDocs`로 합침, RPC는 `CHUNKS_RPC`(match_chunks · match_chunks_next만 허용). 테스트 `tests/decompose.test.js`. `api/_lib/answerFormat.js`: 답변의 줄 맨 앞 번호 목록을 지우고, 넘긴 자료 수를 넘는 인용 번호를 지움. 11/22~ 출력 상한(400)에 걸려 끊긴 답은 끝난 문장까지만(`trimTruncated`). 테스트 `tests/answerFormat.test.js`) | 신중혁 |
+| 출처 수집일 | `api/_lib/sourceDates.js`: 검색된 조각 ID로 `chunks` 또는 `chunks_next`의 `collected_at` 일괄 조회, 한국 시간 기준 YYYY-MM-DD 변환. `api/ask.js`의 `citedSources()`가 기존 출처에 `collectedAt` 추가. 동일 URL은 확인 가능한 날짜 중 가장 오래된 수집일 표시. 조회 실패 또는 날짜가 없으면 기존 출처 유지. `src/scenes/DialogScene.js` · `src/state.js`에서 한·영 표시. 테스트 `tests/sourceDates.test.js` · `tests/answerCache.test.js`. SQL 변경 없음, Preview 검수 예정 | 신중혁(서버·테스트) · 이종헌(화면 주 담당) |
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`(상자 자리는 `world.js` `WORLD.quizSpots`), `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 마감 임박 공지 | `src/ui/deadlineOverlay.js` → `api/deadlines.js` ← `shared/deadlines.js` | 이종헌(화면) · 임현규(데이터) · 신중혁(추출) |
+| 공지 추출 도우미(CLI) | 팀원이 직접 복사한 공지 원문 → `scripts/extract-notice.mjs`(HyperCLOVA X 추출) → `scripts/lib/noticeDate.mjs`(날짜 해석) · `noticeEvidence.mjs`(원문 근거 연결) · `noticeExtract.mjs`(검증) → 입력용 JSON 초안 → 팀 검수 후 `shared/deadlines.js`에 수동 반영. 게시판 자동 수집 및 자동 데이터 반영 없음 | 신중혁 |
+| 학교 행사 | `src/ui/eventOverlay.js`(표 창, 공통 틀 `src/ui/hudOverlay.js` · `hudOverlay.css`) ← `src/data/eventsApi.js`(서버 없으면 기기 계산, `?demoEvents=1`일 때만 [예시]) → `api/events.js`(GET, no-store, `checked.by` 제외) ← `shared/events.js`(팀이 원문을 보고 손 입력, 지금 빈 배열) · `shared/eventCalc.js`(오늘~14일 · 진행 중 계산, 출처 규칙 `eventProblems`). "지도에서 보기" → `MapScene` 건물 강조. 테스트 `tests/events.test.js`. 실시간 · 등록 폼은 계속 제외 | 이종헌(화면) · 팀(데이터) |
+| HUD | `src/scenes/HudScene.js`: 오른쪽 아래 아이콘 버튼 줄(퀘스트 Q — 진행 중 퀘스트가 있을 때만, 행사 V, 마감 공지 N), 미니맵(PC 왼쪽 아래 264px · 휴대폰 상태창 아래 220px, 건물명은 한 줄 `name`, 가장자리 이름표는 안쪽으로 당기고 겹치면 비켜 놓음). 퀘스트 창 `src/ui/questOverlay.js`. 테스트 `tests/quests.test.js` | 이종헌 |
 | 건물 정보 · 맵 기준일 | `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태, `MAP_BASE_DATE` · `OFFICIAL_MAP_URL` · `REPORT_FORM_URL` · `REPORT_FORM_PLACE_ENTRY` · `reportFormUrl()`) → `src/data/campus.js`(ID·위치만, 이름은 여기서 붙여 내보냄. `onMap: false`인 장소는 맵에 그리지 않음) · `src/data/npcs.js`(대사 없는 건물은 확인된 용도 표시) · `src/scenes/MapScene.js` `drawMapBasis`(기준일 · 공식 지도 · 신고 버튼, 폼 주소가 비면 신고 버튼 숨김) · `scripts/report-form/`(구글 폼 생성 Apps Script, 건물 이름 목록은 `buildPlaceList.mjs`가 `buildingInfo.js`에서 만듦) · `tests/reportFormUrl.test.js`. **형식·화면 완료, 신고 폼 연결 완료, 근처 건물 미리 채움**(폼에는 건물 이름 하나만 보냄). 용도·층별 사무실 내용은 아직 | 이종헌(형식·화면) · 임현규(내용) |
 | 사용량 제한 · 답변 캐시 | `api/_lib/usageLimit.js` (한도 상수 분당 10 · 학생 하루 50 · 게스트 IP 하루 150 · 전체 하루 500. **11/19~ 로그인 학생은 계정 기준**: 요청의 로그인 토큰을 Supabase `/auth/v1/user`로 확인해 `@hufs.ac.kr`이면 "user:<id>" 해시로, 아니면(게스트 · 토큰 오류 · 확인 실패) IP 해시로 셈. 해시 = SHA-256(`ASK_IP_SALT` + 한국 날짜 + 계정 또는 IP), 화면 `src/data/askApi.js`가 로그인 토큰을 붙여 보냄, 1차 메모리 제한 → 2차 `ask_hit`, Supabase 실패 시 메모리 제한으로 대체, eval 토큰은 IP 한도만 건너뜀) ← `api/ask.js`가 첫 AI 호출 전에 호출(429 `{ error, reason, retryAfter }`, 200자 초과 400). DB는 `supabase/003_usage_limits.sql`(11/18 실행). 화면 안내 `src/data/askApi.js`(`busy` · `limit`), 테스트 `tests/usageLimit.test.js`. **사용량 제한은 Preview 확인 전, 답변 캐시는 아직** | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
 | 학교 이메일 로그인 | `src/ui/loginOverlay.js` (로그인 창, 1단계에 개인정보 안내 4줄 + 동의 체크박스 · 문구는 `state.js` `loginPrivacy*`) → `src/data/auth.js` (화면은 이 파일로만 로그인, `VITE_AUTH_MODE`로 가짜/진짜 전환) ← `src/data/authRules.js` (메일 아이디 규칙 · 도메인 목록 · 코드 6자리 · 재발송 60초 · 만료 10분), `src/data/authMock.js` (가짜 인증). 타이틀 연결 `src/scenes/TitleScene.js`, 로그아웃 `HudScene.js` · `CampusScene.js`, 테스트 `tests/auth.test.js` · `tests/progressMode.test.js`, 설정 순서 `docs/AUTH_SETUP.md`. **진짜 메일 로그인 완료(11/19, 임현규)** | 이종헌 (서버 설정 · Auth Hook: 임현규) |
-| 진행 규칙 | `shared/progressRules.js` (레벨 계산, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜) | 임현규 |
+| 진행 규칙 | `shared/progressRules.js` (레벨 계산: 레벨 n → n+1에 10 × n, 누적 경험치로 계산 · 이월, 보상 값, 하루 상한, 보상 퀘스트 목록, 한국 시간 날짜). 테스트 `tests/progressRules.test.js` | 임현규 |
 | 진행 저장 서버 함수 | `api/progress.js`, `api/quiz-answer.js`, `api/quest-complete.js`, `api/check-in.js`, `api/_lib/progressServer.js`, 테스트 `tests/progressApiServer.test.js` (**구현 완료, 11/19 확인 완료**) | 임현규 |
 | Supabase 사용자 DB | `supabase/001_progress_schema.sql` (진행 저장 테이블 4개 · RLS · 보상 함수 3개), `supabase/002_revoke_match_chunks.sql` (검색 함수 브라우저 호출 차단), `supabase/003_usage_limits.sql` (사용량 카운터, 11/18 실행), `supabase/005_chunks_next.sql` (시험용 벡터 DB `chunks_next` · 검색 함수 `match_chunks_next`, service_role만 실행, 11/20 실행 · 이종헌. 맨 아래에 실서비스 `match_chunks` 원본 정의 기록) | 임현규 |
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` (11/20~ `--target next`: 실서비스 `chunks` 대신 시험용 `chunks_next`에 저장 · 옛 조각 삭제 · 개수 확인, 첫 줄에 대상 테이블 출력, `--dry-run`과 함께 사용 가능. `api/ask.js`는 계속 `chunks`만 검색. 11/21~ `scripts/lib/retry.mjs`: 임베딩 · 저장 실패 시 2 · 5 · 10초 뒤 최대 3번 다시 시도, 그래도 실패하면 멈춘 조각 번호 · id를 출력하고 옛 조각 삭제 없이 종료 코드 1, 진행 표시는 50조각마다. 테스트 `scripts/lib/retry.test.mjs`) | 신중혁 |
@@ -120,6 +131,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 3. `mergeDocs`가 중복 조각을 빼고 하위 질문마다 3개를 보장해 최대 6개(하위 질문 1개면 4개)로 합칩니다. 하위 질문이 둘 이상이면 그 3개를 고를 때 같은 페이지 조각은 2개까지만 먼저 넣습니다(11/21~, 한 페이지의 비슷한 조각이 몫을 다 차지해 필요한 근거가 잘리는 것 방지). 로그 `subQueryIds`에 하위 질문별로 최종 근거에 들어간 조각 id가 남습니다. 근거가 없으면 전체를 키워드 검색으로 다시 찾고, 그래도 없으면 AI를 부르지 않고 "찾지 못했다"고 답합니다.
 4. 근거와 하위 질문 목록을 넘겨 `HCX-005`가 답하고(출력 상한 `ANSWER_MAX_TOKENS` 400, 11/22~), 상한에 걸려 끊긴 답은 마지막으로 끝난 문장까지만 남기며 끝난 문장이 없으면 원문 보여 주기로 바꿉니다(`trimTruncated`, 로그 `truncated`). 실제 인용된 출처 링크만 보여 줍니다. 답변의 줄 맨 앞 번호 목록은 지우고, 넘긴 자료 수를 넘는 인용 번호([4] 등)도 지웁니다(`api/_lib/answerFormat.js`, 로그 `droppedCitations`). 하위 질문이 둘이면 각각 따로 답하고 근거가 없는 쪽만 "찾지 못했어요"라고 합니다. 지시문에는 한국 시간 오늘 날짜 · 현재 학기가 붙습니다. 로그에는 하위 질문 개수 · 하위 질문별 근거 수 · RPC 이름만 남깁니다.
 5. 답변에 근거 조각에 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 있으면 "찾지 못했다"로 바꾸고(로그 `mode: guard`), 근거에 없는 숫자가 있으면 근거 원문을 대신 보여 줍니다(`mode: evidence`). AI 호출 실패 · 숫자 검사 실패로 원문을 보여 줄 때 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩(`evidenceDocs`), 하나면 앞의 2개를 보여 줍니다.
+6. AI 답변 또는 공식 원문 반환 시 `api/_lib/sourceDates.js`가 검색 조각의 수집일을 일괄 조회합니다. 기존 출처 선정 규칙을 유지하면서 `collectedAt`을 추가하고, 검색창에 한국어 `11/24 수집` 또는 영어 `collected Nov 24` 형식으로 표시합니다. 조회 실패 시 날짜만 생략하며 답변과 기존 출처는 그대로 반환합니다. 캐시 적중 시 저장된 수집일을 그대로 사용합니다.
 
 **재학생 퀴즈 답 하나가 저장되기까지**
 1. `QuizScene`이 고른 답(O/X)을 `quizProgress.recordAnswer` → `progressApi.answerQuiz`로 보냅니다. 화면은 경험치를 계산하지 않습니다.
@@ -169,3 +181,4 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 | 2026-11-21 | ingest 재시도(`scripts/lib/retry.mjs`)와 50조각마다 진행 표시: CLOVA · Supabase 상자 파일 표 갱신 | 이종헌 |
 | 2026-11-21 | 질문 쪼개기 합치기 규칙: 하위 질문이 둘 이상이면 질문별 몫에 같은 페이지 조각 2개까지(조기졸업 · 졸업 평점 오답 수정), 로그 `subQueryIds` 추가 | 이종헌 |
 | 2026-11-22 | 검색창 답변 출력 상한 1000 → 400(11/22 eval 출력 토큰 최대 202), 끊긴 답 정리(`api/_lib/answerFormat.js` `trimTruncated`) · 로그 `truncated`: 주요 흐름 4번 갱신 | 이종헌 |
+| 2026-11-25 | 검색창 출처 수집일 표시 구현: `sourceDates.js` 추가, 기존 SQL 및 출처 선정 규칙 유지, 한국 시간 변환 · 한영 표시 · 캐시 연동 · 테스트 추가. 적용 기준 표시는 대회 이후로 연기, Preview 검수 예정 | 신중혁 |

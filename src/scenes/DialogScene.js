@@ -1,7 +1,6 @@
 import Phaser from "phaser";
 import { askQuestion } from "../data/askApi.js";
-import { completeQuest } from "../data/progressApi.js";
-import { applyProgress, getLang, isGuest, notifyReward, onLangChange, session, setLang, t } from "../state.js";
+import { getLang, onLangChange, setLang, t } from "../state.js";
 import { COLOR, FONT, addButton, centerLayout, drawPanel } from "../ui/widgets.js";
 
 const BOX = { x: 24, y: 392, w: 912, h: 124 };
@@ -380,35 +379,16 @@ export class DialogScene extends Phaser.Scene {
     }
 
     this.showAnswerPage();
-
-    // 이중전공 질문에 답을 받으면 이중전공 퀘스트를 완료합니다(재학생만).
-    const answered = result.mode === "ai" || result.mode === "evidence" || result.mode === "local";
-    if (answered && !isGuest() && /이중전공|double\s*major/i.test(question)) this.saveQuestComplete("doubleMajor");
-  }
-
-  // 퀘스트 완료를 서버에 기록하고, 받은 보상을 HUD에 알립니다. 이미 완료했거나 저장 중이면 다시 보내지 않습니다.
-  async saveQuestComplete(id) {
-    if (session.completed.has(id) || savingQuests.has(id)) return;
-    savingQuests.add(id);
-    const hud = this.scene.get("Hud");
-    try {
-      const response = await completeQuest(id);
-      applyProgress(response.progress);
-      if (response.result === "ok") notifyReward(response.gained);
-      hud.dirty = true; // 바뀐 레벨·포인트·완료 표시를 다시 그리고 보상을 알립니다.
-    } catch (error) {
-      console.warn("[quest] 퀘스트 완료를 저장하지 못했습니다", error);
-      hud.showToast(t("saveFailed"), { error: true });
-    } finally {
-      savingQuests.delete(id);
-    }
+    // 11/24: 이중전공 질문으로 이중전공 퀘스트를 완료하던 기능은 퀘스트 삭제와 함께 뺐습니다.
   }
 
   // 출처를 누르면 학교 홈페이지 원문을 새 탭으로 엽니다.
   addSourceLink(source, index, y) {
     const title = source.title.length > MAX_TITLE ? `${source.title.slice(0, MAX_TITLE)}…` : source.title;
+    const collected = formatCollectedAt(source.collectedAt, getLang());
+    const suffix = collected ? ` · ${collected}` : "";
     const link = this.add
-      .text(TEXT_LEFT, y, `↗ ${(source.refs || [index + 1]).map((n) => `[${n}]`).join("")} ${title}`, { fontFamily: FONT, fontSize: "14px", color: "#9fd0ff" })
+      .text(TEXT_LEFT, y, `↗ ${(source.refs || [index + 1]).map((n) => `[${n}]`).join("")} ${title}${suffix}`, { fontFamily: FONT, fontSize: "14px", color: "#9fd0ff" })
       .setInteractive({ useHandCursor: true });
     link.on("pointerover", () => link.setColor("#ffffff"));
     link.on("pointerout", () => link.setColor("#9fd0ff"));
@@ -442,7 +422,29 @@ export class DialogScene extends Phaser.Scene {
   }
 }
 
-const savingQuests = new Set();
+// 서버가 반환한 한국 시간 기준 수집일을 화면 언어에 맞게 표시합니다.
+function formatCollectedAt(value, lang) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime())) return "";
+  if (date.toISOString().slice(0, 10) !== value) return "";
+
+  const formatted = new Intl.DateTimeFormat(
+    lang === "en" ? "en-US" : "ko-KR",
+    {
+      month: lang === "en" ? "short" : "numeric",
+      day: "numeric",
+      timeZone: "UTC",
+    }
+  ).format(date);
+
+  const label = lang === "en"
+    ? formatted
+    : `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+
+  return t("aiCollectedAt").replace("{date}", label);
+}
 
 function dedupe(sources) {
   const seen = new Set();
