@@ -161,9 +161,9 @@ export const DEADLINES = [
     },
     dept: { ko: "EU연구소", en: "EU Research Institute" },
     category: "external",
-    deadline: "2026-12-02T23:59:00+09:00",
+    deadline: "2026-11-30T23:59:00+09:00",
     url: "https://www.hufs.ac.kr/bbs/hufs/2180/272111/artclView.do",
-    checked: { on: "2026-11-24", by: "임현규" },
+    checked: { on: "2026-11-25", by: "임현규" },
   },
   {
     id: "2026-12-kfas-munwoorim-scholarship",
