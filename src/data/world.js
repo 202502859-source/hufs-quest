@@ -1,13 +1,18 @@
 import * as v1 from "./campus.js";
 import * as v2 from "./campusV2.js";
 import { TILE_SIZE } from "../gfx/textures.js";
+import { hasOfficeInfo } from "../ui/officeView.js";
+import { awayFromGuides, guideSpotOf } from "./guides.js";
 
 /*
  * 화면 코드가 쓰는 캠퍼스 맵 하나를 고릅니다.
  * - 기본: v2(정문 진입로 기준 회전, 미터 다각형 → 텍스처, 1m 판정 격자) — src/data/campusV2.js
  * - 되돌리기: 주소에 ?map=v1 → 옛 타일맵(북쪽 위 88×90) — src/data/campus.js. 12/2 기능 동결 뒤 이상 없으면 지웁니다.
  * 두 맵 모두 월드 픽셀 좌표로 같은 모양의 값을 돌려줍니다.
+ * guide: 정문 옆 "건물 소개 안내원" 자리(사무실 안내가 있는 건물만 — 정문 지정 11곳 + 법학관, 정문안내실 제외. 나머지는 null).
  */
+// 옛 맵(v1)은 옛 안내원 자리(npc), v2는 src/data/guides.js가 정한 자리.
+const guideOf = (p, spot) => (p.kind === "building" && hasOfficeInfo(p.id) && spot ? spot : null);
 export const MAP_VERSION =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("map") === "v1" ? "v1" : "v2";
 
@@ -24,6 +29,7 @@ function makeV1() {
     door: p.door ? tileCenter(v1.doorTile(p)) : null,
     npc: p.door ? tileCenter(v1.npcTile(p)) : null,
   }));
+  places.forEach((p) => (p.guide = guideOf(p, p.npc)));
   return {
     version: "v1",
     width: v1.MAP_WIDTH * T,
@@ -62,7 +68,8 @@ function makeV2() {
       return { x0: Math.min(...xs), x1: Math.max(...xs) };
     })();
     const door = p.kind === "building" ? v2.doorOf(p) : null;
-    return { ...p, labelWidth: box.x1 - box.x0, door, npc: p.kind === "building" ? v2.npcSpotOf(p) : null };
+    const npc = p.kind === "building" ? v2.npcSpotOf(p) : null;
+    return { ...p, labelWidth: box.x1 - box.x0, door, npc, guide: guideOf(p, p.kind === "building" ? guideSpotOf(p) : null) };
   };
   const byId = new Map();
   const buildings = v2.BUILDINGS.map((b) => byId.set(b.id, wrap(b)).get(b.id));
@@ -75,7 +82,8 @@ function makeV2() {
     spawn: { ...v2.SPAWN },
     buildings,
     openSpaces,
-    quizSpots: () => v2.quizSpots(),
+    // 퀴즈 상자는 건물 소개 안내원 · 안내원 아래 글자와 겹치지 않는 자리만
+    quizSpots: () => v2.quizSpots().filter((s) => awayFromGuides(s, buildings.filter((b) => b.guide).map((b) => b.guide))),
     nearestPlace: (x, y) => byId.get(v2.nearestPlace(x, y).id),
     moveFeet: v2.moveFeet,
   };

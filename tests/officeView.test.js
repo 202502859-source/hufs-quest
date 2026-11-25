@@ -1,9 +1,9 @@
-// 건물 입구 [주요 기능 알아보기] 창의 순수 함수(src/ui/officeView.js)를 확인합니다. 실행: npm test
+// 건물 소개 안내원 [Enter] 시설 소개 창의 순수 함수(src/ui/officeView.js)를 확인합니다. 실행: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BUILDING_INFO } from "../src/data/buildingInfo.js";
 import {
-  OFFICE_RANGE,
+  GUIDE_RANGE,
   ROOT_VIEW,
   backView,
   childLabel,
@@ -22,17 +22,17 @@ import {
   resolveView,
 } from "../src/ui/officeView.js";
 
-test("가장 가까운 입구 하나만, 거리 안이고 안내가 있는 건물만", () => {
+test("가장 가까운 안내원 하나만, 거리 안이고 안내가 있는 건물만", () => {
   const places = [
-    { id: "a", door: { x: 100, y: 100 } },
-    { id: "b", door: { x: 130, y: 100 } },
-    { id: "c", door: null },
+    { id: "a", guide: { x: 100, y: 100 }, door: { x: 300, y: 300 } },
+    { id: "b", guide: { x: 130, y: 100 }, door: { x: 120, y: 100 } },
+    { id: "c", guide: null, door: { x: 110, y: 100 } },
   ];
   const all = () => true;
-  assert.equal(nearestOfficePlace(places, 120, 100, OFFICE_RANGE, all).id, "b");
-  assert.equal(nearestOfficePlace(places, 105, 100, OFFICE_RANGE, all).id, "a");
-  assert.equal(nearestOfficePlace(places, 100 + OFFICE_RANGE + 40, 100, OFFICE_RANGE, all), null, "멀면 없음");
-  assert.equal(nearestOfficePlace(places, 128, 100, OFFICE_RANGE, (id) => id !== "b").id, "a", "안내 없는 건물은 건너뜀");
+  assert.equal(nearestOfficePlace(places, 120, 100, GUIDE_RANGE, all).id, "b");
+  assert.equal(nearestOfficePlace(places, 105, 100, GUIDE_RANGE, all).id, "a");
+  assert.equal(nearestOfficePlace(places, 100 + GUIDE_RANGE + 40, 100, GUIDE_RANGE, all), null, "멀면 없음");
+  assert.equal(nearestOfficePlace(places, 128, 100, GUIDE_RANGE, (id) => id !== "b").id, "a", "안내 없는 건물은 건너뜀");
 });
 
 test("안내 없는 건물(offices가 비었거나 확인 전)에는 문구를 띄우지 않음", () => {
@@ -40,6 +40,8 @@ test("안내 없는 건물(offices가 비었거나 확인 전)에는 문구를 �
   assert.equal(hasOfficeInfo("library"), true);
   for (const id of ["faculty", "press", "history", "square", "field", "없는건물"]) assert.equal(hasOfficeInfo(id), false, id);
   assert.equal(hasOfficeInfo("minerva"), true, "Minerva Complex는 11/25부터 동아리방 · 오바마홀");
+  assert.equal(hasOfficeInfo("law"), true);
+  assert.equal(hasOfficeInfo("gatehouse"), false, "정문안내실은 시설 소개 대상에서 제외(11/25)");
 });
 
 test("위치 한 줄: 호실이 있으면 호실만(층 생략), 없으면 위치 글 · 층, 모두 없으면 null", () => {
