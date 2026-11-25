@@ -1,4 +1,4 @@
-import { AREAS, BUILDINGS_M, OPEN_SPACES_M, PASSAGES_M, ROTATION_DEG, SPAWN_M, TREES } from "./campusV2Data.js";
+import { AREAS, BUILDINGS_M, DOOR_OVERRIDES, OPEN_SPACES_M, PASSAGES_M, ROTATION_DEG, SPAWN_M, TREES } from "./campusV2Data.js";
 import { buildingInfo } from "./buildingInfo.js";
 
 /*
@@ -170,21 +170,27 @@ export function fits(x, y) {
 }
 
 // 한 번 이동. 막히면 x · y 따로, 그래도 막히면 비스듬한 벽을 따라 미끄러지게 방향을 ±35° · ±65° 틀어 봅니다.
+// blocked(x, y): 판정 격자 밖의 장애물(예: 건물 소개 안내원). 이미 겹쳐 있으면(순간 이동 직후 등) 빠져나갈 수 있게 무시합니다.
 const SLIDE = [35, -35, 65, -65].map((d) => (d * Math.PI) / 180);
-export function moveFeet(x, y, dx, dy) {
+export function moveFeet(x, y, dx, dy, blocked = null) {
   if (!dx && !dy) return { x, y };
-  if (fits(x + dx, y + dy)) return { x: x + dx, y: y + dy };
+  const free = blocked && !blocked(x, y) ? blocked : null;
+  const ok = (px, py) => fits(px, py) && !(free && free(px, py));
+  if (ok(x + dx, y + dy)) return { x: x + dx, y: y + dy };
   const axis = Math.abs(dx) >= Math.abs(dy) ? [[dx, 0], [0, dy]] : [[0, dy], [dx, 0]];
-  for (const [ax, ay] of axis) if ((ax || ay) && fits(x + ax, y + ay)) return { x: x + ax, y: y + ay };
+  for (const [ax, ay] of axis) if ((ax || ay) && ok(x + ax, y + ay)) return { x: x + ax, y: y + ay };
   for (const t of SLIDE) {
     const c = Math.cos(t);
     const s = Math.sin(t);
     const nx = (dx * c - dy * s) * c;
     const ny = (dx * s + dy * c) * c;
-    if (fits(x + nx, y + ny)) return { x: x + nx, y: y + ny };
+    if (ok(x + nx, y + ny)) return { x: x + nx, y: y + ny };
   }
   return { x, y };
 }
+
+// 서 있는 캐릭터(안내원)와 발 상자가 겹치는지. 두 발 상자(FEET)가 같은 크기라 가운데 거리로 봅니다.
+export const feetOverlap = (x, y, ox, oy) => Math.abs(x - ox) < FEET.right - FEET.left && Math.abs(y - oy) < FEET.bottom - FEET.top;
 
 // ── 시작 위치 · 도달 가능 칸(4px 격자점 BFS) ─────────────────
 const snap = (v) => Math.floor(v / CELL_PX) * CELL_PX + CELL_PX / 2;
@@ -239,6 +245,7 @@ export function pathTo(x, y) {
 // ── 입구 · 안내원 자리 ─────────────────────────────────
 // 입구는 건물 아래쪽 벽(화면 기준, 벽 · 문이 보이는 면) 가운데에서 가장 가까운, 걸어서 닿는 칸에 둡니다.
 // 아래쪽 벽에 닿는 칸이 없으면(예: 교수연구동은 건널목이 화면 위쪽) 옆면 · 위쪽 면 순서로 찾습니다.
+// 단 campusV2Data.js DOOR_OVERRIDES에 있는 건물(11곳)은 정해 둔 문 앞 자리(front)와 외벽 면(face)을 씁니다.
 const SIDES = [
   { face: "down", probe: (x, y) => [0, 1, 2, 3, 4].map((k) => [x, y - k]) },
   { face: "left", probe: (x, y) => [6, 7, 8, 9, 10].map((k) => [x + k, y + 4]) },
@@ -266,18 +273,44 @@ function computeDoors() {
       }
     }
   }
+  for (const b of BUILDINGS) {
+    const fixed = fixedDoor(b);
+    if (fixed) doors.set(b.id, fixed);
+  }
   return doors;
+}
+
+// 고정 입구: 문 앞 자리(미터)를 4px 격자점에 맞추고, 발 가운데에서 face 쪽 외벽으로 곧게 가다 처음 만나는 건물 픽셀을 문 자리로 씁니다.
+const TOWARD_WALL = { down: [0, -1], up: [0, 1], right: [-1, 0], left: [1, 0] };
+export const FIXED_DOOR_IDS = Object.keys(DOOR_OVERRIDES);
+function fixedDoor(b) {
+  const o = DOOR_OVERRIDES[b.id];
+  if (!o) return null;
+  const [wx, wy] = toWorld(o.front);
+  const front = { x: snap(wx), y: snap(wy) };
+  const [dx, dy] = TOWARD_WALL[o.face];
+  for (let t = 0; t <= 40; t++) {
+    const x = front.x + dx * t;
+    const y = front.y + 4 + dy * t;
+    if (matAt(x, y) === BUILDING_BASE + b.index) return { d: 0, door: { x: Math.floor(x), y: Math.floor(y), face: o.face, fixed: true }, front };
+  }
+  return null;
 }
 export const doorOf = (building) => computeDoors().get(building.id)?.door ?? null;
 export const doorFrontOf = (building) => computeDoors().get(building.id)?.front ?? null;
 
+// 안내원 자리: 문 앞 칸의 옆(문을 바라보고 섰을 때 옆쪽). 아래 · 위쪽 면의 문은 좌우로, 왼쪽 · 오른쪽 면의 문은 위아래로 비켜 섭니다.
+// 걸어서 닿는 칸이고 어느 건물의 문 앞 칸과도 12px 넘게 떨어진 곳 가운데 가까운 쪽부터 고릅니다.
 export function npcSpotOf(building) {
   const front = doorFrontOf(building);
   if (!front) return null;
+  const face = doorOf(building)?.face;
+  const along = face === "left" || face === "right" ? [0, 1] : [1, 0];
   const fronts = BUILDINGS.map(doorFrontOf).filter(Boolean);
   for (const off of [-16, 16, -24, 24]) {
-    const x = front.x + off;
-    if (isReachable(x, front.y) && fronts.every((f) => Math.hypot(f.x - x, f.y - front.y) >= 12)) return { x, y: front.y };
+    const x = front.x + along[0] * off;
+    const y = front.y + along[1] * off;
+    if (isReachable(x, y) && fronts.every((f) => Math.hypot(f.x - x, f.y - y) >= 12)) return { x, y };
   }
   return { ...front };
 }

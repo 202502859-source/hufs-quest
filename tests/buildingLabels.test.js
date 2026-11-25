@@ -3,14 +3,15 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BUILDINGS, BUILDING_BASE, OPEN_SPACES, doorOf, matAt } from "../src/data/campusV2.js";
 import { estimateLabelSize, placeBuildingLabel, splitTwoLines } from "../src/data/buildingLabels.js";
+import { guideTextRects } from "../src/data/guides.js";
 
 const DEMO_ROUTE = ["gatehouse", "cyber", "main", "library", "flc"];
 const own = (b, x, y) => matAt(Math.floor(x), Math.floor(y)) === BUILDING_BASE + b.index;
-// 화면은 한국어 두 줄로 mapName(줄바꿈을 넣은 이름)을 씁니다(CampusScene.layoutNameTag)
+// 화면은 한국어 두 줄로 mapName(줄바꿈을 넣은 이름)을 씁니다(CampusScene.layoutNameTag). 건물 소개 안내원 글자 칸은 피합니다.
 const placeFor = (b, lang) => {
   const name = (lang === "en" ? b.nameEn : b.name) ?? b.name;
   const two = lang === "en" ? name : b.mapName ?? name;
-  return placeBuildingLabel(b, (scale, lines) => estimateLabelSize(lines === 2 ? two : name, scale, lines));
+  return placeBuildingLabel(b, (scale, lines) => estimateLabelSize(lines === 2 ? two : name, scale, lines), guideTextRects());
 };
 
 for (const lang of ["ko", "en"]) {

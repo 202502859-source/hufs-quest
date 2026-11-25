@@ -1,25 +1,25 @@
 /*
- * 건물 입구 [주요 기능 알아보기] 창에서 쓰는 순수 함수입니다(화면 · CSS 없이 테스트할 수 있게 따로 둠).
+ * 건물 소개 안내원(정문 옆 NPC)의 [Enter] 시설 소개 창에서 쓰는 순수 함수입니다(화면 · CSS 없이 테스트할 수 있게 따로 둠).
  * 데이터는 src/data/buildingInfo.js의 BUILDING_INFO[id].offices를 그대로 씁니다.
  */
 import { BUILDING_INFO, byRoom, isChecked } from "../data/buildingInfo.js";
 
-// 입구에서 이 거리(월드 px) 안이면 문구를 띄웁니다. 수강 설계 버튼(PLANNER_RANGE 6타일)보다 조금 좁게 시작합니다.
-export const OFFICE_RANGE = 4 * 16;
+// 안내원에서 이 거리(월드 px) 안이면 안내원 머리 위에 문구를 띄웁니다. 예전 입구 기준(OFFICE_RANGE 4타일)과 같게 시작합니다.
+export const GUIDE_RANGE = 4 * 16;
 
-// 사무실 · 시설 안내가 있는 건물인지(공식 페이지와 대조한 건물만). 없거나 확인 전이면 문구를 띄우지 않습니다.
+// 사무실 · 시설 안내가 있는 건물인지(공식 페이지와 대조한 건물만). 없거나 확인 전이면 안내원을 세우지 않습니다.
 export const hasOfficeInfo = (placeId) => {
   const info = BUILDING_INFO[placeId];
   return Boolean(info && isChecked(info));
 };
 
-// 여러 건물이 가까우면 가장 가까운 입구 하나만 돌려줍니다. places: [{ id, door: {x, y} }]
-export function nearestOfficePlace(places, x, y, range = OFFICE_RANGE, hasInfo = hasOfficeInfo) {
+// 여러 안내원이 가까우면 가장 가까운 하나만 돌려줍니다. places: [{ id, guide: {x, y} | null }]
+export function nearestOfficePlace(places, x, y, range = GUIDE_RANGE, hasInfo = hasOfficeInfo) {
   let best = null;
   let bestDistance = range;
   for (const place of places) {
-    if (!place.door || !hasInfo(place.id)) continue;
-    const distance = Math.hypot(place.door.x - x, place.door.y - y);
+    if (!place.guide || !hasInfo(place.id)) continue;
+    const distance = Math.hypot(place.guide.x - x, place.guide.y - y);
     if (distance < bestDistance) {
       bestDistance = distance;
       best = place;

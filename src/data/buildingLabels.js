@@ -6,6 +6,7 @@ import { BUILDINGS, BUILDING_BASE, doorOf, matAt } from "./campusV2.js";
  *   화면 아래쪽 벽(창문 줄)은 가리지 않도록 이름표 아래로 벽 높이만큼 더 지붕이어야 합니다.
  * - 안 들어가면 글자를 줄이고(0.8배) → 두 줄로 → 그래도 안 되면 지붕 가운데(가장 큰 사각형 중심).
  * - 맵이 돌아가 있어도 글자는 늘 수평입니다(사각형도 화면 축 기준).
+ * - avoid(사각형 목록, 예: 건물 소개 안내원 아래 글자 칸 — src/data/guides.js)와 겹치는 자리는 쓰지 않습니다.
  * 맵 다각형 · 충돌 판정은 바꾸지 않고 읽기만 합니다.
  */
 const WALL_PX = { none: 0, low: 6, mid: 10, high: 14 };
@@ -28,8 +29,11 @@ function fitsRoof(b, cx, cy, w, h) {
   return isOwn(b, x0 + w, y0 + h) && isOwn(b, x0 + w, y0 + h + below);
 }
 
+const hitsAny = (avoid, cx, cy, w, h) =>
+  avoid.some((r) => cx - w / 2 < r.x1 && r.x0 < cx + w / 2 && cy - h / 2 < r.y1 && r.y0 < cy + h / 2);
+
 // 입구 바로 위(벽 위 지붕)에서 가까운 순서로 후보를 시험합니다.
-function nearestFit(b, w, h) {
+function nearestFit(b, w, h, avoid) {
   const door = doorOf(b) ?? { x: (b.box.x0 + b.box.x1) / 2, y: b.box.y1 };
   const anchor = { x: door.x, y: door.y - (WALL_PX[b.height] ?? 10) - h / 2 - 2 };
   const candidates = [];
@@ -39,7 +43,7 @@ function nearestFit(b, w, h) {
     }
   }
   candidates.sort((p, q) => p.d - q.d);
-  return candidates.find((c) => fitsRoof(b, c.x, c.y, w, h)) ?? null;
+  return candidates.find((c) => fitsRoof(b, c.x, c.y, w, h) && !hitsAny(avoid, c.x, c.y, w, h)) ?? null;
 }
 
 // 가장 큰 사각형(다각형)의 가운데 — 마지막 대안. 전체 지도용 mapLabel(이웃과 겹치지 않게 비켜 둔 값)은 쓰지 않습니다.
@@ -63,10 +67,10 @@ function roofCenter(b) {
  * 이름표 자리를 돌려줍니다. measure(scale, lines)는 그 글자 크기 · 줄 수일 때 이름표 크기 { w, h }(월드 px)입니다.
  * 결과: { x, y, scale, lines, fit } — fit이 "roof"면 지붕 안에 통째로 들어감, "center"면 대안(지붕 가운데).
  */
-export function placeBuildingLabel(b, measure) {
+export function placeBuildingLabel(b, measure, avoid = []) {
   for (const [scale, lines] of [[1, 1], [0.8, 1], [1, 2], [0.8, 2]]) {
     const { w, h } = measure(scale, lines);
-    const spot = nearestFit(b, w, h);
+    const spot = nearestFit(b, w, h, avoid);
     if (spot) return { x: spot.x, y: spot.y, scale, lines, fit: "roof" };
   }
   const c = roofCenter(b);

@@ -26,6 +26,13 @@ export const PALETTE = {
 };
 const C = Object.fromEntries(Object.entries(PALETTE).filter(([, v]) => typeof v === "string").map(([k, v]) => [k, hex(v)]));
 const ROOF = Object.fromEntries(Object.entries(PALETTE.roof).map(([k, v]) => [k, hex(v)]));
+// 고정 입구의 문 그림 범위(문 자리 기준 px). 아래쪽 면은 자동 입구와 같은 7×8, 위쪽 면은 아래로, 옆면은 건물 안쪽으로 6×8.
+const DOOR_RECT = {
+  down: { x0: -3, x1: 3, y0: -7, y1: 0 },
+  up: { x0: -3, x1: 3, y0: 0, y1: 7 },
+  right: { x0: -5, x1: 0, y0: -5, y1: 2 },
+  left: { x0: 0, x1: 5, y0: -5, y1: 2 },
+};
 const RIM = Object.fromEntries(Object.entries(PALETTE.roofRim).map(([k, v]) => [k, hex(v)]));
 const WALL_PX = { none: 0, low: 6, mid: 10, high: 14 };
 
@@ -129,7 +136,22 @@ export function paintRegion(x0, y0, w, h) {
   for (const b of BUILDINGS) {
     const d = doorOf(b);
     if (!d) continue;
-    for (let dy = -7; dy <= 0; dy++) for (let dx = -3; dx <= 3; dx++) put(d.x + dx, d.y + dy, Math.abs(dx) === 3 || dy === -7 ? C.doorFrame : C.door);
+    if (!d.fixed) {
+      for (let dy = -7; dy <= 0; dy++) for (let dx = -3; dx <= 3; dx++) put(d.x + dx, d.y + dy, Math.abs(dx) === 3 || dy === -7 ? C.doorFrame : C.door);
+      continue;
+    }
+    // 고정 입구(DOOR_OVERRIDES): 문을 붙일 면에서 건물 안쪽으로 문 그림을 그리고, 건물 밖으로 삐져나온 픽셀은 버립니다(비스듬한 벽).
+    const own = BUILDING_BASE + b.index;
+    const rect = DOOR_RECT[d.face];
+    for (let dy = rect.y0; dy <= rect.y1; dy++) {
+      for (let dx = rect.x0; dx <= rect.x1; dx++) {
+        if (matAt(d.x + dx, d.y + dy) !== own) continue;
+        const frame = dx === rect.x0 || dx === rect.x1 || dy === rect.y0 || dy === rect.y1;
+        // 바깥쪽(캐릭터 쪽) 가장자리는 열린 문이라 틀을 두지 않습니다.
+        const open = (d.face === "down" && dy === rect.y1) || (d.face === "up" && dy === rect.y0) || (d.face === "right" && dx === rect.x1) || (d.face === "left" && dx === rect.x0);
+        put(d.x + dx, d.y + dy, frame && !open ? C.doorFrame : C.door);
+      }
+    }
   }
   return out;
 }

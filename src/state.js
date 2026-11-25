@@ -281,9 +281,11 @@ const STRINGS = {
   mapOfficial: { ko: "공식 캠퍼스 지도 ↗", en: "Official campus map ↗" },
   mapReport: { ko: "실제와 달라요 (신고) ↗", en: "Report a difference ↗" },
   // 건물 입구의 [주요 기능 알아보기] 문구와 사무실 · 시설 안내 창(src/ui/officeOverlay.js)
-  officePrompt: { ko: "[주요 기능 알아보기]", en: "[See what's inside]" },
-  officeKeyHint: { ko: "Enter", en: "Enter" },
-  officeKeyHintTouch: { ko: "터치", en: "Tap" },
+  // 건물 소개 안내원(정문 옆 NPC) 머리 위 문구: "[Enter] 시설 소개" · 터치 화면 "[터치] 시설 소개"
+  officePrompt: { ko: "시설 소개", en: "Facility guide" },
+  officeKeyHint: { ko: "[Enter]", en: "[Enter]" },
+  officeKeyHintTouch: { ko: "[터치]", en: "[Tap]" },
+  guideLabel: { ko: "건물 소개 안내원", en: "Building Guide" },
   // 층별 묶음: 층 이름(라운지층 · 1층 · 6층)은 src/ui/officeView.js floorLabel이 만들고, floor가 없을 때만 아래 문구
   officeFloorNone: { ko: "층 안내 없음", en: "Floor not listed" },
   officeAmenitySuffix: { ko: "(편의시설)", en: " (Amenity)" },

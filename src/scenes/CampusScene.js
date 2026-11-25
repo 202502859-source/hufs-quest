@@ -2,6 +2,8 @@ import Phaser from "phaser";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { buildCampusLayers } from "../data/campus.js";
 import { WORLD, findPlace } from "../data/world.js";
+import { feetOverlap } from "../data/campusV2.js";
+import { guideTextRect } from "../data/guides.js";
 import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
 import { placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
 import { isTouchDevice } from "../device.js";
@@ -26,8 +28,11 @@ const CAMERA_ZOOM = 3;
 const PLAYER_SPEED = 90;
 const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
 // 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
-const DEPTH = { NAME_TAG: -5, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
-const OFFICE_PROMPT_ABOVE_DOOR = 14; // [주요 기능 알아보기] 문구를 입구보다 이만큼 위에 띄웁니다.
+// "건물 소개 안내원" 글자도 땅 위 글자라 이름표 바로 위(-4), 캐릭터가 지나가면 캐릭터가 위에 그려집니다.
+const DEPTH = { NAME_TAG: -5, GUIDE_LABEL: -4, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
+const OFFICE_PROMPT_ABOVE_GUIDE = 10; // [Enter] 시설 소개 문구를 안내원 가운데보다 이만큼 위(머리 위)에 띄웁니다.
+const GUIDE_LOOK = "npc-1"; // 건물 소개 안내원 모양(src/gfx/textures.js NPC_LOOKS, 11명 모두 같음)
+const GUIDE_LABEL_FONT = 8;
 const NAME_TAG_FONT = 10;
 const ARROW_ABOVE_DOOR = 26;
 const PLANNER_RANGE = 6 * TILE_SIZE;
@@ -54,7 +59,10 @@ export class CampusScene extends Phaser.Scene {
     this.nameTags = [...WORLD.buildings, ...WORLD.openSpaces].map((place) => this.addNameTag(place));
     // 로그아웃으로 이 장면이 멈추면 언어 변경 알림도 해제합니다(지워진 글자를 고치려다 오류가 나지 않게).
     // 언어를 바꾸면 이름 길이가 달라지므로 자리도 다시 계산합니다.
-    const offLang = onLangChange(() => this.nameTags.forEach(({ place, tag }) => this.layoutNameTag(place, tag)));
+    const offLang = onLangChange(() => {
+      this.nameTags.forEach(({ place, tag }) => this.layoutNameTag(place, tag));
+      this.guides.forEach(({ label }) => label.setText(t("guideLabel")));
+    });
     this.events.once("shutdown", offLang);
     this.loggingOut = false;
 
@@ -67,6 +75,10 @@ export class CampusScene extends Phaser.Scene {
     this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
     // v1은 타일 충돌, v2는 movePlayer에서 판정 격자(WORLD.moveFeet)로 직접 움직입니다.
     if (solidLayer) this.physics.add.collider(this.player, solidLayer);
+
+    // 건물 소개 안내원: 정문(DOOR_OVERRIDES 11곳) 옆에 서 있고, 가까이 가면 머리 위에 "[Enter] 시설 소개"가 뜹니다.
+    // 안내원 칸은 지나갈 수 없습니다(v2는 movePlayer의 blocked, v1은 고정 물리 몸통).
+    this.guides = WORLD.buildings.filter((place) => place.guide).map((place) => this.addGuide(place, solidLayer));
 
     this.destArrow = this.add.image(0, 0, "dest-arrow").setDepth(DEPTH.DEST_ARROW).setVisible(false);
 
@@ -85,7 +97,7 @@ export class CampusScene extends Phaser.Scene {
       .setDepth(DEPTH.QUIZ_PROMPT)
       .setVisible(false);
 
-    // 사무실 · 시설 안내가 있는 건물 입구에 가까이 가면 뜨는 "[주요 기능 알아보기] Enter" 문구입니다. 터치 화면은 문구를 누르면 열립니다.
+    // 건물 소개 안내원에게 가까이 가면 머리 위에 뜨는 "[Enter] 시설 소개" 문구입니다. 터치 화면은 문구를 누르면 열립니다.
     this.officePlace = null;
     this.officePrompt = this.add
       .text(0, 0, "", {
@@ -116,7 +128,7 @@ export class CampusScene extends Phaser.Scene {
     // 퀘스트 Q · 학교 행사 V (E는 다른 게임에서 상호작용 키라 헷갈려 쓰지 않음). 퀘스트가 없으면 Q는 아무것도 하지 않습니다.
     this.questKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.eventKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
-    // 건물 입구에서 Enter로 사무실 · 시설 안내 창을 엽니다. 검색창 입력 중 Enter는 searchBar가 막아 여기로 오지 않습니다.
+    // 안내원 가까이에서 Enter로 사무실 · 시설 안내 창을 엽니다. 검색창 입력 중 Enter는 searchBar가 막아 여기로 오지 않습니다.
     // 매 프레임 JustDown으로 보면 아주 짧게 누른 Enter(한 프레임 안에 눌렀다 뗌)를 놓쳐서 키 이벤트로 받습니다.
     // addKey로 등록하지 않아 다른 HTML 입력칸의 Enter를 가로채지(preventDefault) 않습니다. 장면이 멈추거나 키 입력이 꺼지면 오지 않습니다.
     this.input.keyboard.on("keydown-ENTER", (event) => {
@@ -232,7 +244,7 @@ export class CampusScene extends Phaser.Scene {
     this.eventOverlay.show();
   }
 
-  // 건물 입구의 [주요 기능 알아보기] 문구나 Enter로 사무실 · 시설 안내 창을 엽니다.
+  // 안내원의 [Enter] 시설 소개 문구 · 안내원 클릭 · Enter로 사무실 · 시설 안내 창을 엽니다.
   openOffice(placeId) {
     if (this.anyOverlayOpen()) return;
     this.pauseForOverlay();
@@ -240,7 +252,7 @@ export class CampusScene extends Phaser.Scene {
     this.officeOverlay.show(placeId);
   }
 
-  // 사무실 · 시설 안내가 있는 건물 중 가장 가까운 입구 위에 문구를 띄웁니다(맵 v1 · v2 모두 place.door).
+  // 가장 가까운 건물 소개 안내원 머리 위에 문구를 띄웁니다(맵 v1 · v2 모두 place.guide). 정문 쪽 문구는 없습니다.
   // 퀴즈 상자 문구와 겹치면 그 위로 올립니다.
   updateOfficePrompt() {
     const place = nearestOfficePlace(WORLD.buildings, this.player.x, this.player.y);
@@ -248,7 +260,7 @@ export class CampusScene extends Phaser.Scene {
     this.officePrompt.setVisible(Boolean(place));
     if (!place) return null;
     const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint");
-    this.officePrompt.setText(`${t("officePrompt")} ${hint}`).setPosition(place.door.x, place.door.y - OFFICE_PROMPT_ABOVE_DOOR);
+    this.officePrompt.setText(`${hint} ${t("officePrompt")}`).setPosition(place.guide.x, place.guide.y - OFFICE_PROMPT_ABOVE_GUIDE);
     if (this.quizPrompt.visible) {
       const a = this.officePrompt.getBounds();
       const b = this.quizPrompt.getBounds();
@@ -353,6 +365,35 @@ export class CampusScene extends Phaser.Scene {
     return map.createLayer(0, tileset, 0, 0);
   }
 
+  // 안내원 한 명과 바로 아래 "건물 소개 안내원" 글자. 안내원을 누르면(문구가 떠 있을 때) 시설 소개 창을 엽니다.
+  addGuide(place, solidLayer) {
+    const { x, y } = place.guide;
+    const sprite = this.add.sprite(x, y, GUIDE_LOOK, 0).setDepth(y).setInteractive({ useHandCursor: true });
+    sprite.on("pointerdown", () => {
+      if (this.officePlace === place && this.officePrompt.visible) this.openOffice(place.id);
+    });
+    const label = this.add
+      .text(x, y + 8, t("guideLabel"), {
+        fontFamily: "Galmuri9, sans-serif",
+        fontSize: `${GUIDE_LABEL_FONT}px`,
+        color: "#fff7cc",
+        backgroundColor: "#10182a",
+        padding: { x: 2, y: 1 },
+        resolution: CAMERA_ZOOM,
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(DEPTH.GUIDE_LABEL);
+    if (solidLayer) {
+      this.physics.add.existing(sprite, true);
+      sprite.body.setSize(10, 7).setOffset(3, 9);
+      this.physics.add.collider(this.player, sprite);
+    }
+    return { place, sprite, label };
+  }
+
+  // v2 이동에서 안내원 칸을 막습니다(판정 격자에는 넣지 않음).
+  blockedByGuide = (x, y) => this.guides.some(({ place }) => feetOverlap(x, y, place.guide.x, place.guide.y));
+
   addNameTag(place) {
     const tag = this.add
       .text(0, 0, "", {
@@ -370,7 +411,7 @@ export class CampusScene extends Phaser.Scene {
     return { place, tag };
   }
 
-  // 맵 v2의 건물: 입구에 가까운 지붕 위, 이름표가 통째로 지붕 안에 들어가는 자리(src/data/buildingLabels.js).
+  // 맵 v2의 건물: 입구에 가까운 지붕 위, 이름표가 통째로 지붕 안에 들어가는 자리(src/data/buildingLabels.js). 안내원 글자 칸은 피함.
   // 안 들어가면 글자를 줄이고 → 두 줄 → 지붕 가운데. 열린 공간과 옛 맵(?map=v1)은 지금처럼 place.tag 자리.
   layoutNameTag(place, tag) {
     const name = placeName(place);
@@ -384,7 +425,9 @@ export class CampusScene extends Phaser.Scene {
       tag.setFontSize(Math.round(NAME_TAG_FONT * scale)).setText(lines === 2 ? twoLine : name);
       return { w: tag.width, h: tag.height };
     };
-    const spot = placeBuildingLabel(place, measure);
+    // 건물 소개 안내원 아래 글자 칸은 피합니다(지붕 가장자리에 걸칠 때 겹치지 않게).
+    const avoid = WORLD.buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide));
+    const spot = placeBuildingLabel(place, measure, avoid);
     measure(spot.scale, spot.lines);
     tag.setPosition(spot.x, spot.y);
   }
@@ -465,7 +508,7 @@ export class CampusScene extends Phaser.Scene {
       let { x, y } = this.player;
       for (let moved = 0; moved < step; moved += 2) {
         const s = Math.min(2, step - moved);
-        ({ x, y } = WORLD.moveFeet(x, y, (dx / length) * s, (dy / length) * s));
+        ({ x, y } = WORLD.moveFeet(x, y, (dx / length) * s, (dy / length) * s, this.blockedByGuide));
       }
       this.player.body.reset(x, y);
     } else {
