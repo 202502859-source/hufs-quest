@@ -99,6 +99,8 @@ export const SOURCES = {
   oliveyoung: { title: "올리브영(외부 참고) > 매장 안내", url: "https://www.oliveyoung.co.kr/store/store/store-detail.do?strNo=B205", kind: "external" },
   naverArtisee: { title: "네이버 지도(외부 참고) > 아티제", url: "https://map.naver.com/p/entry/place/33860204", kind: "external" },
   naverBread: { title: "네이버 지도(외부 참고) > 빵명장", url: "https://map.naver.com/p/entry/place/1149726279", kind: "external" },
+  naverNamuRadio: { title: "네이버 지도(외부 참고) > 나무라듸오", url: "https://map.naver.com/p/entry/place/1811791118", kind: "external" },
+  naverHufsCoffee: { title: "네이버 지도(외부 참고) > HUFS동문커피", url: "https://map.naver.com/p/entry/place/1880518736", kind: "external" },
 };
 
 // 공식 페이지끼리 다르거나 건물이 분명하지 않아 아직 넣지 않은 것입니다. 확인되면 offices로 옮기고 여기서 지웁니다.
@@ -744,7 +746,14 @@ export const BUILDING_INFO = {
     use: { ko: "1층에 카페가 있어요.", en: "The 1st floor has a café." },
     offices: [
       // 이름은 lifeguide2026 88p 표기(11/25 종헌 결정). 88p 번호는 010이라 넣지 않음
-      o("HUFS동문커피", "HUFS Alumni Coffee", "1F", null, "커피 · 음료", "Coffee and drinks", "lifeguide2026", { ...AMENITY, checkedAt: ADDED_1125 }),
+      // 운영시간 · 비고는 네이버 지도(외부 참고, 11/25 종헌 확인). 전화는 010이라 넣지 않음
+      o("HUFS동문커피", "HUFS Alumni Coffee", "1F", null, "커피 · 음료", "Coffee and drinks", "lifeguide2026", {
+        ...AMENITY,
+        hours: L("월~목 08:30~20:30, 금 08:30~18:30, 토 08:30~14:00, 일 정보 없음", "Mon-Thu 08:30-20:30, Fri 08:30-18:30, Sat 08:30-14:00, Sun no info"),
+        details: L(["행사·시험 기간에는 연장 영업"], ["Extended hours during events and exams"]),
+        extraSrc: { hours: "naverHufsCoffee", details: "naverHufsCoffee" },
+        checkedAt: ADDED_1125,
+      }),
     ],
     checkedAt: ADDED_1125,
   },
@@ -810,7 +819,18 @@ export const BUILDING_INFO = {
     name: "국제관",
     nameEn: "International Hall",
     use: { ko: "2층에 카페가 있어요.", en: "There is a café on the 2nd floor." },
-    offices: [o("나무라듸오", "Namu Radio café", "2F", null, "커피 · 음료 · 베이커리", "Coffee, drinks and bakery", "welfare", AMENITY)],
+    offices: [
+      // 운영시간은 네이버 지도(외부 참고, 11/25 종헌 확인). 전화는 010이라 넣지 않음
+      o("나무라듸오", "Namu Radio café", "2F", null, "커피 · 음료 · 베이커리", "Coffee, drinks and bakery", "welfare", {
+        ...AMENITY,
+        hours: L(
+          "월~금 08:30~16:30 (브레이크타임 11:20~11:50, 라스트오더 16:00), 토·일 정기휴무",
+          "Mon-Fri 08:30-16:30 (break 11:20-11:50, last order 16:00), closed Sat-Sun"
+        ),
+        extraSrc: { hours: "naverNamuRadio" },
+        checkedAt: ADDED_1125,
+      }),
+    ],
     checkedAt: CHECKED,
   },
   library: {

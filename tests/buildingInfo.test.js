@@ -24,9 +24,10 @@ test("근거: 학교 공식 사이트(*.hufs.ac.kr), 현장 · 팀 확인(url nu
     assert.equal(source.kind, undefined, `${key}: kind는 external만`);
     assert.match(new URL(source.url).hostname, /(^|\.)hufs\.ac\.kr$/, `${key}: ${source.url}`);
   }
-  // 외부 참고는 종헌이 준 주소 4개뿐(나무위키 · 올리브영 · 네이버 지도 2곳), 추적 값 없음
+  // 외부 참고는 종헌이 준 주소 6개뿐(나무위키 · 올리브영 · 네이버 지도 4곳), 추적 값 없음
   const external = Object.values(SOURCES).filter((source) => source.kind === "external");
-  assert.equal(external.length, 4);
+  assert.equal(external.length, 6);
+  for (const source of external.filter((x) => x.url.includes("map.naver.com"))) assert.match(source.url, /^https:\/\/map\.naver\.com\/p\/entry\/place\/\d+$/, source.url);
   for (const source of external) assert.doesNotMatch(source.url, /utm_|[?&]c=|entry=|from=/, source.url);
 });
 
@@ -209,6 +210,14 @@ test("11/25 결정: 여행사 없음, 대학원 카페 HUFS동문커피, 오바�
   for (const name of ["하나투어", "플러스엠엔씨"]) assert.ok(!all.includes(name), name);
   assert.equal(BUILDING_INFO.grad.offices[0].name.ko, "HUFS동문커피");
   assert.equal(BUILDING_INFO.grad.offices[0].name.en, "HUFS Alumni Coffee");
+  // 운영시간 · 비고(네이버 지도 외부 참고), 전화 없음(010)
+  assert.match(BUILDING_INFO.grad.offices[0].hours.ko, /^월~목 08:30~20:30/);
+  assert.deepEqual(BUILDING_INFO.grad.offices[0].details.ko, ["행사·시험 기간에는 연장 영업"]);
+  assert.equal(BUILDING_INFO.grad.offices[0].phone, null);
+  const namu = BUILDING_INFO.intl.offices.find((office) => office.name.ko === "나무라듸오");
+  assert.match(namu.hours.ko, /토·일 정기휴무$/);
+  assert.equal(namu.phone, null);
+  assert.equal(SOURCES[namu.extraSrc.hours].kind, "external");
   const obama = BUILDING_INFO.minerva.offices.find((office) => office.name.ko === "오바마홀");
   assert.equal(obama.floor, "B1 · B2");
   assert.deepEqual(officeSourceKeys(obama).sort(), ["campus3d", "team1125"]);
