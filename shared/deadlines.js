@@ -201,4 +201,43 @@ export const DEADLINES = [
     url: "https://student.hufs.ac.kr/bbs/student/2431/272011/artclView.do",
     checked: { on: "2026-11-24", by: "임현규" },
   },
+  {
+    id: "2026-12-waci-journal-cfp",
+    title: {
+      ko: "세계문화예술경영연구소『글로벌문화예술』 제2권 제1호 논문 투고",
+      en: "Call for Papers: Global Arts & Culture Vol. 2, Issue 1 (WACI)",
+    },
+    dept: { ko: "세계문화예술경영연구소", en: "World Arts & Cultures Institute" },
+    category: "academic",
+    startsAt: "2026-11-24T00:00:00+09:00",
+    deadline: "2026-12-10T23:59:00+09:00",
+    url: "https://www.hufs.ac.kr/bbs/hufs/2180/272582/artclView.do",
+    checked: { on: "2026-11-25", by: "임현규" },
+  },
+  {
+    id: "2026-12-ir-education-survey",
+    title: {
+      ko: "2026학년도 교육만족도 조사 참여 안내 (기프티콘 추첨 증정)",
+      en: "2026 Education Satisfaction Survey (Gift Card Raffle)",
+    },
+    dept: { ko: "IR센터", en: "IR Center" },
+    category: "academic",
+    startsAt: "2026-11-24T00:00:00+09:00",
+    deadline: "2026-12-16T23:59:00+09:00",
+    url: "https://www.hufs.ac.kr/bbs/hufs/2180/272496/artclView.do",
+    checked: { on: "2026-11-25", by: "임현규" },
+  },
+  {
+    id: "2026-12-hufs-pre-law-school",
+    title: {
+      ko: "법조인 양성을 위한 “HUFS Pre-Law School” 실원 모집",
+      en: "HUFS Pre-Law School Member Recruitment",
+    },
+    dept: { ko: "HUFS Pre-Law School", en: "HUFS Pre-Law School" },
+    category: "academic",
+    startsAt: "2026-11-23T00:00:00+09:00",
+    deadline: "2026-12-02T23:59:00+09:00",
+    url: "https://www.hufs.ac.kr/bbs/hufs/2180/272466/artclView.do",
+    checked: { on: "2026-11-25", by: "임현규" },
+  },
 ];
