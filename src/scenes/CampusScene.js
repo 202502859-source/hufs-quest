@@ -19,12 +19,15 @@ import { startEventRefresh } from "../data/eventsApi.js";
 import { createEventOverlay } from "../ui/eventOverlay.js";
 import { createQuestOverlay } from "../ui/questOverlay.js";
 import { createSearchBar } from "../ui/searchBar.js";
+import { createOfficeOverlay } from "../ui/officeOverlay.js";
+import { nearestOfficePlace } from "../ui/officeView.js";
 
 const CAMERA_ZOOM = 3;
 const PLAYER_SPEED = 90;
 const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
 // 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
-const DEPTH = { NAME_TAG: -5, DEST_ARROW: 5002, QUIZ_PROMPT: 5003 };
+const DEPTH = { NAME_TAG: -5, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
+const OFFICE_PROMPT_ABOVE_DOOR = 14; // [주요 기능 알아보기] 문구를 입구보다 이만큼 위에 띄웁니다.
 const NAME_TAG_FONT = 10;
 const ARROW_ABOVE_DOOR = 26;
 const PLANNER_RANGE = 6 * TILE_SIZE;
@@ -82,6 +85,25 @@ export class CampusScene extends Phaser.Scene {
       .setDepth(DEPTH.QUIZ_PROMPT)
       .setVisible(false);
 
+    // 사무실 · 시설 안내가 있는 건물 입구에 가까이 가면 뜨는 "[주요 기능 알아보기] Enter" 문구입니다. 터치 화면은 문구를 누르면 열립니다.
+    this.officePlace = null;
+    this.officePrompt = this.add
+      .text(0, 0, "", {
+        fontFamily: "Galmuri9, sans-serif",
+        fontSize: "10px",
+        color: "#0b1f3a",
+        backgroundColor: "#9fd0ff",
+        padding: { x: 4, y: 2 },
+        resolution: CAMERA_ZOOM,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(DEPTH.OFFICE_PROMPT)
+      .setVisible(false)
+      .setInteractive({ useHandCursor: true });
+    this.officePrompt.on("pointerdown", () => {
+      if (this.officePlace) this.openOffice(this.officePlace.id);
+    });
+
     const camera = this.cameras.main;
     camera.setBounds(0, 0, worldWidth, worldHeight);
     camera.setZoom(CAMERA_ZOOM);
@@ -94,6 +116,15 @@ export class CampusScene extends Phaser.Scene {
     // 퀘스트 Q · 학교 행사 V (E는 다른 게임에서 상호작용 키라 헷갈려 쓰지 않음). 퀘스트가 없으면 Q는 아무것도 하지 않습니다.
     this.questKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Q);
     this.eventKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.V);
+    // 건물 입구에서 Enter로 사무실 · 시설 안내 창을 엽니다. 검색창 입력 중 Enter는 searchBar가 막아 여기로 오지 않습니다.
+    // 매 프레임 JustDown으로 보면 아주 짧게 누른 Enter(한 프레임 안에 눌렀다 뗌)를 놓쳐서 키 이벤트로 받습니다.
+    // addKey로 등록하지 않아 다른 HTML 입력칸의 Enter를 가로채지(preventDefault) 않습니다. 장면이 멈추거나 키 입력이 꺼지면 오지 않습니다.
+    this.input.keyboard.on("keydown-ENTER", (event) => {
+      if (!this.officePlace || !this.officePrompt.visible) return;
+      // 창이 열리면 "닫기" 버튼에 포커스가 가는데, 같은 Enter의 keypress가 그 버튼을 눌러 바로 닫히지 않게 막습니다.
+      event.preventDefault();
+      this.openOffice(this.officePlace.id);
+    });
     // 마감 임박 공지를 불러오고 5분마다 다시 계산합니다(HUD 아이콘의 배지·깜빡임에 씀).
     startDeadlineRefresh();
     startEventRefresh();
@@ -119,7 +150,8 @@ export class CampusScene extends Phaser.Scene {
 
   // highlight: 행사 창의 "지도에서 보기"로 열면 그 건물 id를 강조합니다.
   openMap(highlight = null) {
-    if (this.dialog.isOpen) return;
+    // HTML 창이 열려 있으면 열지 않습니다(창 안을 누른 클릭이 뒤쪽 HUD 미니맵으로 새어 들어와도 무시).
+    if (this.anyOverlayOpen()) return;
     this.stopPlayer();
     this.searchBar.setVisible(false);
     this.scene.launch("Map", { highlight });
@@ -139,6 +171,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.dialog.isOpen || this.scene.isActive("Quiz")) return;
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
+    this.officePrompt.setVisible(false);
     // 한 번 연 상자는 같은 문제를 유지합니다(풀지 않고 닫았다가 다시 열어도 같은 문제).
     box.question ??= nextQuestion(this.quizBoxes.assignedIds(box));
     this.searchBar.setVisible(false);
@@ -168,8 +201,10 @@ export class CampusScene extends Phaser.Scene {
     if (this.anyOverlayOpen()) return;
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
+    this.officePrompt.setVisible(false);
     this.searchBar.setVisible(false);
     this.input.keyboard.enabled = false;
+    this.setHudInput(false);
     this.deadlineOverlay ??= createDeadlineOverlay(this.game, () => this.closeOverlay());
     this.deadlineOverlay.show();
     this.scene.pause();
@@ -197,17 +232,58 @@ export class CampusScene extends Phaser.Scene {
     this.eventOverlay.show();
   }
 
-  anyOverlayOpen() {
-    return Boolean(this.dialog.isOpen || this.deadlineOverlay?.isOpen() || this.plannerOverlay?.isOpen() || this.eventOverlay?.isOpen() || this.questOverlay?.isOpen());
+  // 건물 입구의 [주요 기능 알아보기] 문구나 Enter로 사무실 · 시설 안내 창을 엽니다.
+  openOffice(placeId) {
+    if (this.anyOverlayOpen()) return;
+    this.pauseForOverlay();
+    this.officeOverlay ??= createOfficeOverlay(this.game, () => this.closeOverlay());
+    this.officeOverlay.show(placeId);
   }
 
-  // HTML 창(마감 공지 · 행사 · 퀘스트)이 열려 있는 동안 캐릭터 · 검색창 · 키 입력을 멈춥니다.
+  // 사무실 · 시설 안내가 있는 건물 중 가장 가까운 입구 위에 문구를 띄웁니다(맵 v1 · v2 모두 place.door).
+  // 퀴즈 상자 문구와 겹치면 그 위로 올립니다.
+  updateOfficePrompt() {
+    const place = nearestOfficePlace(WORLD.buildings, this.player.x, this.player.y);
+    this.officePlace = place;
+    this.officePrompt.setVisible(Boolean(place));
+    if (!place) return null;
+    const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint");
+    this.officePrompt.setText(`${t("officePrompt")} ${hint}`).setPosition(place.door.x, place.door.y - OFFICE_PROMPT_ABOVE_DOOR);
+    if (this.quizPrompt.visible) {
+      const a = this.officePrompt.getBounds();
+      const b = this.quizPrompt.getBounds();
+      if (Phaser.Geom.Rectangle.Overlaps(a, b)) this.officePrompt.setY(b.top - 2);
+    }
+    return place;
+  }
+
+  anyOverlayOpen() {
+    return Boolean(
+      this.dialog.isOpen ||
+        this.deadlineOverlay?.isOpen() ||
+        this.plannerOverlay?.isOpen() ||
+        this.eventOverlay?.isOpen() ||
+        this.questOverlay?.isOpen() ||
+        this.officeOverlay?.isOpen(),
+    );
+  }
+
+  // HTML 창(마감 공지 · 행사 · 퀘스트 · 사무실 안내)이 열려 있는 동안 캐릭터 · 검색창 · 키 입력을 멈춥니다.
   pauseForOverlay() {
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
+    this.officePrompt.setVisible(false);
     this.searchBar.setVisible(false);
     this.input.keyboard.enabled = false;
+    this.setHudInput(false);
     this.scene.pause();
+  }
+
+  // Phaser는 게임 위 HTML 창을 누른 클릭도 같은 좌표의 게임 버튼으로 처리합니다.
+  // HTML 창이 열려 있는 동안 HUD(미니맵 · 로그아웃 · 아이콘) 입력을 꺼서 뒤쪽 버튼이 눌리지 않게 합니다.
+  setHudInput(enabled) {
+    const hud = this.scene.get("Hud");
+    if (hud?.input) hud.input.enabled = enabled;
   }
 
   // 본관 근처에서 HUD의 "수강 설계" 버튼으로 엽니다. 지도·퀘스트 창과 같은 방식이고, 창 자체는 HTML입니다.
@@ -233,6 +309,7 @@ export class CampusScene extends Phaser.Scene {
 
   // 전체 지도, 퀘스트 창, 수강 설계 창이 닫힐 때 부릅니다.
   closeOverlay() {
+    this.setHudInput(true);
     this.input.keyboard.enabled = true;
     this.input.keyboard.resetKeys();
     this.searchBar.setVisible(true);
@@ -249,6 +326,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.eventOverlay?.isOpen()) this.eventOverlay.hide();
     if (this.questOverlay?.isOpen()) this.questOverlay.hide();
     if (this.plannerOverlay?.isOpen()) this.plannerOverlay.hide();
+    if (this.officeOverlay?.isOpen()) this.officeOverlay.hide();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
     ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
@@ -335,6 +413,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.dialog.isOpen) {
       this.stopPlayer();
       this.quizPrompt.setVisible(false);
+      this.officePrompt.setVisible(false);
       return;
     }
 
@@ -363,6 +442,8 @@ export class CampusScene extends Phaser.Scene {
       this.openQuiz(box);
       return;
     }
+
+    this.updateOfficePrompt();
 
     this.movePlayer(delta);
     this.player.setDepth(this.player.y);
