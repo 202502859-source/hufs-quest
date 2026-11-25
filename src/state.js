@@ -293,6 +293,7 @@ const STRINGS = {
   officeBack: { ko: "← 목록으로", en: "← Back to list" },
   officeLocation: { ko: "위치", en: "Location" },
   officePhone: { ko: "학교 전화", en: "Phone" },
+  officePhoneOther: { ko: "전화", en: "Phone" },
   officeHours: { ko: "운영시간", en: "Hours" },
   officeDoes: { ko: "하는 일", en: "What it does" },
   officeDetails: { ko: "주요 기능 · 지원 사업", en: "Services & programs" },

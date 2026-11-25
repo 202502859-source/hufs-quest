@@ -13,26 +13,34 @@
  * - onMap: false면 맵(campus.js)에 그리지 않는 장소입니다(좌표 미확인 등). 항목은 지우지 않고 남깁니다. 없으면 맵에 있음
  * - nameEn이 null이면 영어 공식 표기를 확인하지 못한 것입니다(PENDING에 이유). 화면은 한국어 이름으로 대신 보여 줍니다
  *
- * offices 한 줄: { name: {ko,en}, floor, room, does: {ko,en}, src, category, phone, hours, details, extraSrc?, checkedAt? }
+ * offices 한 줄: { name: {ko,en}, floor, room, does: {ko,en}, src, category, phone, hours, details, extraSrc?, checkedAt?, where?, children? }
  * - name.en: 근거에 적힌 영어 공식 표기만. 없으면 null(화면은 한국어 이름으로 대신 보여 줌)
- * - floor: "1F" · "LF"(라운지층, 도서관)처럼 근거 페이지에 층이 적혀 있을 때만, 여러 층이면 "2F · 3F". 지하층은 다루지 않습니다.
- *   호수만 있으면 null(호수로 층을 짐작해 넣지 않음). 안내 창은 이 값으로 층별 묶음을 만듭니다(라운지층 → 1층 → … → 6층 → 층 안내 없음).
+ * - floor: "1F" · "LF"(라운지층, 도서관) · "B1"(지하 1층)처럼 근거에 층이 적혀 있을 때, 여러 층이면 "2F · 3F" · "B1 · B2".
+ *   "OUT"은 건물 밖(지금은 도서관 뒤 빵명장 하나, where에 위치 글). 안내 창은 이 값으로 층별 묶음을 만듭니다
+ *   (지하 2층 → 지하 1층 → 라운지층 → 1층 → … → 건물 밖 → 층 안내 없음). 도서관은 지하층 줄을 두지 않습니다.
+ * - 호수로 층 정하기(11/25 종헌 결정, floorFromRoom): floor가 비어 있고 room이 있으면 room에서 층을 계산합니다.
+ *   마지막 두 자리를 뺀 앞자리가 층(321호 → 3F, 1201호 → 12F), 붙은 번호는 무시(101-2호 → 1F, 122-1~6호 → 1F).
+ *   "B1-08" · "B2-05"는 지하 그 층(B1 · B2), "B101~B105"는 B 뒤 첫 숫자가 지하 층, 사회과학관 "B001~B007"은 지하 1층(종헌 확정).
+ *   floor가 적혀 있고 room으로 계산한 층과 다르면 테스트가 실패합니다(충돌은 바꾸지 말고 보고).
  * - top: true면 층 묶음 위, 목록 맨 위에 묶음 제목 없이 보여 줍니다(건물 전체 안내 한 줄용)
- * - room: "118호"처럼 근거에 적힌 그대로. 없으면 null
+ * - room: "118호" · "B1-08호"처럼 근거에 적힌 그대로 + "호". 없으면 null. 화면 위치는 호실이 있으면 호실만(층 생략)
+ * - children: 누르면 아래 목록이 열리는 묶음 줄(층마다 "동아리방", 단과대학). 하위 줄도 같은 형식이고 호실 오름차순으로 보여 줍니다
  * - does: 하는 일 한 줄. 근거 페이지에 적힌 범위 안에서만
  * - src: 아래 SOURCES의 키. 항목마다 근거가 다를 수 있어 줄마다 붙입니다
  * - category: "office"(행정 · 센터 · 도서관 안 시설) · "amenity"(식당 · 카페 · 매점 · 휴게 공간 등 편의시설). 편의시설은 화면에서 이름 뒤에 "(편의시설)"
- * - phone: 학교 부서 번호 문자열 배열(02-2173- · 02-6235-로 시작, 근거에 적힌 그대로 "02-2173-2152~4"). 없으면 null.
- *   전화번호는 이 칸에만 넣습니다(does · details · hours 글에 넣지 않음). 휴대폰 · 가게 직통 · 팩스 · 이메일은 넣지 않습니다
+ * - phone: 전화번호 문자열 배열(근거에 적힌 그대로 "02-2173-2152~4"). 없으면 null. 11/25 규칙(종헌 확정):
+ *   010(개인 번호)은 넣지 않음, 0507 업체 안심번호는 넣음, 지역번호 없는 직통(969-0050)은 "02-969-0050", 교내 4자리(2212)는 "02-2173-2212".
+ *   전화번호는 이 칸에만 넣습니다(does · details · hours 글에 넣지 않음). 팩스 · 이메일은 넣지 않습니다
  * - hours: 운영시간 { ko, en }. 없으면 null(화면에 "안내 없음")
  * - details: 주요 기능 · 지원 사업 { ko: [], en: [] }. 최대 5줄, 줄마다 40자 안팎. 없으면 null
  * - extraSrc: 기존 줄에 phone · hours · details를 덧붙였거나, 그 칸의 근거가 src와 다를 때 그 칸의 근거.
- *   문자열(덧붙인 칸 모두 같은 근거) 또는 { phone, hours, details } 칸별 SOURCES 키
+ *   문자열(덧붙인 칸 모두 같은 근거) 또는 { phone, hours, details, room, floor, does } 칸별 SOURCES 키
  * - checkedAt: 새로 넣거나 덧붙인 줄을 확인한 날("YYYY-MM-DD"). 건물의 checkedAt과 따로 둡니다
  *
  * 규칙
  * - use · offices를 채우면 checkedAt도 같이 채웁니다. 모든 offices 줄에는 src가 있어야 합니다(근거 없는 내용 금지).
  * - 근거는 학교 공식 사이트(*.hufs.ac.kr)만 씁니다. 공식 페이지가 옛 정보일 때만 팀 현장 확인(SOURCES.team)을 씁니다. 두 공식 페이지가 서로 다르면 넣지 않고 PENDING에 적어 둡니다.
+ * - 예외: 종헌이 직접 준 외부 주소만 kind: "external" 출처로 씁니다(제목에 "외부 참고", 화면 출처에도 보임). Claude가 찾은 외부 사이트는 쓰지 않습니다.
  * - 이름은 2026-11 서울캠퍼스 조감도의 범례를 따랐습니다(이전 campus.js에서 옮김).
  * - 키 · 개인 연락처(담당자 이름 · 개인 전화)는 넣지 않습니다(공개 저장소).
  * - lifeguide2026(PDF)은 서울캠퍼스 표기 · 서울 번호(02-) · 서울 칸으로 확인한 값만 씁니다. 기존 값(이 파일 · 검색창 조각)과 다르면 넣지 않습니다.
@@ -78,13 +86,26 @@ export const SOURCES = {
   libHours: { title: "서울도서관 홈페이지 > 이용시간", url: "https://lib.hufs.ac.kr/service/facility/hours" },
   // 개인스터디룸 이용안내는 홈페이지에서 팝업으로 열려 따로 주소가 없습니다(문구는 이종헌이 홈페이지에서 옮김).
   libStudyRoom: { title: "서울도서관 홈페이지 > 개인스터디룸 이용안내", url: "https://lib.hufs.ac.kr/" },
+  // 11/25 추가(#71 피드백)
+  team1125: { title: "팀 확인(이종헌, 2026-11-25)", url: null },
+  campus3d: { title: "HUFS 3D 복셀 캠퍼스(서울캠퍼스)", url: "https://www.hufs.ac.kr/sites/hufs/campus3d/index.html?campus=seoul" },
+  ois: { title: "정보처 > 정보시스템팀", url: "https://ois.hufs.ac.kr/ois/index.do" },
+  // 외부 참고: 종헌이 직접 준 주소만(학교 공식 사이트가 아님)
+  namuwiki: {
+    title: "나무위키(외부 참고) > 한국외국어대학교/서울캠퍼스 > 인문과학관",
+    url: "https://namu.wiki/w/%ED%95%9C%EA%B5%AD%EC%99%B8%EA%B5%AD%EC%96%B4%EB%8C%80%ED%95%99%EA%B5%90/%EC%84%9C%EC%9A%B8%EC%BA%A0%ED%8D%BC%EC%8A%A4#s-4.2",
+    kind: "external",
+  },
+  oliveyoung: { title: "올리브영(외부 참고) > 매장 안내", url: "https://www.oliveyoung.co.kr/store/store/store-detail.do?strNo=B205", kind: "external" },
+  naverArtisee: { title: "네이버 지도(외부 참고) > 아티제", url: "https://map.naver.com/p/entry/place/33860204", kind: "external" },
+  naverBread: { title: "네이버 지도(외부 참고) > 빵명장", url: "https://map.naver.com/p/entry/place/1149726279", kind: "external" },
 };
 
 // 공식 페이지끼리 다르거나 건물이 분명하지 않아 아직 넣지 않은 것입니다. 확인되면 offices로 옮기고 여기서 지웁니다.
 export const PENDING = [
   "전화안내의 '1층안내데스크 · 2층안내데스크': 건물 이름이 적혀 있지 않음",
   "진로취업지원센터 · 국제교류팀 · 학생지원팀: 공식 페이지에서 위치를 찾지 못함",
-  "Minerva Complex(오바마홀): 전화안내(전기실만 기재), 공식 캠퍼스맵, 2026 신입생 대학생활안내 PDF 확인했으나 층·호수 및 입주 시설 공식 안내 미기재",
+  "Minerva Complex(오바마홀): 전화안내(전기실만 기재), 공식 캠퍼스맵, 2026 신입생 대학생활안내 PDF 확인했으나 층·호수 및 입주 시설 공식 안내 미기재 → 동아리방은 lifeguide2026 76~77p로 확인(11/25). 11/25 종헌 확인: B1·B2 대강당(오바마홀, 존재는 공식 3D 복셀 캠퍼스)",
   "출판부: 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
   "역사관(역사기념관): 전화안내(동일 명칭 없음) 및 공식 캠퍼스맵 확인했으나 층·호수·용도 설명 미기재",
   "교수연구동: 전화안내에 '제1교수연구동 안내실'로 표기되어 있으나 맵 건물이 제1교수연구동인지 확인 근거가 없어 PENDING 이동",
@@ -93,11 +114,24 @@ export const PENDING = [
 ];
 
 const CHECKED = "2026-11-19";
+
+// 호수로 층 정하기(11/25 종헌 결정). "321호" → "3F", "B1-08호" → "B1", "B105호" → "B1", "B001호" → "B1"(종헌 확정). 못 읽으면 null
+export function floorFromRoom(room) {
+  if (!room) return null;
+  const text = String(room).replace(/호$/, "");
+  let m = /^B(\d)-\d+/.exec(text);
+  if (m) return `B${m[1]}`;
+  m = /^B(\d)\d{2}$/.exec(text);
+  if (m) return m[1] === "0" ? "B1" : `B${m[1]}`;
+  m = /^(\d+)(\d{2})(-[\d~]+)?$/.exec(text);
+  if (m) return `${Number(m[1])}F`;
+  return null;
+}
 const empty = { use: null, offices: [], checkedAt: null, status: "open" };
 // o(...)의 앞 7개 인자는 예전 그대로이고, 8번째 extra로 category · phone · hours · details · extraSrc · checkedAt을 받습니다.
 const o = (ko, en, floor, room, doesKo, doesEn, src, extra = {}) => ({
   name: { ko, en },
-  floor,
+  floor: floor ?? floorFromRoom(room),
   room,
   does: { ko: doesKo, en: doesEn },
   src,
@@ -108,11 +142,212 @@ const o = (ko, en, floor, room, doesKo, doesEn, src, extra = {}) => ({
   ...(extra.extraSrc ? { extraSrc: extra.extraSrc } : {}),
   ...(extra.checkedAt ? { checkedAt: extra.checkedAt } : {}),
   ...(extra.top ? { top: true } : {}),
+  ...(extra.where ? { where: extra.where } : {}),
+  ...(extra.children ? { children: extra.children } : {}),
 });
 const OFFICE = { category: "office" };
 const AMENITY = { category: "amenity" };
 const L = (ko, en) => ({ ko, en }); // hours · details 한/영 묶음
 const ADDED = "2026-11-24"; // lifeguide2026 · team1124로 새로 넣거나 덧붙인 날
+const ADDED_1125 = "2026-11-25"; // #71 피드백(AED 삭제 · 88p 전화 · 동아리방 · 학과사무실 · 외부 참고)으로 넣거나 고친 날
+
+// ── 동아리방(lifeguide2026 76~77p 서울캠퍼스 동아리 현황, 표 그대로) ──
+// [동아리명, 위치(건물 표기 그대로), 호실, 활동내용, 분과]. 동아리연합회(국제학사 405호)는 union에 따로 둡니다.
+const CLUBS = [
+  ["세레브로", "국제학사", "313", "보드게임", "생활·문화"],
+  ["그림촌", "국제학사", "312", "순수미술", "생활·문화"],
+  ["앵글스", "국제학사", "316", "사진촬영", "생활·문화"],
+  ["목요음악반", "국제학사", "440", "클래식 음악 감상", "생활·문화"],
+  ["영화울림", "국제학사", "442", "영화 제작 및 감상", "생활·문화"],
+  ["Humans of HUFS", "국제학사", "427", "평범한 사람들의 특별한 이야기(인터뷰)", "생활·문화"],
+  ["해갈", "지하캠퍼스", "B1-04", "서브컬쳐", "생활·문화"],
+  ["The Moda", "국제학사", "231", "패션", "생활·문화"],
+  ["기우회", "지하캠퍼스", "B1-08", "바둑", "생활·문화"],
+  ["POSTRADE", "국제학사", "320", "증권 투자 연구", "응용·학술"],
+  ["AIESEC", "국제학사", "321", "국제리더십학생협회", "응용·학술"],
+  ["TIME", "국제학사", "342", "TIME지를 통한 영어 및 국제 시사 공부", "응용·학술"],
+  ["KUSEA", "국제학사", "343", "한국대학생경제학회", "응용·학술"],
+  ["OLIVO(에스페란토)", "국제학사", "447", "에스페란토어 연구", "응용·학술"],
+  ["인액터스", "국제학사", "319", "사회적 책임감을 갖춘 실천형 비즈니스 창업 단체", "응용·학술"],
+  ["마술피리", "국제학사", "431", "마케팅 학회", "응용·학술"],
+  ["멋쟁이사자처럼", "국제학사", "435", "IT창업(코딩)", "응용·학술"],
+  ["만리행", "국제학사", "318", "지역답사 자전거 여행", "응용·학술"],
+  ["MAST", "국제학사", "434", "경영전략학회", "응용·학술"],
+  ["얼소리", "국제학사", "404", "국악(관현악, 성악)", "공연"],
+  ["취현", "국제학사", "436", "클래식 기타", "공연"],
+  ["HUFSPhil", "국제학사", "438", "오케스트라", "공연"],
+  ["외대연극회", "국제학사", "441", "연극 공연", "공연"],
+  ["HUFSDOVY", "사회과학관", "B004", "힙합(랩/댄스)", "공연"],
+  ["재인", "사회과학관", "B005", "댄스", "공연"],
+  ["라온", "지하캠퍼스", "B2-05", "뮤지컬 공연", "공연"],
+  ["노래나래", "지하캠퍼스", "B2-09", "어쿠스틱, 인디, 팝송 커버 및 자작곡 공연", "공연"],
+  ["외인부대", "지하캠퍼스", "B2-11", "락 밴드", "공연"],
+  ["F.A.", "지하캠퍼스", "B2-13", "사운드 엔지니어링 밴드", "공연"],
+  ["새물결", "지하캠퍼스", "B2-17", "다양한 장르의 밴드", "공연"],
+  ["외대합창단", "지하캠퍼스", "B2-18", "합창", "공연"],
+  ["아이기스", "국제학사", "428", "응원단", "공연"],
+  ["태권도부", "교수학습개발원", "B1-04", "태권도", "체육 1"],
+  ["산악부", "국제학사", "304-1", "등산, 등반", "체육 1"],
+  ["검도부", "국제학사", "322", "검도", "체육 1"],
+  ["수영부", "국제학사", "419", "수영", "체육 1"],
+  ["Airo F.F(스노우보드부)", "국제학사", "423", "스노우보드", "체육 1"],
+  ["러너스하이", "국제학사", "448", "런닝", "체육 1"],
+  ["복싱부", "국제학사", "B105", "복싱", "체육 1"],
+  ["조정부", "국제학사", "B103", "조정", "체육 1"],
+  ["훕스 라이딩", "지하캠퍼스", "B1-09", "자전거 나들이", "체육 1"],
+  ["펜싱부", "국제학사", "317", "펜싱", "체육 1"],
+  ["유도부 하랑", "국제학사", "B104", "유도", "체육 1"],
+  ["PLUTO(볼링부)", "국제학사", "420", "볼링", "체육 2"],
+  ["Black Knights(미식축구부)", "국제학사", "445", "미식축구", "체육 2"],
+  ["탁구부", "국제학사", "B101", "탁구", "체육 2"],
+  ["테니스부", "사회과학관", "B001", "테니스", "체육 2"],
+  ["농구부", "사회과학관", "B002", "농구", "체육 2"],
+  ["핸드볼부", "사회과학관", "B003", "핸드볼", "체육 2"],
+  ["야구부", "사회과학관", "B006", "야구", "체육 2"],
+  ["축구부", "사회과학관", "B007", "축구", "체육 2"],
+  ["불교학생회", "국제학사", "421", "불교", "종교·봉사"],
+  ["KR BUDDY", "국제학사", "422", "외국인과 투어 및 교류", "종교·봉사"],
+  ["KUSA", "국제학사", "432", "교육 봉사", "종교·봉사"],
+  ["로타랙트", "국제학사", "433", "봉사", "종교·봉사"],
+  ["세인트", "국제학사", "449", "가톨릭", "종교·봉사"],
+  ["칠하담", "국제학사", "344", "벽화봉사", "종교·봉사"],
+  ["CCC", "국제학사", "424", "기독교 (전도)", "종교·봉사"],
+  ["IVF", "국제학사", "425", "기독교 (복음 운동)", "종교·봉사"],
+  ["해외문학회", "국제학사", "443", "해외 문학 연구", "인문·사회"],
+  ["노곳떼", "국제학사", "444", "토론", "인문·사회"],
+  ["국제관계연구회", "국제학사", "446", "국제 관계 연구", "인문·사회"],
+  ["HDS", "국제학사", "426", "의회식 영어 토론 동아리", "인문·사회"],
+  ["외대문학회", "국제학사", "430", "문학 연구", "인문·사회"],
+  ["마르크스 정치경제학회 왼쪽날개", "국제학사", "429", "사회과학 연구", "인문·사회"],
+  ["외대법학회", "지하캠퍼스", "B1-07", "법 연구", "인문·사회"],
+];
+export const CLUB_COUNT = CLUBS.length;
+const CLUB_BUILDING = { 국제학사: "union", 사회과학관: "social", 지하캠퍼스: "minerva", 교수학습개발원: "tlc" };
+const DIVISION_EN = {
+  "생활·문화": "Life & Culture",
+  "응용·학술": "Applied & Academic",
+  공연: "Performance",
+  "체육 1": "Sports 1",
+  "체육 2": "Sports 2",
+  "종교·봉사": "Religion & Service",
+  "인문·사회": "Humanities & Social",
+};
+
+// 호실 정렬 키: [층(지하는 음수), 호실 번호, 붙은 번호]. "304-1" → [3, 4, 1], "B1-08" → [-1, 8, 0], "B101" → [-1, 1, 0]
+export function roomSortKey(room) {
+  const text = String(room ?? "").replace(/호$/, "");
+  let m = /^B(\d)-(\d+)/.exec(text);
+  if (m) return [-Number(m[1]), Number(m[2]), 0];
+  m = /^B(\d)(\d{2})$/.exec(text);
+  if (m) return [-(Number(m[1]) || 1), Number(m[2]), 0];
+  m = /^(\d+)(\d{2})(?:-(\d+))?/.exec(text);
+  if (m) return [Number(m[1]), Number(m[2]), Number(m[3] ?? 0)];
+  return [Infinity, 0, 0];
+}
+export const byRoom = (a, b) => {
+  const [x, y] = [roomSortKey(a.room), roomSortKey(b.room)];
+  return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+};
+
+const club = ([name, , room, does, division]) =>
+  o(name, null, null, `${room}호`, does, null, "lifeguide2026", {
+    ...OFFICE,
+    details: L(["동아리 활동 지원 및 운영", `분과: ${division}`], ["Club activities and operations", `Division: ${DIVISION_EN[division]}`]),
+    checkedAt: ADDED_1125,
+  });
+// 그 건물의 동아리를 층마다 "동아리방" 묶음 하나로(하위 목록은 호실 오름차순)
+function clubRooms(buildingId) {
+  const byFloor = new Map();
+  for (const row of CLUBS.filter((r) => CLUB_BUILDING[r[1]] === buildingId)) {
+    const item = club(row);
+    if (!byFloor.has(item.floor)) byFloor.set(item.floor, []);
+    byFloor.get(item.floor).push(item);
+  }
+  return [...byFloor].map(([floor, items]) =>
+    o("동아리방", "Club rooms", floor, null, `동아리방 ${items.length}곳`, `${items.length} club rooms`, "lifeguide2026", {
+      ...OFFICE,
+      children: items.sort(byRoom),
+      checkedAt: ADDED_1125,
+    })
+  );
+}
+
+// ── 학과(부) 사무실(lifeguide2026 80p 서울캠퍼스 표, 국번 02-2173-) ──
+// [단과대학, 학과, 위치(표기 그대로), 호실, 전화 4자리]. 대학본부 = 본관(main)
+const DEPTS = [
+  ["영어대학", "ELLT학과", "대학본부", "415", "2266"],
+  ["영어대학", "영미문학·문화학과", "대학본부", "416", "2267"],
+  ["영어대학", "영어통번역학과", "대학본부", "417", "2268"],
+  ["서양어대학", "프랑스어학부", "대학본부", "325", "2282"],
+  ["서양어대학", "독일어과", "대학본부", "323", "2283"],
+  ["서양어대학", "노어과", "대학본부", "321", "2284"],
+  ["서양어대학", "스페인어과", "대학본부", "334", "2285"],
+  ["서양어대학", "이탈리아어과", "대학본부", "337", "2286"],
+  ["서양어대학", "포르투갈어과", "대학본부", "336", "2287"],
+  ["서양어대학", "네덜란드어과", "대학본부", "307", "2288"],
+  ["서양어대학", "스칸디나비아어과", "대학본부", "332", "2289"],
+  ["아시아언어문화대학", "말레이·인도네시아어과", "대학본부", "312", "2298"],
+  ["아시아언어문화대학", "아랍어과", "대학본부", "308", "2304"],
+  ["아시아언어문화대학", "태국어과", "대학본부", "314", "2299"],
+  ["아시아언어문화대학", "베트남어과", "대학본부", "313", "2300"],
+  ["아시아언어문화대학", "인도어과", "대학본부", "318", "2301"],
+  ["아시아언어문화대학", "튀르키예·아제르바이잔학과", "대학본부", "319", "2302"],
+  ["아시아언어문화대학", "페르시아어·이란학과", "대학본부", "320", "2303"],
+  ["아시아언어문화대학", "몽골어과", "대학본부", "309", "2415"],
+  ["중국학대학", "중국언어문화학부", "대학본부", "311", "2296"],
+  ["중국학대학", "중국외교통상학부", "대학본부", "424", "2295"],
+  ["일본학대학", "일본언어문화학부", "대학본부", "310", "2297"],
+  ["일본학대학", "융합일본지역학부", "대학본부", "410", "2442"],
+  ["사회과학대학", "정치외교학과", "사회과학관", "101-2", "2312"],
+  ["사회과학대학", "행정학과", "사회과학관", "102", "2313"],
+  ["사회과학대학", "미디어커뮤니케이션학부", "사회과학관", "103-2", "2314"],
+  ["상경대학", "국제통상학과", "사회과학관", "109", "2332"],
+  ["상경대학", "경제학부", "사회과학관", "108", "2333"],
+  ["경영대학", "경영학부", "사이버관", "503", "2334"],
+  ["사범대학", "영어교육과", "대학본부", "406", "2342"],
+  ["사범대학", "한국어교육과", "대학본부", "407", "2345"],
+  ["사범대학", "외국어교육학부(프랑스어교육전공)", "대학본부", "409", "2343"],
+  ["사범대학", "외국어교육학부(독일어교육전공)", "대학본부", "408", "2344"],
+  ["사범대학", "외국어교육학부(중국어교육전공)", "대학본부", "421", "3236"],
+  ["AI융합대학", "Language & AI융합학부", "대학본부", "422", "2278"],
+  ["AI융합대학", "Social Science & AI융합학부", "대학본부", "423", "2769"],
+  ["국제학부", "국제학전공", "사회과학관", "101-4", "3315"],
+  ["Language & Diplomacy학부", "Language&Diplomacy전공", "사회과학관", "105-1", "2478"],
+  ["Language & Trade학부", "Language&Trade전공", "사회과학관", "104-2", "3350"],
+  // 본관 9층: 공식 3D 복셀 캠퍼스 본관 "지상 13층"으로 9층 확인(11/25 종헌 결정)
+  ["KFL학부", "외국어로서의한국어교육전공", "대학본부", "902", "2477"],
+  ["KFL학부", "외국어로서의한국어통번역전공", "대학본부", "902", "2477"],
+  ["자유전공학부", "자유전공학부(서울)", "대학본부", "114-1", "3510"],
+];
+export const DEPT_COUNT = DEPTS.length;
+const DEPT_BUILDING = { 대학본부: "main", 사회과학관: "social", 사이버관: "cyber" };
+const dept = ([, name, , room, tel]) =>
+  o(name, null, null, `${room}호`, "학과(부) 사무실", "Department office", "lifeguide2026", {
+    ...OFFICE,
+    phone: [`02-2173-${tel}`],
+    details: L(["해당 학과의 행정 업무 처리 및 학과 운영 지원"], ["Administrative work and support for the department"]),
+    checkedAt: ADDED_1125,
+  });
+// 그 건물의 학과 사무실을 층 → 단과대학 묶음으로. 같은 단과대학이 여러 층에 있으면 층마다 따로(그 층 학과만)
+function deptOffices(buildingId) {
+  const groups = new Map();
+  for (const row of DEPTS.filter((r) => DEPT_BUILDING[r[2]] === buildingId)) {
+    const item = dept(row);
+    const key = `${item.floor}|${row[0]}`;
+    if (!groups.has(key)) groups.set(key, { college: row[0], floor: item.floor, items: [] });
+    groups.get(key).items.push(item);
+  }
+  return [...groups.values()]
+    .map(({ college, floor, items }) => {
+      items.sort(byRoom);
+      return o(college, null, floor, null, `학과(부) 사무실 ${items.length}곳`, `${items.length} department offices`, "lifeguide2026", {
+        ...OFFICE,
+        children: items,
+        checkedAt: ADDED_1125,
+      });
+    })
+    .sort((a, b) => byRoom(a.children[0], b.children[0]));
+}
 // 서울도서관 자료실(일반자료실 · 학술연구자료실 · 스마트플라자) 이용시간(lifeguide2026 26쪽)
 const LIB_HOURS = L(
   "학기 중 평일 09:00~21:00 · 방학 중 평일 09:00~17:00 · 토요일 09:00~17:00 · 공휴일 폐실",
@@ -125,11 +360,11 @@ export const BUILDING_INFO = {
     name: "본관",
     nameEn: "Main Hall",
     use: {
-      ko: "1층 안내실(AED 비치)과 교육혁신원(303호)이 있어요.",
-      en: "Home to the 1st-floor information desk (with an AED) and the Institute for Educational Innovation (Room 303).",
+      ko: "1층 안내실, 교육혁신원(303호), 정보시스템팀(446호)과 여러 학과(부) 사무실이 있어요.",
+      en: "Home to the 1st-floor information desk, the Institute for Educational Innovation (Room 303), the Information Systems Team (Room 446) and many department offices.",
     },
     offices: [
-      o("안내실", "Information desk", "1F", null, "건물 안내, 자동심장충격기(AED) 비치", "Building information; AED on site", "health", OFFICE),
+      o("안내실", "Information desk", "1F", null, "건물 안내", "Building information", "health", OFFICE),
       o("4층 안내실", "4th-floor information desk", "4F", null, "층 안내", "Floor information", "phone", OFFICE),
       o("교육혁신원", "Institute for Educational Innovation", null, "303호", "교육과정 개선 · 원격교육 지원", "Curriculum improvement and remote-learning support", "iei", {
         ...OFFICE,
@@ -152,8 +387,19 @@ export const BUILDING_INFO = {
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
+      // 하는 일은 정보처 사이트 "업무별 연락처" 목록을 요약한 문장(11/25 종헌 확인), 주요 기능은 그 목록 5줄
+      o("정보시스템팀", "Information Systems Team", null, "446호", "학사·행정 정보시스템 운영", "Runs academic and administrative information systems", "ois", {
+        ...OFFICE,
+        phone: ["02-2173-2228"],
+        details: L(
+          ["수업 · 졸업", "성적 · 계절학기 · 강의평가", "학적 · 등록 · 전공 · 교직 · 증명", "FLEX · 전자결재", "e-Class · 모바일 · 전자출결"],
+          ["Classes and graduation", "Grades, seasonal sessions and course evaluations", "Academic records, enrollment, majors, teacher training and certificates", "FLEX and e-approval", "e-Class, mobile and e-attendance"]
+        ),
+        checkedAt: ADDED_1125,
+      }),
+      ...deptOffices("main"),
     ],
-    checkedAt: CHECKED,
+    checkedAt: ADDED_1125,
   },
   humanities: {
     ...empty,
@@ -161,8 +407,8 @@ export const BUILDING_INFO = {
     mapName: "인문\n과학관",
     nameEn: "Humanities Hall",
     use: {
-      ko: "1층에 학생 식당 · 우편취급국 · 문구점 · 복사실이 있어요.",
-      en: "The 1st floor has the student cafeteria, post office, stationery store and copy room.",
+      ko: "1층에 학생 식당 · 우편취급국 · 문구점 · 복사실, 2층에 대강당이 있어요.",
+      en: "The 1st floor has the student cafeteria, post office, stationery store and copy room; the main auditorium is on the 2nd floor.",
     },
     offices: [
       o("학생 식당", "Student cafeteria", "1F", null, "한식 · 양식 · 면 · 분식", "Korean, Western, noodles and snacks", "welfare", {
@@ -185,12 +431,14 @@ export const BUILDING_INFO = {
       }),
       o("우편취급국", "Post office", "1F", null, "우편 · 택배", "Mail and parcels", "welfare", {
         ...AMENITY,
+        phone: ["02-960-1311", "02-2173-2661"],
         details: L(["우편 업무 · 각종 금융서비스"], ["Postal services and financial services"]),
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
       o("문구점", "Stationery store", "1F", null, "문구류 · 컴퓨터용품 · 잡화", "Stationery, computer supplies and goods", "welfare", {
         ...AMENITY,
+        phone: ["02-2173-2733"],
         details: L(["문구류 · 팬시류 판매"], ["Stationery and fancy goods"]),
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
@@ -203,15 +451,19 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
       o("주차권 발급(동원안전시스템)", "Parking passes (Dongwon Safety System)", null, "104호", "주차권 신규 발급", "New parking passes", "parking", OFFICE),
+      o("대강당", null, "2F", null, "강연·공연 및 시험 장소", "Lectures, performances and exams", "namuwiki", { ...OFFICE, checkedAt: ADDED_1125 }),
     ],
-    checkedAt: CHECKED,
+    checkedAt: ADDED_1125,
   },
   tlc: {
     ...empty,
     name: "교수학습개발원",
     mapName: "교수학습\n개발원",
     nameEn: "Teaching Center",
-    use: { ko: "301호에 정보지원팀(강의실 기자재 · 교내 컴퓨터 민원)이 있어요.", en: "The IT Support Team (classroom equipment, campus computer help) is in Room 301." },
+    use: {
+      ko: "301호에 정보지원팀(강의실 기자재 · 교내 컴퓨터 민원)이 있고, 지하 1층에 동아리방이 있어요.",
+      en: "The IT Support Team (classroom equipment, campus computer help) is in Room 301, and there is a club room on B1.",
+    },
     offices: [
       o("정보지원팀", "IT Support Team", null, "301호", "강의실 기자재 관리 · 행사 장비 지원 · 교내 컴퓨터 민원", "Classroom equipment, event AV support and campus computer help", "guide2026", {
         ...OFFICE,
@@ -219,14 +471,18 @@ export const BUILDING_INFO = {
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
+      ...clubRooms("tlc"),
     ],
-    checkedAt: CHECKED,
+    checkedAt: ADDED_1125,
   },
   social: {
     ...empty,
     name: "사회과학관",
     nameEn: "Social Sciences Hall",
-    use: { ko: "1층에 복사실이 있어요.", en: "There is a copy room on the 1st floor." },
+    use: {
+      ko: "1층에 복사실과 학과(부) 사무실, 지하 1층에 동아리방이 있어요.",
+      en: "The 1st floor has a copy room and department offices; club rooms are on B1.",
+    },
     offices: [
       o("복사실", "Copy room", "1F", null, "인쇄 · 복사 · 제본", "Printing, copying and binding", "welfare", {
         ...AMENITY,
@@ -235,8 +491,10 @@ export const BUILDING_INFO = {
         extraSrc: { phone: "welfare", details: "lifeguide2026" },
         checkedAt: ADDED,
       }),
+      ...deptOffices("social"),
+      ...clubRooms("social"),
     ],
-    checkedAt: CHECKED,
+    checkedAt: ADDED_1125,
   },
   // 공식 페이지는 이 건물을 "국제학사(기숙사 및 학생회관)"로 부릅니다(장애학생지원 > 주요시설 및 설비). 이름은 11/19 이종헌 결정.
   // 이름을 바꾸면 "실제와 달라요" 구글 폼 1번 드롭다운 항목도 같은 이름으로 고쳐야 미리 채우기가 됩니다.
@@ -245,8 +503,8 @@ export const BUILDING_INFO = {
     name: "국제학사 및 학생회관",
     nameEn: "GlobeeDorm & Student Union",
     use: {
-      ko: "1층에 원스톱서비스센터(증명서)가 있어요.",
-      en: "The One-Stop Service Center (certificates) is on the 1st floor.",
+      ko: "1층에 원스톱서비스센터(증명서)가 있고, 지하 1층 · 2~4층에 동아리방이 있어요.",
+      en: "The One-Stop Service Center (certificates) is on the 1st floor; club rooms are on B1 and the 2nd-4th floors.",
     },
     offices: [
       o("원스톱서비스센터", "One-Stop Service Center", "1F", "114호", "증명서 발급", "Certificates", "cert", {
@@ -273,18 +531,24 @@ export const BUILDING_INFO = {
       }),
       o("CU 편의점", "CU convenience store", "1F", null, "간식 · 생필품, 택배", "Snacks, daily goods and parcels", "welfare", {
         ...AMENITY,
+        phone: ["02-957-3263"],
         details: L(["음료 · 과자류 · 도시락류(간이식품) · 생필품 판매"], ["Drinks, snacks, lunch boxes and daily necessities"]),
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
-      o("STN 커피", "STN Coffee", "1F", null, "커피 · 음료 · 베이커리", "Coffee, drinks and bakery", "welfare", AMENITY),
+      o("STN 커피", "STN Coffee", "1F", null, "커피 · 음료 · 베이커리", "Coffee, drinks and bakery", "welfare", {
+        ...AMENITY,
+        phone: ["02-957-2793"],
+        extraSrc: { phone: "lifeguide2026" },
+        checkedAt: ADDED_1125,
+      }),
       o("기념품점", "Souvenir shop", "1F", null, "외대 · Boo 기념품, 문구류", "HUFS and Boo souvenirs, stationery", "welfare", {
         ...AMENITY,
+        phone: ["02-2173-2212"],
         details: L(["기념품 · 가방 · 티셔츠 · 상패", "소량 · 단체 주문"], ["Souvenirs, bags, T-shirts and plaques", "Small and group orders"]),
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
-      o("자동심장충격기(AED)", "AED", "1F", null, "1층 로비", "1st-floor lobby", "health", AMENITY),
       o("보건실", "Health room", "2F", null, "보건 진료", "Basic health care", "health", {
         ...OFFICE,
         phone: ["02-2173-2139"],
@@ -437,17 +701,19 @@ export const BUILDING_INFO = {
         phone: ["02-2173-2831"],
         checkedAt: ADDED,
       }),
-      o("국제학사 운영팀", null, null, null, "국제학사(GlobeeDorm) 입사 문의 · 증빙서류 접수", "GlobeeDorm admission inquiries and document submission", "lifeguide2026", {
+      o("국제학사 운영팀", null, null, "111호", "국제학사(GlobeeDorm) 입사 문의 · 증빙서류 접수", "GlobeeDorm admission inquiries and document submission", "lifeguide2026", {
         ...OFFICE,
         phone: ["02-2173-2215~9"],
+        extraSrc: { room: "team1125" },
         details: L(
           ["신청대상: 서울캠퍼스 재학 학부생(여석 시 대학원생)", "신청: 학교 홈페이지 → 국제학사 GlobeeDorm(서울)"],
           ["Eligible: enrolled Seoul Campus undergraduates (graduate students if rooms remain)", "Apply via the university website → GlobeeDorm (Seoul)"]
         ),
-        checkedAt: ADDED,
+        checkedAt: ADDED_1125,
       }),
+      ...clubRooms("union"),
     ],
-    checkedAt: "2026-11-20",
+    checkedAt: ADDED_1125,
   },
   law: {
     ...empty,
@@ -475,12 +741,12 @@ export const BUILDING_INFO = {
     ...empty,
     name: "대학원",
     nameEn: "Graduate School",
-    use: { ko: "1층에 카페와 자동심장충격기(AED)가 있어요.", en: "The 1st floor has a café and an AED." },
+    use: { ko: "1층에 카페가 있어요.", en: "The 1st floor has a café." },
     offices: [
-      o("HUS 동문 커피", "HUS Alumni Coffee", "1F", null, "커피 · 음료", "Coffee and drinks", "welfare", AMENITY),
-      o("자동심장충격기(AED)", "AED", "1F", null, "1층 로비", "1st-floor lobby", "health", AMENITY),
+      // 이름은 lifeguide2026 88p 표기(11/25 종헌 결정). 88p 번호는 010이라 넣지 않음
+      o("HUFS동문커피", "HUFS Alumni Coffee", "1F", null, "커피 · 음료", "Coffee and drinks", "lifeguide2026", { ...AMENITY, checkedAt: ADDED_1125 }),
     ],
-    checkedAt: CHECKED,
+    checkedAt: ADDED_1125,
   },
   flc: {
     ...empty,
@@ -674,7 +940,6 @@ export const BUILDING_INFO = {
         extraSrc: { hours: "libHours" },
         checkedAt: ADDED,
       }),
-      o("자동심장충격기(AED)", "AED", "1F", null, "1층 로비", "1st-floor lobby", "health", AMENITY),
       o("복사실", "Copy room", "1F", null, "복사", "Copying", "phone", {
         ...AMENITY,
         hours: LIB_HOURS,
@@ -708,9 +973,10 @@ export const BUILDING_INFO = {
       o("카페라운지(이문일공칠)", null, "LF", null, "라운지층 카페, 좌석 배정 없이 이용 · 음료 가능", "Lounge-floor café; no seat booking, drinks allowed", "libFloor", {
         ...AMENITY,
         hours: LIB_HOURS,
+        phone: ["02-2173-3376"],
         details: L(["커피 · 음료 · 베이커리(이문일공칠 인더북)"], ["Coffee, drinks and bakery (Imun 107 In the Book)"]),
-        extraSrc: { hours: "team1124", details: "welfare" },
-        checkedAt: ADDED,
+        extraSrc: { hours: "team1124", details: "welfare", phone: "lifeguide2026" },
+        checkedAt: ADDED_1125,
       }),
       o("스터디라운지", null, "LF", null, "개방형 열람실, 좌석 배정 없이 이용", "Open reading space; no seat booking", "libFloor", {
         ...AMENITY,
@@ -754,8 +1020,17 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
       o("매점", "Snack shop", "6F", null, "간식 · 음료 판매", "Snacks and drinks", "phone", AMENITY),
+      // 건물 밖(도서관 뒤): 88p 학내 복지시설(11/25 종헌 결정). 층이 없어 목록 맨 아래 "건물 밖" 묶음
+      o("빵명장", null, "OUT", null, "커피, 기타 음료 및 빵 등 판매", "Coffee, other drinks and bread", "lifeguide2026", {
+        ...AMENITY,
+        where: L("도서관 뒤(건물 밖)", "Behind the library (outside)"),
+        phone: ["02-969-9678"],
+        hours: L("월~토 08:30~21:00, 일요일 정기휴무", "Mon-Sat 08:30-21:00, closed Sundays"),
+        extraSrc: { hours: "naverBread" },
+        checkedAt: ADDED_1125,
+      }),
     ],
-    checkedAt: CHECKED,
+    checkedAt: ADDED_1125,
   },
   faculty: { ...empty, name: "교수연구동", nameEn: "Faculty Research" },
   club: {
@@ -766,18 +1041,18 @@ export const BUILDING_INFO = {
     offices: [
       o("우리은행", "Woori Bank", "1F", null, "은행 업무, 학생증 발급", "Banking and student ID cards", "welfare", {
         ...AMENITY,
+        phone: ["02-969-0050"],
         details: L(["입출금 · 송금 · 카드발급 · 대출 · 외환 업무"], ["Deposits, transfers, cards, loans and foreign exchange"]),
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
-      o("하나투어", "Hanatour travel agency", "1F", null, "여행 상담 · 예약", "Travel booking", "welfare", AMENITY),
       o("무인 복사 · 아이스크림", "Self-service copy & ice cream", "1F", null, "무인 복사, 아이스크림", "Self-service copying and ice cream", "welfare", {
         ...AMENITY,
         details: L(["복사 · 제본(책 · 롤스프링) · 출력(밤새출력)"], ["Copying, binding (book, spiral) and printing (overnight printing)"]),
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
-      o("아트박스(문구)", null, "1F", null, "문구류 · 팬시류 판매", "Stationery and fancy goods", "lifeguide2026", { ...AMENITY, checkedAt: ADDED }),
+      o("아트박스(문구)", null, "1F", null, "문구류 · 팬시류 판매", "Stationery and fancy goods", "lifeguide2026", { ...AMENITY, phone: ["0507-1400-0919"], checkedAt: ADDED_1125 }),
       o("교직원 식당", "Faculty cafeteria", "2F", null, "한식 · 양식", "Korean and Western meals", "welfare", {
         ...AMENITY,
         phone: ["02-2173-2664"],
@@ -786,7 +1061,7 @@ export const BUILDING_INFO = {
         checkedAt: ADDED,
       }),
     ],
-    checkedAt: CHECKED,
+    checkedAt: ADDED_1125,
   },
   press: { ...empty, name: "출판부", nameEn: "Univ. Press" },
   gatehouse: {
@@ -801,14 +1076,33 @@ export const BUILDING_INFO = {
     checkedAt: "2026-11-20",
   },
   history: { ...empty, name: "역사관", nameEn: "History Hall" },
-  minerva: { ...empty, name: "Minerva Complex", nameEn: "Minerva Complex" },
+  // 지상 건물이 아니라 역사관 앞 광장 · 미네르바 광장(길라잡이 캠퍼스맵 15 · 16번 구역) 아래의 지하캠퍼스
+  minerva: {
+    ...empty,
+    name: "Minerva Complex",
+    nameEn: "Minerva Complex",
+    use: {
+      ko: "역사관 앞 광장 아래 지하캠퍼스예요. 지하 1·2층에 동아리방과 오바마홀이 있어요.",
+      en: "An underground campus beneath the plaza in front of the History Hall. Club rooms and Obama Hall are on B1 and B2.",
+    },
+    offices: [
+      ...clubRooms("minerva"),
+      // 존재 · 이름: 공식 3D 복셀 캠퍼스. 층(B1 · B2) · 용도(대강당): 11/25 종헌 확인
+      o("오바마홀", "Obama Hall", "B1 · B2", null, "대강당", "Auditorium", "campus3d", {
+        ...OFFICE,
+        extraSrc: { floor: "team1125", does: "team1125" },
+        checkedAt: ADDED_1125,
+      }),
+    ],
+    checkedAt: ADDED_1125,
+  },
   cyber: {
     ...empty,
     name: "사이버관",
     nameEn: "Cyber Hall",
     use: {
-      ko: "105호에 학사종합지원센터가 있고, 1층에 올리브영과 카페(아티제)가 있어요.",
-      en: "The Academic Support Center is in Room 105, and Olive Young and Artisée café are on the 1st floor.",
+      ko: "105호에 학사종합지원센터가 있고, 1층에 올리브영과 카페(아티제), 5층에 경영학부 사무실이 있어요.",
+      en: "The Academic Support Center is in Room 105, Olive Young and Artisée café are on the 1st floor, and the Business School office is on the 5th floor.",
     },
     offices: [
       o("학사종합지원센터", "Academic Support Center", null, "105호", "학사 · 학적 업무(수강 · 휴복학 · 졸업 등)", "Academic records, registration, leave and graduation", "academic", {
@@ -833,10 +1127,23 @@ export const BUILDING_INFO = {
         extraSrc: "lifeguide2026",
         checkedAt: ADDED,
       }),
-      o("올리브영", "Olive Young", "1F", null, "헬스 · 뷰티 제품", "Health and beauty", "welfare", AMENITY),
-      o("아티제", "Artisée café", "1F", null, "커피 · 음료 · 베이커리", "Coffee, drinks and bakery", "welfare", AMENITY),
+      o("올리브영", "Olive Young", "1F", null, "헬스 · 뷰티 제품", "Health and beauty", "welfare", {
+        ...AMENITY,
+        phone: ["02-3295-5290"],
+        hours: L("월~토 09:30~22:30, 일 11:30~22:30", "Mon-Sat 09:30-22:30, Sun 11:30-22:30"),
+        extraSrc: { phone: "lifeguide2026", hours: "oliveyoung" },
+        checkedAt: ADDED_1125,
+      }),
+      o("아티제", "Artisée café", "1F", null, "커피 · 음료 · 베이커리", "Coffee, drinks and bakery", "welfare", {
+        ...AMENITY,
+        phone: ["02-959-2411"],
+        hours: L("월~금 07:30~22:00, 토·일 09:00~22:00", "Mon-Fri 07:30-22:00, Sat-Sun 09:00-22:00"),
+        extraSrc: { phone: "lifeguide2026", hours: "naverArtisee" },
+        checkedAt: ADDED_1125,
+      }),
+      ...deptOffices("cyber"),
     ],
-    checkedAt: "2026-11-20",
+    checkedAt: ADDED_1125,
   },
 
   // 건물이 아닌 공간(광장·운동장·휴게공간)
@@ -885,4 +1192,6 @@ export const officeSourceKeys = (office) => {
   const extraKeys = !extra ? [] : typeof extra === "string" ? [extra] : Object.values(extra);
   return [...new Set([office.src, ...extraKeys])];
 };
-export const buildingSources = (info) => [...new Set((info.offices ?? []).flatMap(officeSourceKeys))].map((key) => SOURCES[key]).filter(Boolean);
+// 하위 줄(children)까지 펼친 모든 줄
+export const allOffices = (offices = []) => offices.flatMap((office) => [office, ...allOffices(office.children)]);
+export const buildingSources = (info) => [...new Set(allOffices(info.offices).flatMap(officeSourceKeys))].map((key) => SOURCES[key]).filter(Boolean);
