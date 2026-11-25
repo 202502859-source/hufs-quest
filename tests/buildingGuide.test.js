@@ -23,15 +23,15 @@ import {
 } from "../src/data/campusV2.js";
 import { DOOR_OVERRIDES } from "../src/data/campusV2Data.js";
 import { WORLD } from "../src/data/world.js";
-import { GUIDE_TEXT_HALF, guideTextRect, guideTextRects } from "../src/data/guides.js";
+import { GUIDE_NEAR_LABEL, GUIDE_TEXT_HALF, guideTextRect, guideTextRects } from "../src/data/guides.js";
 import { estimateLabelSize, placeBuildingLabel, splitTwoLines } from "../src/data/buildingLabels.js";
 import { setLang, t } from "../src/state.js";
 import { BUILDING_INFO } from "../src/data/buildingInfo.js";
 import { GUIDE_EXCLUDED, hasOfficeInfo, nearestOfficePlace } from "../src/ui/officeView.js";
 
 const ELEVEN = ["union", "social", "library", "club", "cyber", "grad", "intl", "flc", "tlc", "humanities", "main"];
-// 안내원: 정문 지정 11곳 + 법학관(자동 계산 정문). 정문안내실은 제외(11/25 종헌 결정)
-const GUIDED = [...ELEVEN, "law"];
+// 안내원 13곳: 정문 지정 11곳 + 법학관(자동 계산 정문) + Minerva Complex(이름표 옆). 정문안내실은 제외(11/25 종헌 결정)
+const GUIDED = [...ELEVEN, "law", "minerva"];
 const FACE = { union: "down", cyber: "down", humanities: "down", main: "down", club: "up", social: "right", library: "right", grad: "left", intl: "left", flc: "left", tlc: "left" };
 const byId = (id) => BUILDINGS.find((b) => b.id === id);
 const guides = () => WORLD.buildings.filter((b) => b.guide);
@@ -60,8 +60,25 @@ test("정문 고정값: 문 앞 자리는 걸을 수 있는 칸, 문은 그 건�
   }
 });
 
-test("건물 소개 안내원: 정문 지정 11곳 + 법학관에 한 명씩, 나머지 건물에는 없음", () => {
+test("건물 소개 안내원: 정문 지정 11곳 + 법학관 + Minerva Complex(13곳)에 한 명씩, 나머지 건물에는 없음", () => {
   assert.deepEqual(guides().map((b) => b.id).sort(), [...GUIDED].sort());
+  assert.equal(guides().length, 13);
+});
+
+test("Minerva Complex 안내원은 정문 대신 맵 위 \"Minerva Complex\" 이름표 바로 옆(걸을 수 있는 칸), 시설 소개가 열림", () => {
+  assert.ok(GUIDE_NEAR_LABEL.minerva);
+  const minerva = WORLD.buildings.find((b) => b.id === "minerva");
+  const g = minerva.guide;
+  assert.ok(g, "Minerva 안내원 없음");
+  assert.ok(fits(g.x, g.y) && isReachable(g.x, g.y), "걸을 수 있는 칸");
+  const b = BUILDINGS.find((x) => x.id === "minerva");
+  const spot = placeBuildingLabel(b, (scale, lines) => estimateLabelSize(b.name, scale, lines), guideTextRects());
+  const { w, h } = estimateLabelSize(b.name, spot.scale, spot.lines);
+  // 이름표 사각형 가장자리에서 40px 안
+  const dx = Math.max(spot.x - w / 2 - g.x, 0, g.x - (spot.x + w / 2));
+  const dy = Math.max(spot.y - h / 2 - g.y, 0, g.y - (spot.y + h / 2));
+  assert.ok(Math.hypot(dx, dy) <= 40, `이름표에서 ${Math.round(Math.hypot(dx, dy))}px`);
+  assert.equal(nearestOfficePlace(WORLD.buildings, g.x, g.y + 8)?.id, "minerva");
 });
 
 test("법학관(law)에는 안내원이 있고, 자동 계산 정문 옆에서 시설 소개가 열림", () => {
@@ -88,6 +105,7 @@ test("정문안내실(gatehouse)에는 안내원이 없고, 다가가도 시설 
 test("건물 소개 안내원: 문 앞 칸 옆(문과 나란한 쪽으로 16~32px, 벽에서 최대 16px 물러섬), 걸을 수 있는 칸이고 어느 문 앞도 막지 않음", () => {
   const fronts = BUILDINGS.map(doorFrontOf).filter(Boolean);
   for (const b of guides()) {
+    if (GUIDE_NEAR_LABEL[b.id]) continue; // Minerva Complex는 이름표 옆(위 테스트)
     const { x, y } = b.guide;
     const front = doorFrontOf(b);
     const vertical = b.door.face === "left" || b.door.face === "right";
