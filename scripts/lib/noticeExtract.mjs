@@ -1,3 +1,8 @@
+import {
+  extractNoticePeriod,
+  extractCourseRegistrationPeriod,
+  extractApplicationPeriod,
+} from "./noticeDate.mjs";
 export const CATEGORIES = [
   "academic",
   "scholarship",
@@ -40,7 +45,52 @@ function validDate(value) {
   );
 }
 
-function dateSupported(value, evidence) {
+
+function dateSupported(value, evidence, field, raw) {
+  const applicationPeriod = extractApplicationPeriod(raw);
+  if (
+    applicationPeriod &&
+    applicationPeriod[field] === value &&
+    applicationPeriod.evidence === evidence
+  ) {
+    return true;
+  }
+
+  const coursePeriod = extractCourseRegistrationPeriod(raw);
+
+  if (coursePeriod && raw.includes(evidence)) {
+    const lines = raw.split(/\r?\n/).map(line => line.trim());
+    const index = lines.findIndex(line =>
+      /^(?:[•*]\s*)?수강신청$/.test(line)
+    );
+
+    if (index !== -1) {
+      const schedule = lines
+        .slice(index + 1, index + 12)
+        .find(line =>
+          /매일\s*\d{1,2}:\d{2}\s*[~∼～]\s*\d{1,2}:\d{2}/.test(line)
+        );
+
+      if (
+        schedule === evidence &&
+        coursePeriod[field] === value
+      ) {
+        return true;
+      }
+    }
+  }
+
+  const period = extractNoticePeriod(evidence);
+
+  if (period) {
+    const expected = field === "startsAt"
+      ? period.startsAt
+      : period.deadline;
+
+    if (expected === value) return true;
+  }
+
+  // 기존 날짜 형식도 지원
   const match = DATE_PATTERN.exec(value);
   if (!match) return false;
 
@@ -60,6 +110,7 @@ function dateSupported(value, evidence) {
 
   return dateTimePattern.test(evidence);
 }
+
 
 export function validateNotice(raw, extracted) {
   const result = {};
@@ -95,7 +146,19 @@ export function validateNotice(raw, extracted) {
         periodPattern.test(line)
       );
 
-      if (hasExplicitDateTime || hasExplicitPeriod) {
+      const hasApplicationSchedule = dateLines.some((line, index) => {
+        const label = line.trim();
+        if (!/^(?:[•*\-]\s*)?수강신청$/.test(label)) return false;
+
+        const following = dateLines
+          .slice(index + 1, index + 5)
+          .join(" ");
+
+        return /\d{1,2}\s*\.\s*\d{1,2}\s*\./.test(following) &&
+          /매일\s*\d{1,2}:\d{2}\s*[~∼～]\s*\d{1,2}:\d{2}/.test(following);
+      });
+
+      if (hasExplicitDateTime || hasExplicitPeriod || hasApplicationSchedule) {
         result[field] = NEEDS_REVIEW;
         issues.push(`${field}: 원문에 날짜와 시간이 있지만 AI가 누락함`);
       } else {
@@ -128,11 +191,32 @@ export function validateNotice(raw, extracted) {
     const personName =
       /(?:담당자|작성자|문의자|담당교수)\s*[:：]?\s*[가-힣]{2,4}/;
 
+    const departmentName =
+      /^(?=.{3,40}$)[가-힣A-Za-z0-9&·.()\s-]+(?:센터|팀|처|부|실|과|본부|사무국)$/;
+
+    const isDepartmentMetadata =
+      field === "dept" &&
+      departmentName.test(value) &&
+      raw.split(/\r?\n/).some(line => {
+        const trimmed = line.trim();
+        const prefixes = [
+          `작성자 ${value}`,
+          `작성자: ${value}`,
+          `작성자： ${value}`,
+        ];
+
+        return prefixes.some(prefix =>
+          trimmed === prefix ||
+          trimmed.startsWith(`${prefix} 조회수 `) ||
+          trimmed.startsWith(`${prefix} 등록일 `)
+        );
+      });
+
     if (
       PRIVATE_INFO.test(value) ||
       PRIVATE_INFO.test(quote) ||
       personName.test(value) ||
-      (field === "dept" && personName.test(quote))
+      (field === "dept" && personName.test(quote) && !isDepartmentMetadata)
     ) {
       result[field] = NEEDS_REVIEW;
       evidence[field] = "";
@@ -149,8 +233,7 @@ export function validateNotice(raw, extracted) {
 
     if (
       (field === "startsAt" || field === "deadline") &&
-      (!validDate(value) || !dateSupported(value, quote))
-    ) {
+      (!validDate(value) || !dateSupported(value, quote, field, raw))    ) {
       result[field] = NEEDS_REVIEW;
       evidence[field] = quote;
       issues.push(`${field}: 날짜 형식 또는 원문 근거 확인 필요`);
