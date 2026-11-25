@@ -9,10 +9,10 @@ import { awayFromGuides, guideSpotOf } from "./guides.js";
  * - 기본: v2(정문 진입로 기준 회전, 미터 다각형 → 텍스처, 1m 판정 격자) — src/data/campusV2.js
  * - 되돌리기: 주소에 ?map=v1 → 옛 타일맵(북쪽 위 88×90) — src/data/campus.js. 12/2 기능 동결 뒤 이상 없으면 지웁니다.
  * 두 맵 모두 월드 픽셀 좌표로 같은 모양의 값을 돌려줍니다.
- * guide: 정문 옆 "건물 소개 안내원" 자리(정문을 지정한 11개 건물 중 사무실 안내가 있는 건물만, 나머지는 null).
+ * guide: 정문 옆 "건물 소개 안내원" 자리(사무실 안내가 있는 건물만 — 정문 지정 11곳 + 법학관, 정문안내실 제외. 나머지는 null).
  */
 // 옛 맵(v1)은 옛 안내원 자리(npc), v2는 src/data/guides.js가 정한 자리.
-const guideOf = (p, spot) => (p.kind === "building" && v2.FIXED_DOOR_IDS.includes(p.id) && hasOfficeInfo(p.id) && spot ? spot : null);
+const guideOf = (p, spot) => (p.kind === "building" && hasOfficeInfo(p.id) && spot ? spot : null);
 export const MAP_VERSION =
   typeof location !== "undefined" && new URLSearchParams(location.search).get("map") === "v1" ? "v1" : "v2";
 

@@ -7,8 +7,16 @@ import { BUILDING_INFO, byRoom, isChecked } from "../data/buildingInfo.js";
 // 안내원에서 이 거리(월드 px) 안이면 안내원 머리 위에 문구를 띄웁니다. 예전 입구 기준(OFFICE_RANGE 4타일)과 같게 시작합니다.
 export const GUIDE_RANGE = 4 * 16;
 
-// 사무실 · 시설 안내가 있는 건물인지(공식 페이지와 대조한 건물만). 없거나 확인 전이면 안내원을 세우지 않습니다.
+// 건물 정보(buildingInfo.js)는 그대로 두고, 건물 소개 안내원 · 시설 소개 창 대상에서만 빼는 건물과 이유.
+// 이름표 · 미니맵 · 전체 지도 표시는 그대로입니다.
+export const GUIDE_EXCLUDED = {
+  gatehouse: "11/25 종헌 결정: 기능 없음",
+};
+
+// 사무실 · 시설 안내가 있는 건물인지(공식 페이지와 대조한 건물만). 없거나 확인 전이거나 제외 목록에 있으면
+// 안내원을 세우지 않고 시설 소개 창도 열리지 않습니다.
 export const hasOfficeInfo = (placeId) => {
+  if (Object.hasOwn(GUIDE_EXCLUDED, placeId)) return false;
   const info = BUILDING_INFO[placeId];
   return Boolean(info && isChecked(info));
 };

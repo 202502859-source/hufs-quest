@@ -26,8 +26,12 @@ import { WORLD } from "../src/data/world.js";
 import { GUIDE_TEXT_HALF, guideTextRect, guideTextRects } from "../src/data/guides.js";
 import { estimateLabelSize, placeBuildingLabel, splitTwoLines } from "../src/data/buildingLabels.js";
 import { setLang, t } from "../src/state.js";
+import { BUILDING_INFO } from "../src/data/buildingInfo.js";
+import { GUIDE_EXCLUDED, hasOfficeInfo, nearestOfficePlace } from "../src/ui/officeView.js";
 
 const ELEVEN = ["union", "social", "library", "club", "cyber", "grad", "intl", "flc", "tlc", "humanities", "main"];
+// 안내원: 정문 지정 11곳 + 법학관(자동 계산 정문). 정문안내실은 제외(11/25 종헌 결정)
+const GUIDED = [...ELEVEN, "law"];
 const FACE = { union: "down", cyber: "down", humanities: "down", main: "down", club: "up", social: "right", library: "right", grad: "left", intl: "left", flc: "left", tlc: "left" };
 const byId = (id) => BUILDINGS.find((b) => b.id === id);
 const guides = () => WORLD.buildings.filter((b) => b.guide);
@@ -56,11 +60,32 @@ test("정문 고정값: 문 앞 자리는 걸을 수 있는 칸, 문은 그 건�
   }
 });
 
-test("건물 소개 안내원: 11개 건물 모두(사무실 안내가 있음)에 한 명씩, 나머지 건물에는 없음", () => {
-  assert.deepEqual(guides().map((b) => b.id).sort(), [...ELEVEN].sort());
+test("건물 소개 안내원: 정문 지정 11곳 + 법학관에 한 명씩, 나머지 건물에는 없음", () => {
+  assert.deepEqual(guides().map((b) => b.id).sort(), [...GUIDED].sort());
 });
 
-test("건물 소개 안내원: 문 앞 칸 옆(문과 나란한 쪽으로 16~32px, 벽에서 최대 8px 물러섬), 걸을 수 있는 칸이고 어느 문 앞도 막지 않음", () => {
+test("법학관(law)에는 안내원이 있고, 자동 계산 정문 옆에서 시설 소개가 열림", () => {
+  const law = WORLD.buildings.find((b) => b.id === "law");
+  assert.ok(law.guide, "법학관 안내원 없음");
+  assert.ok(!law.door.fixed, "법학관 정문은 자동 계산 그대로");
+  assert.equal(nearestOfficePlace(WORLD.buildings, law.guide.x, law.guide.y + 8)?.id, "law");
+});
+
+test("정문안내실(gatehouse)에는 안내원이 없고, 다가가도 시설 소개가 열리지 않음(건물 정보는 그대로)", () => {
+  const gate = WORLD.buildings.find((b) => b.id === "gatehouse");
+  assert.equal(gate.guide, null);
+  assert.equal(GUIDE_EXCLUDED.gatehouse, "11/25 종헌 결정: 기능 없음");
+  assert.equal(hasOfficeInfo("gatehouse"), false);
+  assert.ok(BUILDING_INFO.gatehouse?.offices?.length, "정문안내실 건물 정보는 지우지 않음");
+  const front = doorFrontOf(BUILDINGS.find((b) => b.id === "gatehouse"));
+  for (const [dx, dy] of [[0, 0], [16, 0], [-16, 0], [0, -16]]) {
+    assert.notEqual(nearestOfficePlace(WORLD.buildings, front.x + dx, front.y + dy)?.id, "gatehouse");
+  }
+  // 모든 건물 안내원 대상(=시설 소개를 여는 길)에 정문안내실이 없음
+  assert.ok(!guides().some((b) => b.id === "gatehouse"));
+});
+
+test("건물 소개 안내원: 문 앞 칸 옆(문과 나란한 쪽으로 16~32px, 벽에서 최대 16px 물러섬), 걸을 수 있는 칸이고 어느 문 앞도 막지 않음", () => {
   const fronts = BUILDINGS.map(doorFrontOf).filter(Boolean);
   for (const b of guides()) {
     const { x, y } = b.guide;
@@ -68,7 +93,7 @@ test("건물 소개 안내원: 문 앞 칸 옆(문과 나란한 쪽으로 16~32p
     const vertical = b.door.face === "left" || b.door.face === "right";
     const along = Math.abs(vertical ? y - front.y : x - front.x);
     const away = Math.abs(vertical ? x - front.x : y - front.y);
-    assert.ok(along >= 16 && along <= 32 && away <= 8, `${b.id}: 안내원이 문 옆이 아님 (${x}, ${y})`);
+    assert.ok(along >= 16 && along <= 32 && away <= 16, `${b.id}: 안내원이 문 옆이 아님 (${x}, ${y})`);
     assert.ok(fits(x, y) && isReachable(x, y), `${b.id}: 안내원 자리에 못 감`);
     for (const f of fronts) assert.ok(!feetOverlap(f.x, f.y, x, y), `${b.id}: 안내원이 문 앞 칸과 겹침`);
   }
@@ -138,6 +163,12 @@ test("건물 소개 안내원 글자: 건물 이름표(한/영) · 퀴즈 상자
       assert.ok(!overlap, `${b.id} 안내원 · 글자가 퀴즈 상자 (${q.x}, ${q.y})와 겹침`);
     }
   }
+});
+
+test("교수회관 안내원 글자는 지붕에 걸리지 않음(벽에서 물러선 자리)", () => {
+  const club = WORLD.buildings.find((b) => b.id === "club");
+  const r = guideTextRect(club.guide);
+  for (let y = r.y0; y < r.y1; y += 1) for (let x = r.x0; x < r.x1; x += 1) assert.ok(matAt(x, y) < BUILDING_BASE, `(${x}, ${y})가 건물 위`);
 });
 
 test("문구: [Enter] 시설 소개 · [터치] 시설 소개, 안내원 글자 (한/영)", () => {

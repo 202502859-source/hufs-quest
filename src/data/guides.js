@@ -1,10 +1,12 @@
-import { BUILDINGS, BUILDING_BASE, CELL_PX, FIXED_DOOR_IDS, doorFrontOf, doorOf, feetOverlap, fits, isReachable, matAt } from "./campusV2.js";
+import { BUILDINGS, BUILDING_BASE, CELL_PX, doorFrontOf, doorOf, feetOverlap, fits, isReachable, matAt } from "./campusV2.js";
+import { hasOfficeInfo } from "../ui/officeView.js";
 
 /*
  * 맵 v2에서 "건물 소개 안내원"(정문 옆 NPC)을 세울 자리를 정합니다(브라우저 API 없음 → 테스트 가능).
- * 대상: 정문을 지정한 11개 건물(campusV2Data.js DOOR_OVERRIDES). 사무실 안내가 있는지는 world.js가 봅니다.
+ * 대상: 사무실 안내가 있는 건물(officeView.js hasOfficeInfo, 제외 목록 GUIDE_EXCLUDED의 정문안내실은 빠짐).
+ *       정문을 지정한 11개 건물(DOOR_OVERRIDES)과 법학관(자동 계산 정문) — 11/25 종헌 결정.
  * - 문 앞 칸 옆(문을 바라보고 섰을 때 옆쪽): 아래 · 위쪽 면의 문은 좌우로, 왼쪽 · 오른쪽 면의 문은 위아래로 16 · 24 · 32px.
- *   벽에서 한 칸(8px) 물러선 자리도 후보로 봅니다(꺾인 외벽 · 글자가 지붕에 걸치는 자리).
+ *   벽에서 한두 칸(8 · 16px) 물러선 자리도 후보로 봅니다(꺾인 외벽 · 글자가 지붕에 걸치는 자리, 예: 교수회관).
  * - 걸어서 닿는 칸, 어느 문 앞 칸과도 겹치지 않음, 안내원 칸을 막아도 주변 길이 끊기지 않음.
  * - 그 가운데 안내원 아래 글자가 건물 지붕을 가장 적게 덮는 자리(글자는 되도록 땅 위). 같으면 벽에 붙은 자리 · 문에 가까운 자리.
  * - 건물 이름표는 이 글자 칸을 피해 자리를 잡습니다(buildingLabels.js placeBuildingLabel의 avoid).
@@ -46,13 +48,13 @@ const spots = new Map();
 export function guideSpotOf(building) {
   if (spots.has(building.id)) return spots.get(building.id);
   let best = null;
-  const front = FIXED_DOOR_IDS.includes(building.id) ? doorFrontOf(building) : null;
+  const front = hasOfficeInfo(building.id) ? doorFrontOf(building) : null;
   if (front) {
     const face = doorOf(building).face;
     const along = face === "left" || face === "right" ? [0, 1] : [1, 0];
     const outward = { down: [0, 1], up: [0, -1], right: [1, 0], left: [-1, 0] }[face];
     const fronts = BUILDINGS.map(doorFrontOf).filter(Boolean);
-    const offsets = [0, 8].flatMap((out) => [-16, 16, -24, 24, -32, 32].map((off) => [off, out]));
+    const offsets = [0, 8, 16].flatMap((out) => [-16, 16, -24, 24, -32, 32].map((off) => [off, out]));
     for (const [off, out] of offsets) {
       const spot = { x: front.x + along[0] * off + outward[0] * out, y: front.y + along[1] * off + outward[1] * out };
       if (!fits(spot.x, spot.y) || !isReachable(spot.x, spot.y)) continue;
@@ -68,7 +70,7 @@ export function guideSpotOf(building) {
 }
 
 // 모든 안내원 글자 칸(건물 이름표가 피할 자리)
-export const guideTextRects = () => FIXED_DOOR_IDS.map((id) => guideSpotOf(BUILDINGS.find((b) => b.id === id))).filter(Boolean).map(guideTextRect);
+export const guideTextRects = () => BUILDINGS.map(guideSpotOf).filter(Boolean).map(guideTextRect);
 
 // 퀴즈 상자(16×16, 가운데 기준) 자리가 안내원 · 안내원 글자와 떨어져 있는지
 export const awayFromGuides = (box, guides) =>

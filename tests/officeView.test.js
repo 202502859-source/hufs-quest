@@ -40,6 +40,8 @@ test("안내 없는 건물(offices가 비었거나 확인 전)에는 문구를 �
   assert.equal(hasOfficeInfo("library"), true);
   for (const id of ["faculty", "press", "history", "square", "field", "없는건물"]) assert.equal(hasOfficeInfo(id), false, id);
   assert.equal(hasOfficeInfo("minerva"), true, "Minerva Complex는 11/25부터 동아리방 · 오바마홀");
+  assert.equal(hasOfficeInfo("law"), true);
+  assert.equal(hasOfficeInfo("gatehouse"), false, "정문안내실은 시설 소개 대상에서 제외(11/25)");
 });
 
 test("위치 한 줄: 호실이 있으면 호실만(층 생략), 없으면 위치 글 · 층, 모두 없으면 null", () => {
