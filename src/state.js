@@ -174,6 +174,7 @@ const STRINGS = {
   aiDailyLimit: { ko: "오늘 질문 한도에 도달했어요.", en: "You've reached today's question limit." },
   aiEvidenceOnly: { ko: "(AI 연결 없이 찾은 공식 안내 원문입니다)", en: "(Official guide text found without the AI)" },
   aiSources: { ko: "출처 (누르면 학교 홈페이지로 이동)", en: "Sources (opens the university website)" },
+  aiCollectedAt: { ko: "{date} 수집", en: "collected {date}" },
   aiNotice: { ko: "※ AI 답변은 참고용이며 최종 확인은 학교 공식 안내를 따르세요 · 학번·이름 등 개인정보는 입력하지 마세요", en: "※ AI answers are for reference only; confirm with official notices. · Do not enter personal info." },
   aiClose: { ko: "닫기 (Esc)", en: "Close (Esc)" },
   aiPrevPage: { ko: "◀ 이전", en: "◀ Previous" },

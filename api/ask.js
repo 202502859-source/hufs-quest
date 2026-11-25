@@ -35,6 +35,7 @@
  * 개인정보: 질문 내용 · IP · IP 해시는 저장하거나 로그에 남기지 않습니다. 검색 방식·응답 시간 같은 통계만 로그에 남깁니다.
  */
 import { KB, retrieve } from "../shared/kb.js";
+import { fetchCollectedDates } from "./_lib/sourceDates.js";
 import { checkAskLimit, checkMemoryAskLimit, isEvalRequest } from "./_lib/usageLimit.js";
 import { buildCacheKey, canUseAnswerCache, shouldCacheAnswer, getAnswerCache, setAnswerCache } from "./_lib/answerCache.js";
 import { todayContext, ungroundedDates } from "../shared/academicDate.js";
@@ -276,13 +277,17 @@ async function generate(question, lang, docs, subQueries = [], now = new Date())
 
 // 답변에 실제로 인용된 번호의 출처만 남깁니다. 같은 페이지에서 나온 근거는 한 줄로 묶고 인용 번호를 함께 보여 줍니다.
 // 번호를 하나도 달지 않았으면 모든 근거를 출처로 보여 줍니다.
-function citedSources(answer, docs) {
+export function citedSources(answer, docs, collectedDates = new Map()) {
   const cited = new Set([...answer.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]) - 1));
   const byUrl = new Map();
   docs.forEach((d, i) => {
     if (!d.url || (cited.size && !cited.has(i))) return;
     const entry = byUrl.get(d.url) || { title: d.page || d.title, url: d.url, refs: [] };
     entry.refs.push(i + 1);
+    const collectedAt = collectedDates.get(String(d.id));
+    if (collectedAt && (!entry.collectedAt || collectedAt < entry.collectedAt)) {
+      entry.collectedAt = collectedAt;
+    }
     byUrl.set(d.url, entry);
   });
   return [...byUrl.values()];
@@ -438,8 +443,9 @@ export default async function handler(req, res) {
     if (unsupported.numbers.length || unsupported.timeWords.length) {
       throw Object.assign(new Error("answer has numbers not in sources"), { unsupported });
     }
+    const collectedDates = await fetchCollectedDates(docs, rpc);
+    const sources = citedSources(answer, docs, collectedDates);
     console.log(JSON.stringify({ mode: "ai", cacheHit: false, retrieval, rewritten, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
-    const sources = citedSources(answer, docs);
     if (useCache && shouldCacheAnswer({ mode: "ai", truncated: result.truncated })) {
       await setAnswerCache({ cacheKey, lang, answer, sources });
     }
@@ -456,11 +462,12 @@ export default async function handler(req, res) {
     // AI 연결이 안 되면 근거 원문을 그대로 보여 줍니다. 추측한 답은 만들지 않습니다.
     // 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다.
     const top = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
+    const collectedDates = await fetchCollectedDates(top, rpc);
     console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({
       mode: "evidence",
       answer: top.map((d) => d.text).join("\n"),
-      sources: citedSources("", top),
+      sources: citedSources("", top, collectedDates),
     });
   }
 }

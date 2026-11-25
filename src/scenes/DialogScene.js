@@ -385,8 +385,10 @@ export class DialogScene extends Phaser.Scene {
   // 출처를 누르면 학교 홈페이지 원문을 새 탭으로 엽니다.
   addSourceLink(source, index, y) {
     const title = source.title.length > MAX_TITLE ? `${source.title.slice(0, MAX_TITLE)}…` : source.title;
+    const collected = formatCollectedAt(source.collectedAt, getLang());
+    const suffix = collected ? ` · ${collected}` : "";
     const link = this.add
-      .text(TEXT_LEFT, y, `↗ ${(source.refs || [index + 1]).map((n) => `[${n}]`).join("")} ${title}`, { fontFamily: FONT, fontSize: "14px", color: "#9fd0ff" })
+      .text(TEXT_LEFT, y, `↗ ${(source.refs || [index + 1]).map((n) => `[${n}]`).join("")} ${title}${suffix}`, { fontFamily: FONT, fontSize: "14px", color: "#9fd0ff" })
       .setInteractive({ useHandCursor: true });
     link.on("pointerover", () => link.setColor("#ffffff"));
     link.on("pointerout", () => link.setColor("#9fd0ff"));
@@ -418,6 +420,30 @@ export class DialogScene extends Phaser.Scene {
     this.onClose = null;
     if (onClose) onClose();
   }
+}
+
+// 서버가 반환한 한국 시간 기준 수집일을 화면 언어에 맞게 표시합니다.
+function formatCollectedAt(value, lang) {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "";
+
+  const date = new Date(`${value}T00:00:00Z`);
+  if (!Number.isFinite(date.getTime())) return "";
+  if (date.toISOString().slice(0, 10) !== value) return "";
+
+  const formatted = new Intl.DateTimeFormat(
+    lang === "en" ? "en-US" : "ko-KR",
+    {
+      month: lang === "en" ? "short" : "numeric",
+      day: "numeric",
+      timeZone: "UTC",
+    }
+  ).format(date);
+
+  const label = lang === "en"
+    ? formatted
+    : `${date.getUTCMonth() + 1}/${date.getUTCDate()}`;
+
+  return t("aiCollectedAt").replace("{date}", label);
 }
 
 function dedupe(sources) {
