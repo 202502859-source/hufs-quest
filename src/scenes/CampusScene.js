@@ -4,6 +4,7 @@ import { buildCampusLayers } from "../data/campus.js";
 import { WORLD, findPlace } from "../data/world.js";
 import { feetOverlap } from "../data/campusV2.js";
 import { guideTextRect } from "../data/guides.js";
+import { GuidePrompt } from "../ui/guidePrompt.js";
 import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
 import { placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
 import { isTouchDevice } from "../device.js";
@@ -30,9 +31,9 @@ const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
 // 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
 // "건물 소개 안내원" 글자도 땅 위 글자라 이름표 바로 위(-4), 캐릭터가 지나가면 캐릭터가 위에 그려집니다.
 const DEPTH = { NAME_TAG: -5, GUIDE_LABEL: -4, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
-const OFFICE_PROMPT_ABOVE_GUIDE = 10; // [Enter] 시설 소개 문구를 안내원 가운데보다 이만큼 위(머리 위)에 띄웁니다.
+const OFFICE_PROMPT_ABOVE_GUIDE = 9; // [Enter] 시설 소개 말풍선 꼬리 끝을 안내원 가운데보다 이만큼 위(머리 바로 위)에 둡니다.
 const GUIDE_LOOK = "npc-1"; // 건물 소개 안내원 모양(src/gfx/textures.js NPC_LOOKS, 11명 모두 같음)
-const GUIDE_LABEL_FONT = 8;
+const GUIDE_LABEL_FONT = 6; // 안내원 발밑 이름표(11/26: 8px → 6px, 건물 이름표 10px보다 확실히 작게)
 const NAME_TAG_FONT = 10;
 const ARROW_ABOVE_DOOR = 26;
 const PLANNER_RANGE = 6 * TILE_SIZE;
@@ -97,22 +98,10 @@ export class CampusScene extends Phaser.Scene {
       .setDepth(DEPTH.QUIZ_PROMPT)
       .setVisible(false);
 
-    // 건물 소개 안내원에게 가까이 가면 머리 위에 뜨는 "[Enter] 시설 소개" 문구입니다. 터치 화면은 문구를 누르면 열립니다.
+    // 건물 소개 안내원에게 가까이 가면 머리 위에 뜨는 "[Enter] 시설 소개" 말풍선(src/ui/guidePrompt.js)입니다. 터치 화면은 말풍선을 누르면 열립니다.
     this.officePlace = null;
-    this.officePrompt = this.add
-      .text(0, 0, "", {
-        fontFamily: "Galmuri9, sans-serif",
-        fontSize: "10px",
-        color: "#0b1f3a",
-        backgroundColor: "#9fd0ff",
-        padding: { x: 4, y: 2 },
-        resolution: CAMERA_ZOOM,
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(DEPTH.OFFICE_PROMPT)
-      .setVisible(false)
-      .setInteractive({ useHandCursor: true });
-    this.officePrompt.on("pointerdown", () => {
+    this.officePrompt = new GuidePrompt(this, CAMERA_ZOOM).setDepth(DEPTH.OFFICE_PROMPT).setVisible(false);
+    this.officePrompt.on("tap", () => {
       if (this.officePlace) this.openOffice(this.officePlace.id);
     });
 
@@ -259,8 +248,9 @@ export class CampusScene extends Phaser.Scene {
     this.officePlace = place;
     this.officePrompt.setVisible(Boolean(place));
     if (!place) return null;
-    const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint");
-    this.officePrompt.setText(`${hint} ${t("officePrompt")}`).setPosition(place.guide.x, place.guide.y - OFFICE_PROMPT_ABOVE_GUIDE);
+    // 키 이름은 괄호 없이 키 모양 안에: "[Enter]" → Enter, "[터치]" → 터치
+    const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint").replace(/[[\]]/g, "");
+    this.officePrompt.setContent(hint, t("officePrompt")).setPosition(place.guide.x, place.guide.y - OFFICE_PROMPT_ABOVE_GUIDE);
     if (this.quizPrompt.visible) {
       const a = this.officePrompt.getBounds();
       const b = this.quizPrompt.getBounds();
@@ -373,15 +363,16 @@ export class CampusScene extends Phaser.Scene {
       if (this.officePlace === place && this.officePrompt.visible) this.openOffice(place.id);
     });
     const label = this.add
-      .text(x, y + 8, t("guideLabel"), {
+      .text(x, y + 7, t("guideLabel"), {
         fontFamily: "Galmuri9, sans-serif",
         fontSize: `${GUIDE_LABEL_FONT}px`,
         color: "#fff7cc",
-        backgroundColor: "#10182a",
-        padding: { x: 2, y: 1 },
+        backgroundColor: "rgba(16, 24, 42, 0.78)",
+        padding: { x: 2, y: 0.5 },
         resolution: CAMERA_ZOOM,
       })
       .setOrigin(0.5, 0)
+      .setAlpha(0.92)
       .setDepth(DEPTH.GUIDE_LABEL);
     if (solidLayer) {
       this.physics.add.existing(sprite, true);

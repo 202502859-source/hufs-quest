@@ -23,7 +23,7 @@ import {
 } from "../src/data/campusV2.js";
 import { DOOR_OVERRIDES } from "../src/data/campusV2Data.js";
 import { WORLD } from "../src/data/world.js";
-import { GUIDE_NEAR_LABEL, GUIDE_TEXT_HALF, guideTextRect, guideTextRects } from "../src/data/guides.js";
+import { GUIDE_FALLBACK, GUIDE_NEAR_LABEL, GUIDE_TEXT_HALF, guideTextRect, guideTextRects } from "../src/data/guides.js";
 import { estimateLabelSize, placeBuildingLabel, splitTwoLines } from "../src/data/buildingLabels.js";
 import { setLang, t } from "../src/state.js";
 import { BUILDING_INFO } from "../src/data/buildingInfo.js";
@@ -102,8 +102,10 @@ test("정문안내실(gatehouse)에는 안내원이 없고, 다가가도 시설 
   assert.ok(!guides().some((b) => b.id === "gatehouse"));
 });
 
-test("건물 소개 안내원: 문 앞 칸 옆(문과 나란한 쪽으로 16~32px, 벽에서 최대 16px 물러섬), 걸을 수 있는 칸이고 어느 문 앞도 막지 않음", () => {
+test("건물 소개 안내원(11/26): 문 그림 바로 옆 칸(같은 외벽 앞, 문 앞 칸에서 한 칸 = 16px), 걸을 수 있고 어느 문 앞도 막지 않음", () => {
   const fronts = BUILDINGS.map(doorFrontOf).filter(Boolean);
+  // 두 옆 칸이 모두 막혀 예전 자리에 둔 건물: 국제관(꺾인 외벽 안쪽, 한쪽은 벽 · 다른 쪽은 길을 끊음)
+  assert.deepEqual([...GUIDE_FALLBACK].sort(), ["intl"]);
   for (const b of guides()) {
     if (GUIDE_NEAR_LABEL[b.id]) continue; // Minerva Complex는 이름표 옆(위 테스트)
     const { x, y } = b.guide;
@@ -111,7 +113,8 @@ test("건물 소개 안내원: 문 앞 칸 옆(문과 나란한 쪽으로 16~32p
     const vertical = b.door.face === "left" || b.door.face === "right";
     const along = Math.abs(vertical ? y - front.y : x - front.x);
     const away = Math.abs(vertical ? x - front.x : y - front.y);
-    assert.ok(along >= 16 && along <= 32 && away <= 16, `${b.id}: 안내원이 문 옆이 아님 (${x}, ${y})`);
+    if (GUIDE_FALLBACK.has(b.id)) assert.ok(along >= 16 && along <= 32 && away <= 16, `${b.id}: 예전 규칙 자리 (${x}, ${y})`);
+    else assert.ok(along === 16 && away === 0, `${b.id}: 안내원이 문 바로 옆 칸이 아님 (${x}, ${y})`);
     assert.ok(fits(x, y) && isReachable(x, y), `${b.id}: 안내원 자리에 못 감`);
     for (const f of fronts) assert.ok(!feetOverlap(f.x, f.y, x, y), `${b.id}: 안내원이 문 앞 칸과 겹침`);
   }
@@ -183,10 +186,13 @@ test("건물 소개 안내원 글자: 건물 이름표(한/영) · 퀴즈 상자
   }
 });
 
-test("교수회관 안내원 글자는 지붕에 걸리지 않음(벽에서 물러선 자리)", () => {
+// 11/26 #75 검토: "문 바로 옆 칸"이 "글자가 지붕에 걸리지 않게 물러서기"(11/25)보다 우선.
+// 교수회관은 문이 건물 위쪽 면이라 발밑 이름표 아래쪽이 초록 지붕 끝에 조금 걸림(이름표를 작게 줄여 덜 튐)
+test("교수회관 안내원은 문 바로 옆 칸(위쪽 면 문의 왼쪽 또는 오른쪽 16px)", () => {
   const club = WORLD.buildings.find((b) => b.id === "club");
-  const r = guideTextRect(club.guide);
-  for (let y = r.y0; y < r.y1; y += 1) for (let x = r.x0; x < r.x1; x += 1) assert.ok(matAt(x, y) < BUILDING_BASE, `(${x}, ${y})가 건물 위`);
+  const front = doorFrontOf(BUILDINGS.find((b) => b.id === "club"));
+  assert.equal(club.guide.y, front.y);
+  assert.equal(Math.abs(club.guide.x - front.x), 16);
 });
 
 test("문구: [Enter] 시설 소개 · [터치] 시설 소개, 안내원 글자 (한/영)", () => {
