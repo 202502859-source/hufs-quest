@@ -1,0 +1,36 @@
+# 새 공지 알림 (작업지시서 11/26 작업 1, docs/NOTICE_FLOW.md)
+# 학교 공지 "목록 페이지"만 하루 3회 읽고, 새 글이 있으면 이슈를 만들어 담당자에게 알립니다.
+# - 공지 본문(/bbs/)은 열지 않습니다. 읽는 주소는 scripts/lib/noticeWatch.mjs BOARDS에 고정된 4곳뿐입니다.
+# - NCP 키 · 다른 Secret을 넣지 않습니다. GitHub가 자동으로 주는 GITHUB_TOKEN만 씁니다(이슈 만들기용).
+# - 이슈가 너무 많이 생기면: Actions 탭 → "새 공지 알림" → ⋯ → Disable workflow, 그리고 단톡에 알림.
+name: 새 공지 알림
+
+on:
+  schedule:
+    # 한국 시간 09:00 · 13:00 · 18:00 (cron은 UTC 기준, GitHub 사정으로 몇 분 늦을 수 있음)
+    - cron: "0 0,4,9 * * *"
+  workflow_dispatch: # Actions 탭의 "Run workflow" 수동 실행 버튼
+
+permissions:
+  contents: read # 저장소 코드 받기(checkout)에만 필요. 쓰기 권한 없음
+  issues: write # 새 공지 이슈 만들기
+
+concurrency:
+  group: notice-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # 외부 패키지를 쓰지 않아 npm install 없이 바로 실행합니다.
+      - name: 목록 페이지 확인 · 새 글 이슈 만들기
+        run: node scripts/notice-watch.mjs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NOTICE_ASSIGNEE: ai-ihk # 임현규 GitHub 아이디
