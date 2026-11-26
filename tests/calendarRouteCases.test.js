@@ -93,3 +93,53 @@ test("D9 2026학년도 1학기 중간고사 언제였어? → 4/21~4/27, termBas
 test("D10 이중전공은 몇 학년부터 시작해? → 날짜 질문 아님(바로 찾기 없음)", () => {
   assert.equal(routeCalendar("이중전공은 몇 학년부터 시작해?", { today: TODAY }), null);
 });
+
+// ── 학년도 vs 달력 연도(11/27 PM 확정) ──
+// 일정표는 학년도(3월~다음 해 2월) 단위지만 일정 이름 · 날짜는 달력 연도를 씁니다(예: 2026학년도 안의 "2027년 전기 학위수여식" = 2027.02).
+// 날짜 질문 판별(언제 · 기간 · 일정 …)은 그대로라서, 테스트 질문은 "…언제야?" 꼴로 씁니다.
+test("달력 연도 + 월: '2028년 2월 학위수여식 언제야?' → 2027학년도 · 2028.02.18, termBasis · 버튼 없음", () => {
+  const r = routeCalendar("2028년 2월 학위수여식 언제야?", { today: TODAY });
+  assert.equal(r.semester, "2027-2");
+  assert.deepEqual(rows(r), ["2028.02.18: 2028년 전기 학위수여식"]);
+  assert.equal(r.termBasis, null);
+  assert.deepEqual(r.alternatives, []);
+  // 같은 이름 꼴의 2027년 2월은 2026학년도 일정
+  assert.deepEqual(rows(routeCalendar("2027년 2월 학위수여식 언제야?", { today: TODAY })), ["2027.02.19: 2027년 전기 학위수여식"]);
+});
+
+test("달력 연도 + 월: '2027년 1월 겨울 계절학기 시작 언제야?' → 2026학년도 겨울 계절학기(12/22 개강)", () => {
+  const r = routeCalendar("2027년 1월 겨울 계절학기 시작 언제야?", { today: TODAY });
+  assert.equal(r.semester, "2026-winter");
+  assert.deepEqual(rows(r), ["2026.12.22: 동계방학 및 계절학기 개강"]);
+  assert.equal(r.termBasis, null);
+  assert.deepEqual(r.alternatives, []);
+});
+
+test("달력 연도 + 월: '2027년 8월 후기 학위수여식 언제야?' → 2027학년도 · 2027.08.20", () => {
+  const r = routeCalendar("2027년 8월 후기 학위수여식 언제야?", { today: TODAY });
+  assert.equal(r.semester, "2027-1");
+  assert.deepEqual(rows(r), ["2027.08.20: 2027년 후기 학위수여식"]);
+  assert.equal(r.termBasis, null);
+});
+
+test("학년도: '2027학년도 학위수여식 언제야?' → 지금처럼 2027학년도 안에서 고름(2027.08.20, 버튼 2027학년도 2학기)", () => {
+  const r = routeCalendar("2027학년도 학위수여식 언제야?", { today: TODAY });
+  assert.equal(r.semester, "2027-1");
+  assert.deepEqual(rows(r), ["2027.08.20: 2027년 후기 학위수여식"]);
+  assert.equal(r.termBasis.semester, "2027-1");
+  assert.deepEqual(alt(r), ["2027-2"]);
+});
+
+test("달력 연도(월 없음): '2027년 수강신청 언제야?' → 날짜가 2027년인 것 중 가장 가까운 것(2027-1 두 줄), 없으면 일반 검색", () => {
+  const r = routeCalendar("2027년 수강신청 언제야?", { today: TODAY });
+  assert.equal(r.semester, "2027-1");
+  assert.deepEqual(rows(r), ["2027.02.10 ~ 2027.02.12: 수강신청(2~4학년)", "2027.02.22 ~ 2027.02.23: 수강신청(1학년, 전체)"]);
+  assert.equal(r.termBasis, null);
+  assert.deepEqual(r.alternatives, []);
+  assert.equal(routeCalendar("2029년 수강신청 언제야?", { today: TODAY }), null);
+});
+
+test("'YYYY년 N학기'는 지금처럼 YYYY학년도 N학기", () => {
+  assert.equal(routeCalendar("2027년 1학기 개강일이 언제야?", { today: TODAY }).semester, "2027-1");
+  assert.equal(routeCalendar("2026년 2학기 정규 수강신청 기간은?", { today: TODAY }).semester, "2026-2");
+});
