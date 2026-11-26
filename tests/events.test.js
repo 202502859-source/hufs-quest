@@ -131,7 +131,7 @@ test("출처 배지: school · sns · host는 문구 키(한/영 문구 있음),
   setLang("ko");
 });
 
-test("행사 제보하기 링크: 주소가 https://로 시작할 때만, 빈 값이면 만들지 않음(지금 EVENT_REPORT_URL은 비어 있음)", async () => {
+test("행사 제보하기 링크: 주소가 https://로 시작할 때만, 빈 값이면 만들지 않음(EVENT_REPORT_URL은 11/26 구글 폼 연결)", async () => {
   const { reportLinkUrl } = await import("../src/ui/eventView.js");
   const { EVENT_REPORT_URL } = await import("../src/data/eventsApi.js");
   assert.equal(reportLinkUrl(""), null);
@@ -139,8 +139,9 @@ test("행사 제보하기 링크: 주소가 https://로 시작할 때만, 빈 �
   assert.equal(reportLinkUrl("http://forms.gle/abc"), null, "http는 안 됨");
   assert.equal(reportLinkUrl("javascript:alert(1)"), null);
   assert.equal(reportLinkUrl("https://forms.gle/abc"), "https://forms.gle/abc");
-  assert.equal(EVENT_REPORT_URL, "");
-  assert.equal(reportLinkUrl(EVENT_REPORT_URL), null);
+  // 행사 제보 구글 폼(11/26 연결). 주소 뒤 추적 값(?usp=…) 없이
+  assert.match(EVENT_REPORT_URL, /^https:\/\/docs\.google\.com\/forms\/d\/e\/[\w-]+\/viewform$/);
+  assert.equal(reportLinkUrl(EVENT_REPORT_URL), EVENT_REPORT_URL);
 });
 
 test("예시(?demoEvents=1)에 sns 예시 1개: 제목 [예시] 학생회 SNS 행사, 실제 계정 주소 아님", () => {
