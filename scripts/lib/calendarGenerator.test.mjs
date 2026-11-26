@@ -14,6 +14,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 
 function fixture(t) {
   const dir = mkdtempSync(
@@ -64,7 +65,7 @@ function fixture(t) {
       process.execPath,
       [
         "--import",
-        blocker,
+        pathToFileURL(blocker).href,
         "scripts/generate-calendar.mjs",
         ...args
       ],
