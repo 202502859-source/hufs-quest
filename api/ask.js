@@ -45,7 +45,7 @@ import { todayContext, ungroundedDates } from "../shared/academicDate.js";
 import { unsupportedContacts } from "./_lib/contactGuard.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
 import { stripListNumbers, dropInvalidCitations, trimTruncated, isRefusalAnswer } from "./_lib/answerFormat.js";
-import { routeCalendar } from "../shared/calendarRoute.js";
+import { routeCalendar, calendarNote, answerHasRouteDate } from "../shared/calendarRoute.js";
 import { kstToday } from "../shared/progressRules.js";
 
 const CLOVA_BASE = "https://clovastudio.stream.ntruss.com";
@@ -241,7 +241,7 @@ function usageOf(data) {
   };
 }
 
-async function generate(question, lang, docs, subQueries = [], now = new Date()) {
+async function generate(question, lang, docs, subQueries = [], now = new Date(), note = "") {
   const label = lang === "en" ? "Sources" : "자료";
   const evidence = docs.map((d, i) => `[${i + 1}] ${d.title}\n${d.text}`).join("\n\n");
   // 하위 질문 목록(검색어 정리 결과)을 함께 넘겨, 둘이면 각각 따로 답하게 합니다.
@@ -250,7 +250,7 @@ async function generate(question, lang, docs, subQueries = [], now = new Date())
   const messages = [
     // 오늘 날짜 · 현재 학기는 서버에서 한국 시간으로 계산해 넘깁니다('이번 학기' 해석용).
     { role: "system", content: `${SYSTEM[lang]} ${todayContext(now, lang)}` },
-    { role: "user", content: `[${label}]\n${evidence}${subBlock}\n\n[${lang === "en" ? "Question" : "질문"}]\n${question}` },
+    { role: "user", content: `[${label}]\n${evidence}${subBlock}\n\n[${lang === "en" ? "Question" : "질문"}]\n${question}${note ? `\n\n${note}` : ""}` },
   ];
   if (!process.env.CLOVA_API_KEY) throw new Error("CLOVA_API_KEY missing");
   const data = await postJson(
@@ -473,11 +473,17 @@ export default async function handler(req, res) {
   // 답변 생성 쪽 이름(promptTokens 등)에는 접두어가 없고, 검색어 정리 쪽은 rewrite로 시작합니다.
   let usage = {};
   try {
-    const result = await generate(question, lang, docs, queries || []);
+    // 학사일정 바로 찾기를 한 질문에만 "[1]의 그 학기 날짜로 답하라"는 한 줄을 덧붙입니다(다른 질문의 지시문은 그대로).
+    const result = await generate(question, lang, docs, queries || [], new Date(), calendarNote(calendarRoute, lang));
     // droppedCitations: 넘긴 자료 수를 넘어 지운 인용 번호 개수(모든 로그에 함께 남김)
     // truncated: 출력 토큰 상한에 걸려 끝난 문장까지만 남겼는지(모든 로그에 함께 남김)
     usage = { maxTokens: ANSWER_MAX_TOKENS, ...result.usage, chars: result.answer.length, droppedCitations: result.droppedCitations, truncated: result.truncated };
     const { answer } = result;
+    // 학사일정 바로 찾기를 했는데 답에 그 일정의 날짜(월 · 일)가 하나도 없으면(다른 학기 자료로 답하거나 "공개되지 않았다"고 함)
+    // 숫자 검사와 똑같이 원문 보여 주기로 넘깁니다. 원문 맨 앞이 그 학기 일정 줄입니다. 로그 reason "calendar_mismatch".
+    if (calendarRoute && !answerHasRouteDate(answer, calendarRoute)) {
+      throw Object.assign(new Error("answer has no calendar date"), { calendarMismatch: true });
+    }
     // 근거 번호 없이 "자료에 없다"고만 하는 답은 내보내지 않습니다. 이런 답에 근거에 없는 부서 · 앱 이름이 섞여도(11/26 셔틀버스)
     // 사용자는 "찾지 못함"만 보게 됩니다. 숫자 검사보다 먼저 보고, 답 내용은 로그에 남기지 않으며 답변 캐시에도 저장하지 않습니다.
     if (isRefusalAnswer(answer)) {
@@ -516,7 +522,9 @@ export default async function handler(req, res) {
     // 시기 표현(월 이름 · 상순 등)은 개수만 남깁니다.
     const unsupportedLog = err.unsupported
       ? { unsupportedNumbers: err.unsupported.numbers.slice(0, 5), unsupportedTimeWords: err.unsupported.timeWords.length }
-      : {};
+      : err.calendarMismatch
+        ? { reason: "calendar_mismatch" }
+        : {};
     // 연락처 검사에 걸렸으면 이유와 종류별 개수만 남깁니다. 연락처 값 · 답 내용은 남기지 않습니다.
     const contactLog = err.unsupportedContact
       ? {
@@ -529,7 +537,8 @@ export default async function handler(req, res) {
     // 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다.
     // 학사일정 바로 찾기 근거가 있으면 원문 보여 주기에도 그 일정 줄을 맨 앞에 둡니다.
     const searched = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
-    const top = calendarRoute ? [calendarRoute.doc, ...searched].slice(0, 2) : searched;
+    // 바로 찾기 날짜와 다르게 답했으면(calendar_mismatch) 헷갈리는 다른 학기 자료는 빼고 그 일정 줄만 보여 줍니다.
+    const top = calendarRoute ? [calendarRoute.doc, ...searched].slice(0, err.calendarMismatch ? 1 : 2) : searched;
     const collectedDates = await fetchCollectedDates(top, rpc);
     console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, ...contactLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({

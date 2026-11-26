@@ -187,3 +187,73 @@ test("ask.js: 날짜 질문은 학사일정 바로 찾기 줄을 근거 1순위�
     }
   }
 });
+
+// ── 11/27 Preview D3 · D4 · D8: 다른 학기 자료의 날짜로 답한 경우 ──
+test("answerHasRouteDate: 바로 찾기 일정의 날짜(월 · 일)가 답에 있는지(한국어 · 점 · 영어 표기)", async () => {
+  const { answerHasRouteDate } = await import("../shared/calendarRoute.js");
+  const r = routeCalendar("사전수강신청 언제야?", { today: TODAY }); // 2027.02.01
+  assert.equal(answerHasRouteDate("사전수강신청은 2027년 2월 1일입니다. [1]", r), true);
+  assert.equal(answerHasRouteDate("사전수강신청은 2027.02.01입니다. [1]", r), true);
+  assert.equal(answerHasRouteDate("Pre-registration is on February 1, 2027. [1]", r), true);
+  assert.equal(answerHasRouteDate("사전 수강신청은 2026년 8월 3일 오전 10시부터 자정까지 진행됩니다. [2]", r), false);
+  assert.equal(answerHasRouteDate("구체적인 일정은 공개되지 않았습니다.", r), false);
+  assert.equal(answerHasRouteDate("아무 답", null), true);
+});
+
+test("calendarNote: 바로 찾기를 한 질문에만 '[1]의 그 학기 날짜로 답하라'는 한 줄", async () => {
+  const { calendarNote } = await import("../shared/calendarRoute.js");
+  const r = routeCalendar("휴학 신청 언제까지야?", { today: TODAY });
+  assert.match(calendarNote(r), /2027학년도 1학기 일정을 묻는 것으로 본다\. \[1\] 학사일정 바로 찾기 자료의 날짜로 답하고/);
+  assert.match(calendarNote(r, "en"), /2027 Spring \(1st semester\)/);
+  assert.equal(calendarNote(null), "");
+  assert.equal(calendarNote({ clarify: true }), "");
+});
+
+test("ask.js: 바로 찾기 날짜와 다르게 답하면 원문 보여 주기(그 학기 일정 줄만), 로그 reason calendar_mismatch", async () => {
+  const ENV = { ASK_IP_SALT: "test-salt", SUPABASE_URL: "https://db.example.test", SUPABASE_SERVICE_KEY: "test-service-key", CLOVA_API_KEY: "test-clova-key" };
+  const saved = Object.fromEntries(Object.keys(ENV).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, ENV);
+  const calls = [];
+  let prompt = "";
+  const answers = [
+    (p) => {
+      prompt = p;
+      return "2026학년도 제2학기 수강신청은 2026년 8월 10일부터 8월 14일까지입니다. [2]"; // 다른 학기 자료의 날짜
+    },
+  ];
+  const originalFetch = globalThis.fetch;
+  const base = fakeFetch(answers, calls);
+  globalThis.fetch = async (url, init) => {
+    if (String(url).includes("/rpc/match_chunks")) {
+      return { ok: true, status: 200, json: async () => [{ id: "sugang2026-2-02", title: "수강신청 안내", url: "https://www.hufs.ac.kr/x", text: "2026.08.10 ~ 2026.08.14 수강신청", similarity: 0.7 }] };
+    }
+    return base(url, init);
+  };
+  const logs = [];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = (...a) => logs.push(a.join(" "));
+  console.error = () => {};
+  try {
+    const { default: handler } = await import("../api/ask.js");
+    const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
+    await handler({ method: "POST", headers: { "x-forwarded-for": "203.0.113.82" }, body: { question: "2027년 1학기 수강신청 언제야?", lang: "ko" } }, res);
+    assert.equal(res.body.mode, "evidence");
+    assert.equal(res.body.answer, [
+      "[학사일정 바로 찾기] 2027학년도 제1학기 > 2027.02.10 ~ 2027.02.12: 수강신청(2~4학년)",
+      "[학사일정 바로 찾기] 2027학년도 제1학기 > 2027.02.22 ~ 2027.02.23: 수강신청(1학년, 전체)",
+    ].join("\n")); // 다른 학기 자료(8월)는 보여 주지 않음
+    assert.match(prompt, /\[학사일정 기준\] 이 질문은 2027학년도 1학기 일정을 묻는 것으로 본다/);
+    const log = JSON.parse(logs.at(-1));
+    assert.equal(log.mode, "evidence");
+    assert.equal(log.reason, "calendar_mismatch");
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.log = originalLog;
+    console.error = originalError;
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
