@@ -12,7 +12,9 @@ import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
 import { signOut } from "../data/auth.js";
 import { resetProgressCache } from "../data/progressApi.js";
-import { activeQuests, getLang, onLangChange, resetSession, t } from "../state.js";
+import { getLang, onLangChange, resetSession, t } from "../state.js";
+import { BOOTH_SIZE, BOOTH_TEXTURE, registerRallyTextures, signTexture } from "../gfx/rallyTextures.js";
+import { BOOTH_TALK, boothTalkPoint, feetHitBooth, feetHitSign } from "../data/stampRallySpots.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
@@ -24,7 +26,7 @@ import { createQuestOverlay } from "../ui/questOverlay.js";
 import { createSearchBar } from "../ui/searchBar.js";
 import { createOfficeOverlay } from "../ui/officeOverlay.js";
 import { createMapReportOverlay } from "../ui/mapReportOverlay.js";
-import { nearestOfficePlace } from "../ui/officeView.js";
+import { nearestOfficePlace, officeSpot } from "../ui/officeView.js";
 
 const CAMERA_ZOOM = 3;
 const PLAYER_SPEED = 90;
@@ -32,6 +34,8 @@ const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
 // 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
 // "건물 소개 안내원" 글자도 땅 위 글자라 이름표 바로 위(-4), 캐릭터가 지나가면 캐릭터가 위에 그려집니다.
 const DEPTH = { NAME_TAG: -5, GUIDE_LABEL: -4, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
+const BOOTH_LABEL_FONT = 6; // "[스탬프 랠리 부스]" 이름표(건물 이름표 10px와 같은 글꼴 · 색 · 배경, 크기는 안내원 이름표 · 팻말 글자와 같은 6px)
+const SIGN_PROMPT_ABOVE = 18; // 팻말 판 바로 위에 [Enter] 시설 소개 말풍선 꼬리 끝
 const OFFICE_PROMPT_ABOVE_GUIDE = 9; // [Enter] 시설 소개 말풍선 꼬리 끝을 안내원 가운데보다 이만큼 위(머리 바로 위)에 둡니다.
 const GUIDE_LOOK = "npc-1"; // 건물 소개 안내원 모양(src/gfx/textures.js NPC_LOOKS, 11명 모두 같음)
 const GUIDE_LABEL_FONT = 6; // 안내원 발밑 이름표(11/26: 8px → 6px, 건물 이름표 10px보다 확실히 작게)
@@ -64,6 +68,7 @@ export class CampusScene extends Phaser.Scene {
     const offLang = onLangChange(() => {
       this.nameTags.forEach(({ place, tag }) => this.layoutNameTag(place, tag));
       this.guides.forEach(({ label }) => label.setText(t("guideLabel")));
+      this.rally.forEach((stop) => this.drawRallyTexts(stop));
     });
     this.events.once("shutdown", offLang);
     this.loggingOut = false;
@@ -81,6 +86,10 @@ export class CampusScene extends Phaser.Scene {
     // 건물 소개 안내원: 정문(DOOR_OVERRIDES 11곳) 옆에 서 있고, 가까이 가면 머리 위에 "[Enter] 시설 소개"가 뜹니다.
     // 안내원 칸은 지나갈 수 없습니다(v2는 movePlayer의 blocked, v1은 고정 물리 몸통).
     this.guides = WORLD.buildings.filter((place) => place.guide).map((place) => this.addGuide(place, solidLayer));
+    // 스탬프 랠리 대상 4곳: 안내원 대신 출입구 옆 "시설 안내문" 팻말, 반대쪽에 부스(맵 v2만, src/data/stampRallySpots.js).
+    // 팻말 · 부스 칸도 지나갈 수 없습니다(movePlayer의 blocked).
+    registerRallyTextures(this);
+    this.rally = WORLD.buildings.filter((place) => place.sign && place.booth).map((place) => this.addRallyStop(place));
 
     this.destArrow = this.add.image(0, 0, "dest-arrow").setDepth(DEPTH.DEST_ARROW).setVisible(false);
 
@@ -105,6 +114,12 @@ export class CampusScene extends Phaser.Scene {
     this.officePrompt.on("tap", () => {
       if (this.officePlace) this.openOffice(this.officePlace.id);
     });
+    // 스탬프 랠리 부스 앞에 서면 뜨는 "[Enter] 스탬프 랠리" 말풍선(같은 모양). 터치 화면은 말풍선이나 부스를 누르면 열립니다.
+    this.boothPlace = null;
+    this.boothPrompt = new GuidePrompt(this, CAMERA_ZOOM).setDepth(DEPTH.OFFICE_PROMPT).setVisible(false);
+    this.boothPrompt.on("tap", () => {
+      if (this.boothPlace) this.openBooth(this.boothPlace);
+    });
 
     const camera = this.cameras.main;
     camera.setBounds(0, 0, worldWidth, worldHeight);
@@ -122,6 +137,12 @@ export class CampusScene extends Phaser.Scene {
     // 매 프레임 JustDown으로 보면 아주 짧게 누른 Enter(한 프레임 안에 눌렀다 뗌)를 놓쳐서 키 이벤트로 받습니다.
     // addKey로 등록하지 않아 다른 HTML 입력칸의 Enter를 가로채지(preventDefault) 않습니다. 장면이 멈추거나 키 입력이 꺼지면 오지 않습니다.
     this.input.keyboard.on("keydown-ENTER", (event) => {
+      // 부스와 팻말이 둘 다 가까우면 더 가까운 쪽 말풍선 하나만 떠 있습니다(updateBoothPrompt).
+      if (this.boothPlace && this.boothPrompt.visible) {
+        event.preventDefault();
+        this.openBooth(this.boothPlace);
+        return;
+      }
       if (!this.officePlace || !this.officePrompt.visible) return;
       // 창이 열리면 "닫기" 버튼에 포커스가 가는데, 같은 Enter의 keypress가 그 버튼을 눌러 바로 닫히지 않게 막습니다.
       event.preventDefault();
@@ -170,10 +191,11 @@ export class CampusScene extends Phaser.Scene {
 
   // 퀴즈 상자를 엽니다. 지도·퀘스트 창과 같은 방식으로, 열려 있는 동안 캐릭터와 검색창을 멈춥니다.
   openQuiz(box) {
-    if (this.dialog.isOpen || this.scene.isActive("Quiz")) return;
+    if (this.dialog.isOpen || this.scene.isActive("Quiz") || this.scene.isActive("Booth")) return;
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
     this.officePrompt.setVisible(false);
+    this.boothPrompt.setVisible(false);
     // 한 번 연 상자는 같은 문제를 유지합니다(풀지 않고 닫았다가 다시 열어도 같은 문제).
     box.question ??= nextQuestion(this.quizBoxes.assignedIds(box));
     this.searchBar.setVisible(false);
@@ -183,6 +205,25 @@ export class CampusScene extends Phaser.Scene {
         this.closeOverlay();
         if (answered) this.quizBoxes.solve(box);
         this.scene.get("Hud").dirty = true; // 받은 경험치를 바로 보여 줍니다.
+      },
+    });
+    this.scene.pause();
+  }
+
+  // 스탬프 랠리 부스의 문제 창(BoothScene)을 엽니다. 퀴즈 창과 같은 방식으로 캐릭터와 검색창을 멈춥니다.
+  // 닫히면 HUD에 알립니다(스탬프 획득 알림 · 도장 찍히는 연출 · 완주 알림).
+  openBooth(place) {
+    if (this.anyOverlayOpen() || this.scene.isActive("Quiz") || this.scene.isActive("Booth")) return;
+    this.stopPlayer();
+    this.quizPrompt.setVisible(false);
+    this.officePrompt.setVisible(false);
+    this.boothPrompt.setVisible(false);
+    this.searchBar.setVisible(false);
+    this.scene.launch("Booth", {
+      buildingId: place.id,
+      onClose: (outcome) => {
+        this.closeOverlay();
+        this.scene.get("Hud").onBoothClosed?.(outcome);
       },
     });
     this.scene.pause();
@@ -212,13 +253,14 @@ export class CampusScene extends Phaser.Scene {
     this.scene.pause();
   }
 
-  // HUD의 퀘스트 버튼이나 Q 키로 퀘스트 창을 엽니다. 진행 중인 퀘스트가 없으면 버튼이 숨겨지고 Q도 무시합니다.
+  // HUD 일일 퀘스트 창의 줄을 누르거나 Q 키로 일일 퀘스트 상세 창(스탬프 랠리 4곳 체크 목록 · 일일 퀴즈)을 엽니다.
+  // 닫으면 미니맵에서 다음 부스 위치가 잠깐 깜빡입니다.
   openQuests() {
-    if (!activeQuests().length || this.anyOverlayOpen()) return;
+    if (this.anyOverlayOpen()) return;
     this.pauseForOverlay();
-    this.questOverlay ??= createQuestOverlay(this.game, (result) => {
+    this.questOverlay ??= createQuestOverlay(this.game, () => {
       this.closeOverlay();
-      if (result?.questId) this.openQuestInfo(result.questId);
+      this.scene.get("Hud").blinkNextBooth?.();
     });
     this.questOverlay.show();
   }
@@ -257,7 +299,7 @@ export class CampusScene extends Phaser.Scene {
     this.mapReportOverlay.show(placeId);
   }
 
-  // 가장 가까운 건물 소개 안내원 머리 위에 문구를 띄웁니다(맵 v1 · v2 모두 place.guide). 정문 쪽 문구는 없습니다.
+  // 가장 가까운 건물 소개 안내원(스탬프 랠리 4곳은 "시설 안내문" 팻말) 위에 문구를 띄웁니다. 정문 쪽 문구는 없습니다.
   // 퀴즈 상자 문구와 겹치면 그 위로 올립니다.
   updateOfficePrompt() {
     const place = nearestOfficePlace(WORLD.buildings, this.player.x, this.player.y);
@@ -266,13 +308,40 @@ export class CampusScene extends Phaser.Scene {
     if (!place) return null;
     // 키 이름은 괄호 없이 키 모양 안에: "[Enter]" → Enter, "[터치]" → 터치
     const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint").replace(/[[\]]/g, "");
-    this.officePrompt.setContent(hint, t("officePrompt")).setPosition(place.guide.x, place.guide.y - OFFICE_PROMPT_ABOVE_GUIDE);
+    const spot = officeSpot(place);
+    const above = place.guide ? OFFICE_PROMPT_ABOVE_GUIDE : (place.signTop ?? SIGN_PROMPT_ABOVE);
+    this.officePrompt.setContent(hint, t("officePrompt")).setPosition(spot.x, spot.y - above);
     if (this.quizPrompt.visible) {
       const a = this.officePrompt.getBounds();
       const b = this.quizPrompt.getBounds();
       if (Phaser.Geom.Rectangle.Overlaps(a, b)) this.officePrompt.setY(b.top - 2);
     }
     return place;
+  }
+
+  // 부스 앞(아래쪽)에 서면 지붕 위에 "[Enter] 스탬프 랠리"를 띄웁니다. 팻말 문구와 둘 다 뜰 거리면 더 가까운 쪽 하나만 남깁니다.
+  updateBoothPrompt() {
+    let best = null;
+    let bestDistance = BOOTH_TALK.range;
+    for (const stop of this.rally) {
+      const talk = boothTalkPoint(stop.place.booth);
+      const distance = Math.hypot(talk.x - this.player.x, talk.y - this.player.y);
+      if (distance < bestDistance) {
+        best = stop;
+        bestDistance = distance;
+      }
+    }
+    if (best && this.officePlace && this.officePrompt.visible) {
+      const spot = officeSpot(this.officePlace);
+      if (Math.hypot(spot.x - this.player.x, spot.y - this.player.y) < bestDistance) best = null;
+      else this.officePrompt.setVisible(false);
+    }
+    this.boothPlace = best?.place ?? null;
+    this.boothPrompt.setVisible(Boolean(best));
+    if (!best) return;
+    const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint").replace(/[[\]]/g, "");
+    const { booth } = best.place;
+    this.boothPrompt.setContent(hint, t("boothPrompt")).setPosition(booth.x, best.label.getBounds().top - 1);
   }
 
   anyOverlayOpen() {
@@ -292,6 +361,7 @@ export class CampusScene extends Phaser.Scene {
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
     this.officePrompt.setVisible(false);
+    this.boothPrompt.setVisible(false);
     this.searchBar.setVisible(false);
     this.input.keyboard.enabled = false;
     this.setHudInput(false);
@@ -344,7 +414,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.dialog?.isOpen) this.dialog.close();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
-    ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
+    ["Quiz", "Booth", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
     resetSession();
     this.scene.start("Title", { openLogin: true });
   }
@@ -363,7 +433,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.mapReportOverlay?.isOpen()) this.mapReportOverlay.hide();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
-    ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
+    ["Quiz", "Booth", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
     await signOut();
     resetProgressCache();
     resetSession();
@@ -414,8 +484,54 @@ export class CampusScene extends Phaser.Scene {
     return { place, sprite, label };
   }
 
-  // v2 이동에서 안내원 칸을 막습니다(판정 격자에는 넣지 않음).
-  blockedByGuide = (x, y) => this.guides.some(({ place }) => feetOverlap(x, y, place.guide.x, place.guide.y));
+  // v2 이동에서 안내원 · 팻말 · 부스 칸을 막습니다(판정 격자에는 넣지 않음).
+  blockedByGuide = (x, y) =>
+    this.guides.some(({ place }) => feetOverlap(x, y, place.guide.x, place.guide.y)) ||
+    this.rally.some(({ place }) => feetHitSign(x, y, place.sign) || feetHitBooth(x, y, place.booth));
+
+  // 스탬프 랠리 한 곳: 출입구 옆 "시설 안내문" 팻말 + 반대쪽 부스(지붕 위 "[스탬프 랠리 부스]" 이름표).
+  // 팻말을 누르면(문구가 떠 있을 때) 시설 소개 창, 부스를 누르면(앞에 서 있을 때) 문제 창을 엽니다.
+  addRallyStop(place) {
+    const { sign, booth } = place;
+    const signImage = this.add.image(sign.x, sign.y + 8, "__DEFAULT").setDepth(sign.y).setInteractive({ useHandCursor: true });
+    signImage.on("pointerdown", () => {
+      if (this.officePlace === place && this.officePrompt.visible) this.openOffice(place.id);
+    });
+    const boothImage = this.add
+      .image(booth.x, booth.y, BOOTH_TEXTURE)
+      .setOrigin(BOOTH_SIZE.originX / BOOTH_SIZE.w, BOOTH_SIZE.originY / BOOTH_SIZE.h)
+      .setDepth(booth.y)
+      .setInteractive({ useHandCursor: true });
+    boothImage.on("pointerdown", () => {
+      if (this.boothPlace === place) this.openBooth(place);
+    });
+    // 부스 이름표: 건물 이름표(addNameTag)와 같은 글꼴 · 색 · 배경, 지붕 바로 위
+    const label = this.add
+      .text(booth.x, booth.y - BOOTH_SIZE.originY - 1, "", {
+        fontFamily: "Galmuri9, sans-serif",
+        fontSize: `${BOOTH_LABEL_FONT}px`,
+        color: "#fff7cc",
+        backgroundColor: "#10182a",
+        padding: { x: 2.5, y: 1 },
+        align: "center",
+        resolution: CAMERA_ZOOM,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(booth.y + 1);
+    const stop = { place, signImage, boothImage, label };
+    this.drawRallyTexts(stop);
+    return stop;
+  }
+
+  // 언어에 맞는 팻말 글자("[시설 안내문]") · 부스 이름표를 그립니다. 문이 옆을 보는 건물(도서관)은 팻말을 비스듬히(3/4 각도) 그립니다.
+  drawRallyTexts({ place, signImage, label }) {
+    const face = place.sign.face;
+    const texture = signTexture(this, t("signLabel"), { angled: face === "left" || face === "right", mirror: face === "left" });
+    signImage.setTexture(texture.key).setOrigin(texture.originX, texture.originY).setScale(texture.scale);
+    signImage.input?.hitArea.setTo(0, 0, signImage.width, signImage.height);
+    place.signTop = texture.height - 8 + 2; // 팻말 자리에서 판 위 끝까지(말풍선 꼬리 끝)
+    label.setText(t("boothLabel"));
+  }
 
   addNameTag(place) {
     const tag = this.add
@@ -449,7 +565,12 @@ export class CampusScene extends Phaser.Scene {
       return { w: tag.width, h: tag.height };
     };
     // 건물 소개 안내원 아래 글자 칸은 피합니다(지붕 가장자리에 걸칠 때 겹치지 않게).
-    const avoid = WORLD.buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide));
+    // 팻말(판)과 부스(지붕 · 이름표) 칸도 피합니다.
+    const avoid = [
+      ...WORLD.buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide)),
+      ...WORLD.buildings.filter((b) => b.sign).map((b) => ({ x0: b.sign.x - 28, x1: b.sign.x + 28, y0: b.sign.y - 24, y1: b.sign.y + 8 })),
+      ...WORLD.buildings.filter((b) => b.booth).map((b) => ({ x0: b.booth.x - 34, x1: b.booth.x + 34, y0: b.booth.y - 52, y1: b.booth.y + 8 })),
+    ];
     const spot = placeBuildingLabel(place, measure, avoid);
     measure(spot.scale, spot.lines);
     tag.setPosition(spot.x, spot.y);
@@ -480,6 +601,7 @@ export class CampusScene extends Phaser.Scene {
       this.stopPlayer();
       this.quizPrompt.setVisible(false);
       this.officePrompt.setVisible(false);
+      this.boothPrompt.setVisible(false);
       return;
     }
 
@@ -510,6 +632,7 @@ export class CampusScene extends Phaser.Scene {
     }
 
     this.updateOfficePrompt();
+    this.updateBoothPrompt();
 
     this.movePlayer(delta);
     this.player.setDepth(this.player.y);

@@ -60,9 +60,13 @@ test("정문 고정값: 문 앞 자리는 걸을 수 있는 칸, 문은 그 건�
   }
 });
 
-test("건물 소개 안내원: 정문 지정 11곳 + 법학관 + Minerva Complex(13곳)에 한 명씩, 나머지 건물에는 없음", () => {
-  assert.deepEqual(guides().map((b) => b.id).sort(), [...GUIDED].sort());
-  assert.equal(guides().length, 13);
+// 11/27: 스탬프 랠리 대상 4곳(도서관 · 학생회관 · 본관 · 인문과학관)은 안내원 대신 "시설 안내문" 팻말(tests/stampRallySpots.test.js)
+const RALLY = ["library", "union", "main", "humanities"];
+test("건물 소개 안내원: 시설 소개 13곳 중 스탬프 랠리 4곳은 팻말, 나머지 9곳에 안내원 한 명씩. 그 밖의 건물에는 없음", () => {
+  assert.deepEqual(guides().map((b) => b.id).sort(), GUIDED.filter((id) => !RALLY.includes(id)).sort());
+  assert.equal(guides().length, 9);
+  assert.deepEqual(WORLD.buildings.filter((b) => b.sign).map((b) => b.id).sort(), [...RALLY].sort());
+  assert.deepEqual(WORLD.buildings.filter((b) => b.guide || b.sign).map((b) => b.id).sort(), [...GUIDED].sort(), "시설 소개를 여는 곳은 그대로 13곳");
 });
 
 test("Minerva Complex 안내원은 정문 대신 맵 위 \"Minerva Complex\" 이름표 바로 옆(걸을 수 있는 칸), 시설 소개가 열림", () => {
