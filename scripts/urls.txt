@@ -6,6 +6,7 @@
 # 학사일정 (11/19 추가) — 대학 학사일정. 서울 · 글로벌 구분 없는 공통 일정, 2026학년도 전체와 2027년 초 날짜가 있음
 # 11/20 재반영(범위 문장 추가)
 https://www.hufs.ac.kr/hufs/11360/subview.do  # 학사일정(대학)
+https://www.hufs.ac.kr/hufs/11360/subview.do?year=2027  # 학사일정(대학) 2027학년도 화면(11/27 추가, 조각 id 11360-2027-01~04)
 
 # 교육과정
 https://www.hufs.ac.kr/hufs/11371/subview.do  # 전공과정

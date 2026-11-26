@@ -68,19 +68,26 @@ export function parseCalendar(lines) {
 }
 
 // 조각 머리글 다음에 오는 안내 줄(날짜 줄보다 앞). 테스트도 이 함수로 안내 줄 수를 셉니다.
-export function calendarNotes(year, groupKey) {
+// nextYearListed: 다음 학년도 학사일정 조각도 함께 수집했는지(11/27~ 2027학년도 화면 수집).
+//   수집했으면 겨울방학 조각에 "다음 학년도 일정은 그 조각 참고", 아니면 예전처럼 "다음 학년도 개강일은 이 일정표에 없음".
+export function calendarNotes(year, groupKey, nextYearListed = false) {
   const notes = [
     `${year}학년도 학사일정(학교 홈페이지 대학 학사일정, 캠퍼스 구분 없이 게시됨)`,
     `${year}학년도(${year}.03~${year + 1}.02) 일정만 담음`,
   ];
   if (groupKey === "winter") {
-    notes.push(`${year + 1}학년도 제1학기 개강일은 이 일정표에 없음(${year + 1}학년도 학사일정 게시 후 확인)`);
+    notes.push(
+      nextYearListed
+        ? `${year + 1}학년도 일정은 ${year + 1}학년도 학사일정 조각 참고`
+        : `${year + 1}학년도 제1학기 개강일은 이 일정표에 없음(${year + 1}학년도 학사일정 게시 후 확인)`,
+    );
   }
   return notes;
 }
 
 // collect.mjs가 부릅니다. 일정이 너무 적게 읽히면(페이지 구조가 바뀐 경우) null을 돌려주고, collect는 기존 방식으로 자릅니다.
-export function calendarChunks({ pageId, title, url, lines, minItems = 20 }) {
+// nextYearListed(year): 그 다음 학년도 화면도 수집 목록에 있으면 true(겨울방학 안내 줄이 달라짐).
+export function calendarChunks({ pageId, title, url, lines, minItems = 20, nextYearListed = () => false }) {
   const { year, items } = parseCalendar(lines);
   if (!year || items.length < minItems) return null;
   const pageTitle = `학사일정(${title || "대학"})`;
@@ -91,7 +98,7 @@ export function calendarChunks({ pageId, title, url, lines, minItems = 20 }) {
     const body = rows.map((it) => `${it.end ? `${it.start} ~ ${it.end}` : it.start}: ${it.name}`);
     return {
       section,
-      text: [`[${pageTitle} > ${section}]`, ...calendarNotes(year, group.key), ...body].join("\n"),
+      text: [`[${pageTitle} > ${section}]`, ...calendarNotes(year, group.key, nextYearListed(year)), ...body].join("\n"),
     };
   })
     .filter(Boolean)
@@ -121,12 +128,107 @@ function toISODate(value) {
   return iso;
 }
 
-export function structureCalendar(chunks) {
-  const calendar = chunks.filter(
-    c => /^11360-\d{2}$/.test(c.id)
+// 일정 시행 시기와 실제 적용 학기를 구분합니다.
+export function resolveTargetSemester(year, period, name) {
+  const text = name.replace(/\s+/g, "");
+
+  if (text.includes("계절학기")) {
+    if (text.includes("하계")) return `${year}-summer`;
+    if (text.includes("동계")) return `${year}-winter`;
+
+    if (period === "spring" || period === "summer") {
+      return `${year}-summer`;
+    }
+
+    if (period === "fall" || period === "winter") {
+      return `${year}-winter`;
+    }
+  }
+
+  const explicitYear = text.match(
+    /(\d{4})학년도제?([12])학기/
   );
 
+  if (explicitYear) {
+    return `${explicitYear[1]}-${explicitYear[2]}`;
+  }
+
+  const explicitSemester = text.match(
+    /제?([12])학기/
+  );
+
+  if (explicitSemester) {
+    const targetYear =
+      period === "winter" &&
+      explicitSemester[1] === "1"
+        ? year + 1
+        : year;
+
+    return `${targetYear}-${explicitSemester[1]}`;
+  }
+
+  if (/후기(?:졸업|학위수여식)/.test(text)) {
+    return `${year}-1`;
+  }
+
+  if (/전기(?:졸업|학위수여식)/.test(text)) {
+    return `${year}-2`;
+  }
+
+  if (/수강신청|휴[․·ㆍ.]?복학/.test(text)) {
+    if (period === "spring") return `${year}-1`;
+
+    if (period === "summer" || period === "fall") {
+      return `${year}-2`;
+    }
+
+    if (period === "winter") return `${year + 1}-1`;
+  }
+
+  if (/학기개시일|졸업시험|졸업논문|심사보고서/.test(text)) {
+    if (period === "spring") return `${year}-1`;
+    if (period === "fall") return `${year}-2`;
+  }
+
+  return null;
+}
+
+// 학사일정 조각 id: 지금 학년도 화면은 "11360-01~04", 다른 학년도 화면(?year=YYYY)은 "11360-YYYY-01~04"(11/27~).
+export const CALENDAR_CHUNK_ID = /^11360-(?:(\d{4})-)?(\d{2})$/;
+
+// 여러 학년도의 학사일정 조각을 함께 구조화합니다. 학년도마다 조각 4개씩이고, 결과 일정은 학년도 순서입니다.
+// academicYear: 접두어 없는 조각(지금 학년도 화면)의 학년도, academicYears: 들어 있는 모든 학년도.
+export function structureCalendar(chunks) {
+  const calendar = chunks.filter(c => CALENDAR_CHUNK_ID.test(c.id));
+  const prefixOf = c => c.id.match(CALENDAR_CHUNK_ID)[1] ?? "";
+  const prefixes = [...new Set(calendar.map(prefixOf))].sort();
+
+  if (!prefixes.includes("")) {
+    throw new Error("학사일정 조각은 4개여야 합니다.");
+  }
+
+  const results = prefixes.map(prefix =>
+    structureCalendarYear(calendar.filter(c => prefixOf(c) === prefix), prefix)
+  );
+  const academicYears = results.map(r => r.academicYear).sort((a, b) => a - b);
+
+  if (new Set(academicYears).size !== academicYears.length) {
+    throw new Error("같은 학년도 학사일정이 두 번 들어 있습니다.");
+  }
+
+  return {
+    academicYear: results[prefixes.indexOf("")].academicYear,
+    academicYears,
+    items: [...results]
+      .sort((a, b) => a.academicYear - b.academicYear)
+      .flatMap(r => r.items)
+  };
+}
+
+// 한 학년도(조각 4개)를 구조화합니다. prefix(4자리 연도)가 있으면 조각의 학년도와 같아야 합니다.
+function structureCalendarYear(calendar, prefix) {
   const periods = ["spring", "summer", "fall", "winter"];
+  const idBase = prefix ? `11360-${prefix}` : "11360";
 
   if (calendar.length !== periods.length) {
     throw new Error("학사일정 조각은 4개여야 합니다.");
@@ -137,7 +239,7 @@ export function structureCalendar(chunks) {
 
   for (const [index, period] of periods.entries()) {
     const sourceId =
-      `11360-${String(index + 1).padStart(2, "0")}`;
+      `${idBase}-${String(index + 1).padStart(2, "0")}`;
 
     const matches = calendar.filter(
       c => c.id === sourceId
@@ -149,7 +251,8 @@ export function structureCalendar(chunks) {
 
     const chunk = matches[0];
 
-    if (chunk.url !== CALENDAR_SOURCE) {
+    // 다른 학년도 화면은 같은 주소에 ?year=YYYY가 붙습니다(출처 링크도 그 학년도 화면으로).
+    if (chunk.url !== (prefix ? `${CALENDAR_SOURCE}?year=${prefix}` : CALENDAR_SOURCE)) {
       throw new Error("학사일정 출처 불일치: " + sourceId);
     }
 
@@ -160,6 +263,10 @@ export function structureCalendar(chunks) {
     }
 
     const year = Number(yearMatch[1]);
+
+    if (prefix && Number(prefix) !== year) {
+      throw new Error("학사일정 id와 학년도 불일치: " + sourceId);
+    }
 
     if (academicYear === null) {
       academicYear = year;
@@ -180,7 +287,10 @@ export function structureCalendar(chunks) {
     const expectedHeader =
       `[${chunk.title} > ${chunk.section}]`;
 
-    const expectedNotes = calendarNotes(year, period);
+    // 겨울방학 조각의 마지막 안내 줄은 다음 학년도 화면을 함께 수집했는지에 따라 두 가지 중 하나입니다.
+    const noteVariants = [calendarNotes(year, period, false), calendarNotes(year, period, true)];
+    const expectedNotes =
+      noteVariants.find(v => v.every((note, i) => lines[i + 1] === note)) ?? noteVariants[0];
 
     if (
       lines[0] !== expectedHeader ||
@@ -240,6 +350,11 @@ export function structureCalendar(chunks) {
         id: `${sourceId}-${String(i + 1).padStart(2, "0")}`,
         academicYear: year,
         period,
+        targetSemester: resolveTargetSemester(
+          year,
+          period,
+          match[3]
+        ),
         name: match[3],
         startDate,
         endDate,

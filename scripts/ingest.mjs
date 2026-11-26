@@ -64,7 +64,7 @@ let chunks = rawChunks;
 
 if (advanced) {
   try {
-    chunks = validateAdvancedChunks(rawChunks, 533); // 11/26: 11377-02 → -a · -b(+1)
+    chunks = validateAdvancedChunks(rawChunks, 537); // 11/26: 11377-02 → -a · -b(+1), 11/27: 2027학년도 학사일정 조각 +4
   } catch (error) {
     console.error("개선 데이터 검증 실패:", error.message);
     process.exit(1);

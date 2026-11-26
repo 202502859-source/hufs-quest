@@ -45,6 +45,8 @@ import { todayContext, ungroundedDates } from "../shared/academicDate.js";
 import { unsupportedContacts } from "./_lib/contactGuard.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
 import { stripListNumbers, dropInvalidCitations, trimTruncated, isRefusalAnswer } from "./_lib/answerFormat.js";
+import { routeCalendar } from "../shared/calendarRoute.js";
+import { kstToday } from "../shared/progressRules.js";
 
 const CLOVA_BASE = "https://clovastudio.stream.ntruss.com";
 const CHAT_URL = `${CLOVA_BASE}/v3/chat-completions/HCX-005`;
@@ -357,7 +359,10 @@ export default async function handler(req, res) {
 
   const started = Date.now();
   const evalMode = isEvalRequest(req, process.env.ASK_EVAL_TOKEN);
-  const useCache = canUseAnswerCache({ evalMode, question });
+  // 학사일정 바로 찾기(C03, 11/27): 날짜 질문이면 맞는 학기의 일정 줄을 찾아 둡니다(오늘 한국 날짜 기준, 네트워크 없음).
+  // 해당 없으면 null이고 아래 흐름은 예전과 완전히 같습니다. 오늘 날짜에 따라 답이 달라지므로 캐시를 쓰지 않습니다.
+  const calendarRoute = routeCalendar(question, { today: kstToday() });
+  const useCache = !calendarRoute && canUseAnswerCache({ evalMode, question });
   const cacheKey = useCache ? buildCacheKey(question, lang) : null;
 
   // 캐시를 쓸 수 있는 일반 질문은 1차 메모리 1분 제한만 먼저 확인하고 캐시를 조회합니다.
@@ -387,6 +392,19 @@ export default async function handler(req, res) {
     res.setHeader("Retry-After", String(limit.retryAfter));
     return res.status(429).json({ error: "too many requests", reason: limit.reason, retryAfter: limit.retryAfter });
   }
+  // 학사일정 바로 찾기: 어느 학기인지 규칙으로 하나를 못 정하면(방식 A) AI를 부르지 않고 학기 버튼만 돌려줍니다.
+  if (calendarRoute?.clarify) {
+    console.log(JSON.stringify({ mode: "clarify", cacheHit: false, calendar: "clarify", calendarTopic: calendarRoute.topic, lang, ...limitLog, ms: Date.now() - started }));
+    return res.status(200).json({ mode: "clarify", clarify: true, answer: null, sources: [], alternatives: calendarRoute.alternatives });
+  }
+  // 학기를 정했으면 응답에 기준 학기(질문에 연도가 없을 때만)와 다른 학기 버튼을 붙입니다.
+  const calendarExtra = calendarRoute
+    ? {
+        ...(calendarRoute.termBasis ? { termBasis: calendarRoute.termBasis } : {}),
+        ...(calendarRoute.alternatives.length ? { alternatives: calendarRoute.alternatives } : {}),
+      }
+    : {};
+  const calendarLog = calendarRoute ? { calendar: "route", calendarTopic: calendarRoute.topic, calendarSemester: calendarRoute.semester } : {};
   // 검색에는 정리한 검색어를 쓰고, 답변 생성에는 학생의 원래 질문을 씁니다.
   const { queries, format: rewriteFormat, usage: rewriteUsage } = await rewriteQuery(question);
   // 검색어 정리 호출의 토큰 수 · 종료 이유. 질문과 검색어 내용은 로그에 남기지 않습니다.
@@ -421,6 +439,8 @@ export default async function handler(req, res) {
     retrieval = "keyword";
     docs = keywordSearch(rewritten ? `${question} ${searchTexts.join(" ")}` : question, lang);
   }
+  // 학사일정 바로 찾기로 찾은 일정 줄을 근거 1순위로 넣습니다. 나머지 검색 결과는 그 뒤에 그대로 둡니다.
+  if (calendarRoute) docs = [calendarRoute.doc, ...docs];
   // 하위 질문 개수 · 하위 질문별 근거 수 · RPC 이름만 남깁니다. 질문 · 검색어 내용은 로그에 남기지 않습니다.
   // subQueryIds: 하위 질문마다, 최종 근거(docs)에 들어간 그 하위 질문 검색 결과의 조각 id(어떤 근거가 잘렸는지 진단용).
   const finalDocs = new Set(docs);
@@ -445,8 +465,8 @@ export default async function handler(req, res) {
     : {};
 
   if (!docs.length) {
-    console.log(JSON.stringify({ mode: "none", cacheHit: false, retrieval, rewritten, ...searchLog, ...limitLog, ...rewriteLog, ms: Date.now() - started }));
-    return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
+    console.log(JSON.stringify({ mode: "none", cacheHit: false, retrieval, rewritten, ...searchLog, ...limitLog, ...calendarLog, ...rewriteLog, ms: Date.now() - started }));
+    return res.status(200).json({ mode: "none", answer: null, sources: [], ...calendarExtra, ...evalDebug });
   }
 
   // 출력 토큰 상한을 정하려고 답변 언어 · 글자 수 · 토큰 수만 로그에 남깁니다. 질문과 답변 내용은 남기지 않습니다.
@@ -469,8 +489,8 @@ export default async function handler(req, res) {
     const ungrounded = ungroundedDates(answer, docs);
     if (ungrounded.length) {
       const reason = ungrounded.some((x) => x.includes("-")) ? "ungrounded-date" : "ungrounded-year";
-      console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
-      return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
+      console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+      return res.status(200).json({ mode: "none", answer: null, sources: [], ...calendarExtra, ...evalDebug });
     }
     // 근거 조각에도 질문에도 없는 이메일 · 전화번호 · 인터넷 주소가 있으면 숫자 검사와 똑같이 근거 원문을 대신 보여 줍니다(11/27).
     const contacts = unsupportedContacts(answer, docs, question);
@@ -483,11 +503,11 @@ export default async function handler(req, res) {
     }
     const collectedDates = await fetchCollectedDates(docs, rpc);
     const sources = citedSources(answer, docs, collectedDates);
-    console.log(JSON.stringify({ mode: "ai", cacheHit: false, retrieval, rewritten, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "ai", cacheHit: false, retrieval, rewritten, docs: docs.length, ...searchLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     if (useCache && shouldCacheAnswer({ mode: "ai", truncated: result.truncated })) {
       await setAnswerCache({ cacheKey, lang, answer, sources });
     }
-    return res.status(200).json({ mode: "ai", answer, sources, ...evalDebug });
+    return res.status(200).json({ mode: "ai", answer, sources, ...calendarExtra, ...evalDebug });
   } catch (err) {
     console.error("generation failed:", err.message);
     if (err.usage) usage = { maxTokens: ANSWER_MAX_TOKENS, ...err.usage };
@@ -507,13 +527,16 @@ export default async function handler(req, res) {
       : {};
     // AI 연결이 안 되면 근거 원문을 그대로 보여 줍니다. 추측한 답은 만들지 않습니다.
     // 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다.
-    const top = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
+    // 학사일정 바로 찾기 근거가 있으면 원문 보여 주기에도 그 일정 줄을 맨 앞에 둡니다.
+    const searched = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
+    const top = calendarRoute ? [calendarRoute.doc, ...searched].slice(0, 2) : searched;
     const collectedDates = await fetchCollectedDates(top, rpc);
-    console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, ...contactLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, ...contactLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({
       mode: "evidence",
       answer: top.map((d) => d.text).join("\n"),
       sources: citedSources("", top, collectedDates),
+      ...calendarExtra,
       ...evalDebug,
     });
   }

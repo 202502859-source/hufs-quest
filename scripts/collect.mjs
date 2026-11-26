@@ -25,8 +25,16 @@ let personalMasked = 0; // 개인 연락처를 가린 줄 수(사람 이름 표�
 const personalEmails = new Set(); // 가린 메일 아이디(@ 앞)만. 줄 내용은 출력하지 않음
 let globalTableDropped = 0; // 글로벌캠퍼스 전용으로 뺀 표 정리 조각 수
 
+// 학사일정은 다음 학년도 화면도 같은 주소에 ?year=YYYY를 붙여 수집합니다(11/27~, robots 허용 subview.do).
+// 조각 id는 "11360-YYYY-01~04"로 지금 학년도 화면("11360-01~04")과 겹치지 않게 합니다.
+const calendarYears = new Set(
+  urls.map((u) => u.match(/\/11360\/subview\.do\?year=(\d{4})$/)?.[1]).filter(Boolean).map(Number),
+);
+
 for (const [i, url] of urls.entries()) {
-  const pageId = url.match(/\/(\d+)\/subview\.do/)?.[1] ?? `p${i + 1}`;
+  const basePageId = url.match(/\/(\d+)\/subview\.do/)?.[1] ?? `p${i + 1}`;
+  const yearParam = url.match(/\/11360\/subview\.do\?year=(\d{4})$/)?.[1];
+  const pageId = yearParam ? `${basePageId}-${yearParam}` : basePageId;
   try {
     const res = await fetch(url, { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(20000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -36,8 +44,10 @@ for (const [i, url] of urls.entries()) {
     for (const id of mails) personalEmails.add(id);
     if (!lines.length) throw new Error("본문 없음");
     // 학사일정 페이지는 날짜마다 연도를 붙인 줄로 바꿉니다(scripts/lib/calendarPage.mjs). 구조가 바뀌어 못 읽으면 기존 방식.
-    const calendar = pageId === "11360" ? calendarChunks({ pageId, title, url, lines }) : null;
-    if (pageId === "11360" && !calendar) console.warn("주의: 학사일정 페이지를 일정으로 읽지 못해 기존 방식으로 자릅니다. 연도가 빠지니 확인하세요.");
+    const calendar = basePageId === "11360"
+      ? calendarChunks({ pageId, title, url, lines, nextYearListed: (y) => calendarYears.has(y + 1) })
+      : null;
+    if (basePageId === "11360" && !calendar) console.warn("주의: 학사일정 페이지를 일정으로 읽지 못해 기존 방식으로 자릅니다. 연도가 빠지니 확인하세요.");
     const chunks = (calendar ?? toChunks({ pageId, title, url, lines })).map((c) => ({ ...c, collected_at: collectedAt }));
     all.push(...chunks);
     let extra = "";
