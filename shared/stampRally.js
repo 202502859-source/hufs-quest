@@ -4,6 +4,7 @@
 // 문제 규칙(11/27 PM 결정: 이종헌) — tests/stampRally.test.js가 확인합니다.
 // - 문제 · 정답 · 오답 보기는 모두 src/data/buildingInfo.js의 시설 안내 내용에서만 가져옵니다(지어내지 않음).
 // - 정답은 그 건물 시설 안내 화면에 보이는 글자 그대로, 오답 보기는 "다른 건물"의 시설 안내에 실제로 있는 글자입니다.
+//   예외: 층 문제(kind: "floor")는 보기 3개가 모두 그 건물 시설 안내에 실제로 나오는 층 값(floor)이고, 정답은 근거 항목의 floor 그대로입니다.
 // - 잘 안 바뀌는 정보만(사무실 이름 · 하는 일 · 층 · 호실). 운영시간 · 전화번호 · 이메일은 쓰지 않습니다.
 // - 출처가 외부 참고(SOURCES의 kind: "external")인 항목은 문제 · 정답 · 오답 보기에 쓰지 않습니다.
 // - 각 문제의 basis: 정답이 적힌 곳(BUILDING_INFO[건물].offices의 이름 · 칸)과 그 줄의 출처 키(SOURCES).
@@ -86,11 +87,14 @@ export const STAMP_RALLY_QUESTIONS = {
   main: [
     {
       // 근거: main.offices "교육혁신원" room "303호" — 출처 iei · lifeguide2026
+      // 근거: main.offices "KFL학부" floor "9F"(학과(부) 사무실 2곳, 9층에만 나옴) — 출처 lifeguide2026
+      // 층 문제(kind: "floor"): 보기는 본관 시설 안내에 실제로 나오는 층 값(1F · 4F · 9F), 오답도 같은 건물의 실제 층
       id: "main-1",
-      question: { ko: "교육혁신원은 몇 호에 있나요?", en: "Which room is the Institute for Educational Innovation in?" },
-      options: [opt("114호", "Room 114", "union"), opt("303호", "Room 303", "main"), opt("104호", "Room 104", "humanities")],
+      kind: "floor",
+      question: { ko: "KFL학부 사무실은 본관 몇 층에 있나요?", en: "Which floor of the Main Building is the KFL Division office on?" },
+      options: [opt("1층", "1F", "main"), opt("9층", "9F", "main"), opt("4층", "4F", "main")],
       answer: 1,
-      basis: { office: "교육혁신원", field: "room", src: ["iei", "lifeguide2026"] },
+      basis: { office: "KFL학부", field: "floor", src: ["lifeguide2026"] },
     },
     {
       // 근거: main.offices "정보시스템팀"(446호) does "학사·행정 정보시스템 운영" — 출처 ois

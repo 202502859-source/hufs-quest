@@ -10,6 +10,9 @@ const isExternal = (office) => officeSourceKeys(office).some((key) => SOURCES[ke
 const officialOffices = (buildingId) => allOffices(BUILDING_INFO[buildingId].offices).filter((office) => !isExternal(office));
 // 시설 안내 화면에 보이는 짧은 글자(이름 · 호실)
 const shownTexts = (offices) => new Set(offices.flatMap((office) => [office.name.ko, office.room].filter(Boolean)));
+// 시설 안내 화면의 층 표시("9층" · "9F"). 층 문제(kind: "floor")의 보기는 이 값만 씁니다.
+const floorTexts = (offices, lang = "ko") => new Set(offices.flatMap((office) => floorsOf(office).map((f) => floorLabel(f, lang))));
+const isFloorQuestion = (q) => q.kind === "floor";
 const allQuestions = STAMP_RALLY_IDS.flatMap((id) => STAMP_RALLY_QUESTIONS[id].map((q) => ({ buildingId: id, q })));
 
 test("대상은 4곳(도서관 → 학생회관 → 본관 → 인문과학관), 모두 buildingInfo에 있고 사이버관 · 정문 · 외국어연수평가원은 아님", () => {
@@ -41,11 +44,20 @@ test("정답은 그 건물 시설 안내(공식 출처 항목)에 글자 그대�
     const offices = officialOffices(buildingId);
     const answer = q.options[q.answer];
     assert.equal(answer.from, buildingId, `${q.id}: 정답은 그 건물 것이어야 함`);
-    assert.ok(shownTexts(offices).has(answer.text.ko), `${q.id}: 정답 "${answer.text.ko}"가 ${buildingId} 시설 안내에 없음`);
-
     const office = offices.find((x) => x.name.ko === q.basis.office);
     assert.ok(office, `${q.id}: 근거 항목 "${q.basis.office}"가 공식 출처 항목에 없음`);
-    assert.ok([office.name.ko, office.room].includes(answer.text.ko), `${q.id}: 정답이 근거 항목의 이름 · 호실이 아님`);
+    if (isFloorQuestion(q)) {
+      // 층 문제: 근거 항목이 그 건물에서 한 층에만 나오고(같은 이름이 다른 층에 또 있으면 안 됨), 정답은 그 floor 그대로
+      const sameName = offices.filter((x) => x.name.ko === office.name.ko);
+      const floors = new Set(sameName.flatMap((x) => floorsOf(x).map((f) => floorLabel(f, "ko"))));
+      assert.equal(floors.size, 1, `${q.id}: "${office.name.ko}"가 여러 층(${[...floors].join(", ")})에 나옴`);
+      assert.equal(answer.text.ko, [...floors][0], `${q.id}: 정답이 근거 항목의 층이 아님`);
+      assert.ok(q.question.ko.includes(office.name.ko), `${q.id}: 문제에 근거 항목 이름이 없음`);
+      assert.equal(q.basis.field, "floor");
+    } else {
+      assert.ok(shownTexts(offices).has(answer.text.ko), `${q.id}: 정답 "${answer.text.ko}"가 ${buildingId} 시설 안내에 없음`);
+      assert.ok([office.name.ko, office.room].includes(answer.text.ko), `${q.id}: 정답이 근거 항목의 이름 · 호실이 아님`);
+    }
     assert.deepEqual([...q.basis.src].sort(), [...officeSourceKeys(office)].sort(), `${q.id}: 출처 키`);
     for (const key of q.basis.src) assert.notEqual(SOURCES[key].kind, "external", `${q.id}: 외부 참고 출처 ${key}`);
 
@@ -58,8 +70,17 @@ test("정답은 그 건물 시설 안내(공식 출처 항목)에 글자 그대�
   }
 });
 
-test("오답 보기는 다른 건물의 실제 시설 안내(공식 출처) 글자이고, 그 건물(문제 건물)에는 없는 글자", () => {
+test("오답 보기는 다른 건물의 실제 시설 안내(공식 출처) 글자이고, 그 건물(문제 건물)에는 없는 글자. 층 문제만 예외로 같은 건물의 실제 층 값", () => {
   for (const { buildingId, q } of allQuestions) {
+    if (isFloorQuestion(q)) {
+      // 층 문제: 보기 3개 모두 그 건물 시설 안내(공식 출처)에 실제로 있는 floor 값
+      const floors = floorTexts(officialOffices(buildingId));
+      q.options.forEach((option) => {
+        assert.equal(option.from, buildingId, `${q.id}: 층 보기 "${option.text.ko}"`);
+        assert.ok(floors.has(option.text.ko), `${q.id}: "${option.text.ko}"는 ${buildingId} 시설 안내에 없는 층`);
+      });
+      continue;
+    }
     const own = shownTexts(allOffices(BUILDING_INFO[buildingId].offices));
     q.options.forEach((option, i) => {
       if (i === q.answer) return;
@@ -71,8 +92,14 @@ test("오답 보기는 다른 건물의 실제 시설 안내(공식 출처) 글�
   }
 });
 
-test("영어 보기는 시설 안내 화면과 같은 표기(영어 이름, 없으면 한국어 이름, 호실은 Room N)", () => {
+test("영어 보기는 시설 안내 화면과 같은 표기(영어 이름, 없으면 한국어 이름, 호실은 Room N, 층은 9F)", () => {
   for (const { q } of allQuestions) {
+    if (isFloorQuestion(q)) {
+      const ko = [...floorTexts(officialOffices(q.options[0].from), "ko")];
+      const en = [...floorTexts(officialOffices(q.options[0].from), "en")];
+      for (const option of q.options) assert.equal(option.text.en, en[ko.indexOf(option.text.ko)], `${q.id}: ${option.text.ko}`);
+      continue;
+    }
     for (const option of q.options) {
       const offices = officialOffices(option.from);
       const byName = offices.find((x) => x.name.ko === option.text.ko);
