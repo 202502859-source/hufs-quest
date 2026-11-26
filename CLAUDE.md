@@ -48,7 +48,7 @@ Phaser 3 + Vite, JavaScript. 서버 함수는 Vercel(`api/`), DB는 Supabase, AI
 - 실행: `npm run dev` → http://localhost:5173 (Windows PowerShell에서는 `npm.cmd run dev`)
 - 로컬에는 서버 함수가 없어 검색창은 "AI 연결 없이 찾은 원문" 모드로만 동작한다. AI 답변은 PR의 Vercel Preview 링크에서 확인한다.
 - 학사 페이지 추가: `scripts/urls.txt`에 한 줄 추가 → `npm run collect` → 조각 점검 → `npm run ingest -- --target next`(시험 DB) → Preview에서 eval → 통과하면 실서비스 `npm run ingest`
-- 정확도 테스트: `npm run eval`(실서비스) 또는 `npm run eval -- <Preview 주소>`. 62문항(학사 47 · 범위 밖 3 · 까다로운 12). NCP 크레딧 등록 전(개발지원비 입금 확인 전)까지 하루 1회(11/21만 기준선 + 비교 2회 예외). 기대 답은 사람이 원문을 보고 정하고, 미검증 문항이 있으면 스크립트가 멈춘다.
+- 정확도 테스트: `npm run eval`(실서비스) 또는 `npm run eval -- <Preview 주소>`. 62문항(학사 47 · 범위 밖 3 · 까다로운 12). **eval 규칙(11/26):** 크레딧 등록 완료(11/26, 잔액 497,980원, 12/31 만료). eval 전체 실행은 하루 2회까지(예: Preview 1회 + 실서비스 1회). 실행할 때마다 PR이나 STATUS에 결과 파일·정답 수를 기록하고, 밤 점검 때 크레딧 잔액을 같이 적는다. 하루 크레딧이 1만 원 넘게 줄면 단톡에 알린다. 기대 답은 사람이 원문을 보고 정하고, 미검증 문항이 있으면 스크립트가 멈춘다.
 - 시험 DB: Supabase `chunks_next` · `match_chunks_next`(`supabase/005_chunks_next.sql`). Preview는 Vercel 환경 변수 `CHUNKS_RPC=match_chunks_next`로 시험 DB를, 실서비스는 `chunks`를 본다. 지우거나 바꾸지 않는다(`docs/STATUS.md` 3장).
 - **`npm run ingest`(대상 지정 없음)는 실제 서비스 DB를 바꾼다.** 누가 하든 사용자가 명시적으로 요청할 때만 실행하고, 실행했다는 사실과 조각 수 변화를 PR에 적는다. Supabase 테이블 구조 변경, Vercel 환경 변수 변경도 같은 규칙을 따른다.
 
