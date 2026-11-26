@@ -12,8 +12,50 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { isRefusal } from "./lib/evalGrade.mjs";
+import { CORE_1126 } from "./lib/evalCore1126.mjs";
+import { gradeRetrieval } from "./lib/evalRetrieval.mjs";
+import { checkCoreAnswer } from "./lib/evalCoreGrade.mjs";
 
-const BASE = (process.argv[2] || "https://hufs-quest.vercel.app").replace(/\/$/, "");
+const args = process.argv.slice(2);
+let baseUrl = "https://hufs-quest.vercel.app";
+let suite = "legacy";
+let hiddenFile = null;
+let listOnly = false;
+
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+
+  if (arg === "--suite") {
+    suite = args[++i];
+  } else if (arg === "--hidden-file") {
+    hiddenFile = args[++i];
+
+    if (!hiddenFile || hiddenFile.startsWith("--")) {
+      throw new Error("숨긴 문항 파일 경로가 필요합니다.");
+    }
+  } else if (arg === "--list") {
+    listOnly = true;
+  } else if (
+    arg.startsWith("https://") ||
+    arg.startsWith("http://")
+  ) {
+    baseUrl = arg;
+  } else {
+    throw new Error("알 수 없는 옵션: " + arg);
+  }
+}
+
+if (!["legacy", "core-1126", "all"].includes(suite)) {
+  throw new Error("지원하지 않는 평가 묶음입니다.");
+}
+
+if (hiddenFile && suite !== "core-1126") {
+  throw new Error("숨긴 문항은 core-1126 최종 평가에서만 사용합니다.");
+}
+
+const BASE = baseUrl.endsWith("/")
+  ? baseUrl.slice(0, -1)
+  : baseUrl;
 const DELAY_MS = 6500;
 const EVAL_ENV = readEvalEnv(["ASK_EVAL_TOKEN", "VERCEL_AUTOMATION_BYPASS_SECRET"]);
 const EXTRA_HEADERS = {
@@ -38,7 +80,7 @@ function readEvalEnv(names) {
 // mustNot: 있으면 안 되는 말 / lang: 기본 ko
 // pages는 출처 주소의 /번호/ 또는 /파일이름. 부분과 맞춥니다(예: studentlifeguide2026 → …/studentlifeguide2026.pdf).
 // 모든 정답은 data/chunks.json(2026-11-10 수집)의 원문에서 뽑았습니다. 원문이 바뀌면 정답도 다시 확인하세요.
-const CASES = [
+const LEGACY_CASES = [
   // ── 학사경고·제적·재입학
   { q: "학사경고 몇 번 받으면 제적돼?", type: "구어체", pages: ["11382", "11383"], must: ["4회"] },
   { q: "학사경고는 평점 몇 미만이면 받아?", type: "기본", pages: ["11382", "11383"], must: ["1.75"] },
@@ -131,6 +173,73 @@ const CASES = [
 
 ];
 
+const hiddenCases = hiddenFile
+  ? JSON.parse(readFileSync(hiddenFile, "utf8"))
+  : [];
+
+if (hiddenFile) {
+  if (!Array.isArray(hiddenCases) || hiddenCases.length !== 10) {
+    throw new Error("숨긴 문항은 정확히 10개여야 합니다.");
+  }
+
+  const counts = {};
+
+  for (const c of hiddenCases) {
+    if (
+      !c.id ||
+      !c.q ||
+      c.hidden !== true ||
+      c.reviewed !== true ||
+      c.set !== "core-1126" ||
+      !c.pages?.length ||
+      !c.evidenceIds?.length ||
+      !c.evidence?.length ||
+      !(c.must?.length || c.any?.length ||
+        c.anyOf?.length || c.mustGroups?.length)
+    ) {
+      throw new Error("숨긴 문항 형식 오류");
+    }
+
+    counts[c.category] = (counts[c.category] || 0) + 1;
+  }
+
+  if (
+    counts["학사일정"] !== 3 ||
+    counts["전공제도"] !== 3 ||
+    counts["수강신청"] !== 4
+  ) {
+    throw new Error("숨긴 문항 분야별 배분 오류");
+  }
+
+  const ids = [...CORE_1126, ...hiddenCases].map(c => c.id);
+
+  if (new Set(ids).size !== 30) {
+    throw new Error("문항 ID 중복");
+  }
+}
+
+const CASES = suite === "legacy"
+  ? LEGACY_CASES
+  : suite === "all"
+    ? [...LEGACY_CASES, ...CORE_1126]
+    : [...CORE_1126, ...hiddenCases];
+
+if (listOnly) {
+  console.log("평가 묶음:", suite);
+  console.log("전체 문항 수:", CASES.length);
+  console.log("숨긴 문항 수:", CASES.filter(c => c.hidden).length);
+
+  const counts = {};
+
+  for (const c of CASES) {
+    const key = c.set || "base";
+    counts[key] = (counts[key] || 0) + 1;
+  }
+
+  console.log("묶음별 문항 수:", counts);
+  process.exit(0);
+}
+
 const unreviewedCases = CASES.filter(
   (c) => c.set === "tricky" && (
     c.reviewed !== true ||
@@ -165,6 +274,9 @@ async function ask(question, lang) {
 
 // 결과 → 정확 / 거절 / 지어냄 / (나) 검색 실패 / (나) 엉뚱한 근거 / (다) 답변 오류
 function grade(c, r) {
+  if (r.status !== 200) {
+    return { result: "요청 오류" };
+  }
   const answer = String(r.answer ?? "");
   if (c.outOfScope) {
     // 거절 표현 판정은 scripts/lib/evalGrade.mjs (11/21~ "공개되지 않" · "확인할 수 없" 등도 숫자 없이 말하면 거절)
@@ -202,11 +314,12 @@ function grade(c, r) {
      )
    );
 
-  const sourceOk = c.set !== "tricky" || foundSource;
+  const sourceOk =
+    !["tricky", "core-1126"].includes(c.set) || foundSource;
   if (r.mode === "none" || !answer) {
     return { result: "(나) 검색 실패", foundSource };
   }
-  if (contentOk && sourceOk) {
+  if (contentOk && sourceOk && checkCoreAnswer(c, answer)) {
     return { result: "정확", foundSource };
   }
   if (!foundSource) {
@@ -229,28 +342,87 @@ for (const [i, c] of CASES.entries()) {
     r = { status: 0, ms: 0, answer: `오류: ${err.message}` };
   }
   const g = grade(c, r);
+  const retrieved = Array.isArray(r.debug?.retrieved)
+    ? r.debug.retrieved
+    : null;
+  const retrieval = gradeRetrieval(c.evidenceIds, retrieved);
 rows.push({
   ...c,
   set: c.set || "base",
+    status: r.status,
+    retrieved,
+    retrieval,
   mode: r.mode,
   ms: r.ms,
   answer: r.answer ?? null,
   sources: (r.sources || []).map((s) => s?.url),
   ...g
-});  console.log(`${String(i + 1).padStart(2)}. ${MARK[g.result]} [${c.type}] ${c.q}`);
-  console.log(`      → ${cut(r.answer || "(답 없음)", 70)}  (${(r.ms / 1000).toFixed(1)}초, ${g.result}${r.mode === "evidence" ? ", AI 실패로 원문 표시" : ""}${r.status === 429 ? `, 사용량 한도(${r.reason})` : ""})`);
+});
+  if (c.hidden) {
+    console.log(`숨긴 문항 ${c.id}: ${g.result}`);
+  } else {
+    console.log(`${String(i + 1).padStart(2)}. ${(MARK[g.result] || "✗")} [${c.type}] ${c.q}`);
+    console.log(`      → ${cut(r.answer || "(답 없음)", 70)}  (${(r.ms / 1000).toFixed(1)}초, ${g.result}${r.mode === "evidence" ? ", AI 실패로 원문 표시" : ""}${r.status === 429 ? `, 사용량 한도(${r.reason})` : ""})`);
+  }
   if (i < CASES.length - 1) await sleep(DELAY_MS);
 }
 
 const baseRows = rows.filter((x) => x.set === "base");
 const trickyRows = rows.filter((x) => x.set === "tricky");
+const coreRows = rows.filter((x) => x.set === "core-1126");
+
+const successfulCoreRows = coreRows.filter(
+  x => x.status === 200
+);
+
+const measuredCoreRows = coreRows.filter(
+  (x) => x.retrieval !== null
+);
+
+const coreSummary = coreRows.length ? {
+  total: coreRows.length,
+  correct: coreRows.filter(x => x.result === "정확").length,
+  hidden: coreRows.filter(x => x.hidden === true).length,
+  retrievalMeasured: measuredCoreRows.length,
+  retrievalUnmeasured: coreRows.length - measuredCoreRows.length,
+  hitAt6: measuredCoreRows.filter(x => x.retrieval.hitAt6).length,
+  allHitAt6: measuredCoreRows.filter(x => x.retrieval.allHitAt6).length,
+  recallAt6: measuredCoreRows.length
+    ? measuredCoreRows.reduce(
+        (sum, x) => sum + x.retrieval.recallAt6, 0
+      ) / measuredCoreRows.length
+    : null,
+  avgMs: successfulCoreRows.length
+    ? successfulCoreRows.reduce(
+        (sum, x) => sum + x.ms, 0
+      ) / successfulCoreRows.length
+    : null,
+  requestErrors: coreRows.filter(
+    x => x.status !== 200
+  ).length
+} : null;
 
 const inScope = baseRows.filter((x) => !x.outOfScope);
 const outScope = baseRows.filter((x) => x.outOfScope);
 const correct = inScope.filter((x) => x.result === "정확").length;
 const refused = outScope.filter((x) => x.result === "거절").length;
 const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
-const avg = rows.reduce((sum, x) => sum + (x.ms || 0), 0) / rows.length / 1000;
+const successfulRows = rows.filter(x => x.status === 200);
+const avg = successfulRows.length
+  ? successfulRows.reduce((sum, x) => sum + x.ms, 0) / successfulRows.length / 1000
+  : null;
+
+const hallucinations = outScope.filter(
+  x => x.result === "지어냄"
+).length;
+
+const requestErrors = rows.filter(
+  x => x.status !== 200
+).length;
+
+const outScopeErrors = outScope.filter(
+  x => x.status !== 200
+).length;
 
 console.log("\n──────────── 요약 ────────────");
 
@@ -281,8 +453,8 @@ for (const row of trickyViolations) {
 }
 
 console.log(`학사 질문    : ${inScope.length}개 중 ${correct}개 정확 (${pct(correct, inScope.length)}%)`);
-console.log(`범위 밖 질문 : ${outScope.length}개 중 ${refused}개 "찾지 못함" 안내 (지어낸 답 ${outScope.length - refused}건)`);
-console.log(`평균 응답    : ${avg.toFixed(1)}초`);
+console.log(`범위 밖 질문 : ${outScope.length}개 중 ${refused}개 "찾지 못함" 안내 (지어낸 답 ${hallucinations}건, 요청 오류 ${outScopeErrors}건)`);
+console.log(`평균 응답    : ${avg === null ? "측정 불가" : avg.toFixed(1) + "초"}`);
 // 기준선: 11/17 학사 45개 중 43개 · 범위 밖 5개 모두 거절. 11/20에 범위 밖 2문항(도서관 · 이번 학기 중간고사)을 학사로 옮겨
 // 학사 47 · 범위 밖 3이 됨 → 기존 45문항 정답 43개 이상 + 범위 밖 3개 모두 거절이 통과 기준. 옮긴 2문항은 첫 실행 결과로 새 기준선을 정함.
 console.log(`기준선       : 기존 학사 45문항 중 43개 정확(11/17) · 범위 밖 전부 "찾지 못함" (11/20부터 학사 47 · 범위 밖 3)\n`);
@@ -294,6 +466,33 @@ for (const type of [...new Set(inScope.map((x) => x.type))]) {
   console.log(`  ${type.padEnd(4)} ${ok}/${list.length} (${pct(ok, list.length)}%)`);
 }
 
+if (coreSummary) {
+  console.log("\n──────── core-1126 평가 ────────");
+  console.log(`정답: ${coreSummary.correct}/${coreSummary.total}`);
+  console.log(`숨긴 문항: ${coreSummary.hidden}개`);
+  console.log(`검색 측정 가능: ${coreSummary.retrievalMeasured}/${coreSummary.total}`);
+  console.log(`검색 측정 불가: ${coreSummary.retrievalUnmeasured}개`);
+
+  if (coreSummary.retrievalMeasured) {
+    console.log(`Hit@6: ${coreSummary.hitAt6}/${coreSummary.retrievalMeasured}`);
+    console.log(`AllHit@6: ${coreSummary.allHitAt6}/${coreSummary.retrievalMeasured}`);
+    console.log(`Recall@6: ${(coreSummary.recallAt6 * 100).toFixed(1)}%`);
+  } else {
+    console.log("검색 적중률: 측정 불가");
+  }
+
+  console.log(coreSummary.avgMs === null
+    ? "평균 응답: 측정 불가"
+    : `평균 응답: ${(coreSummary.avgMs / 1000).toFixed(2)}초`);
+  console.log(`요청 오류: ${coreSummary.requestErrors}건`);
+
+  for (const category of [...new Set(coreRows.map(x => x.category))]) {
+    const group = coreRows.filter(x => x.category === category);
+    const correct = group.filter(x => x.result === "정확").length;
+    console.log(`${category}: ${correct}/${group.length}`);
+  }
+}
+
 console.log("\n틀린 이유");
 for (const kind of ["(나) 검색 실패", "(나) 엉뚱한 근거", "(다) 답변 오류"]) {
   const list = inScope.filter((x) => x.result === kind);
@@ -302,23 +501,37 @@ for (const kind of ["(나) 검색 실패", "(나) 엉뚱한 근거", "(다) 답�
 console.log("  ※ (나) → 조각 나누기·검색 개선 / (다) → 답변 규칙·검증 개선 / 문서 자체가 없으면 (가) → 수집 대상 추가");
 
 const stamp = new Date(startedAt.getTime() + 9 * 3600e3).toISOString().slice(0, 16).replace(/[-:]/g, "").replace("T", "-"); // 한국 시간
-const outUrl = new URL(`../data/eval/${stamp}.json`, import.meta.url);
+let filename = `${stamp}.json`;
+let suffix = 1;
+let outUrl = new URL(`../data/eval/${filename}`, import.meta.url);
+
+while (existsSync(outUrl)) {
+  filename = `${stamp}-${suffix++}.json`;
+  outUrl = new URL(`../data/eval/${filename}`, import.meta.url);
+}
 await mkdir(new URL("../data/eval/", import.meta.url), { recursive: true });
 
 await writeFile(
   outUrl,
   `${JSON.stringify({
     base: BASE,
+    suite,
+    core1126: coreSummary,
     at: startedAt.toISOString(),
     correct,
     total: inScope.length,
     refused,
     outOfScope: outScope.length,
+    hallucinations,
+    requestErrors,
+    outScopeErrors,
+    avgMs: avg === null ? null : avg * 1000,
     trickyCorrect,
     trickyTotal: trickyRows.length,
     trickyViolations: trickyViolations.length,
     trickySourceMissing: trickySourceMissing.length,
-    rows
-  }, null, 2)}\n`
+    rows: rows.filter(x => !x.hidden)
+  }, null, 2)}\n`,
+  { flag: "wx" }
 );
-console.log(`\n결과 저장 → data/eval/${stamp}.json\n`);
+console.log(`\n결과 저장 → data/eval/${filename}\n`);
