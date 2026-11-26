@@ -10,7 +10,7 @@ import {
   splitDeadlineGroups,
   upcomingDeadlines,
 } from "../shared/deadlineCalc.js";
-import handler, { buildResponse } from "../api/deadlines.js";
+import handler, { buildResponse, isChecked } from "../api/deadlines.js";
 
 const CATEGORIES = ["academic", "scholarship", "campus", "external"];
 const TEAM_MEMBERS = ["이종헌", "신중혁", "임현규"];
@@ -171,4 +171,24 @@ test("api/deadlines.js: 고정 시각 기준 status/startsAt/checkedOn 포함 ·
   assert.equal(statusCode, 200);
   assert.equal(headers["Cache-Control"], "no-store");
   assert.ok(Array.isArray(handlerBody.items));
+});
+test("api/deadlines.js: checked(원문 대조 기록)가 없는 AI 초안은 응답에 넣지 않음 (notice:draft 안전장치)", () => {
+  const fixedNow = Date.parse("2026-11-26T12:00:00+09:00");
+  const base = {
+    title: { ko: "초안 공지", en: "" },
+    dept: { ko: "장학팀", en: "" },
+    category: "scholarship",
+    deadline: "2026-12-01T16:00:00+09:00",
+    url: "https://www.hufs.ac.kr/bbs/hufs/2182/999999/artclView.do",
+  };
+  const items = [
+    { ...base, id: "no-checked" },
+    { ...base, id: "empty-checked", checked: { on: "", by: "" } },
+    { ...base, id: "no-by", checked: { on: "2026-11-26", by: "" } },
+    { ...base, id: "bad-date", checked: { on: "11/26", by: "임현규" } },
+    { ...base, id: "checked-ok", checked: { on: "2026-11-26", by: "임현규" } },
+  ];
+  assert.deepEqual(buildResponse(items, fixedNow).items.map((x) => x.id), ["checked-ok"]);
+  assert.equal(isChecked(items[4]), true);
+  assert.equal(isChecked(items[0]), false);
 });

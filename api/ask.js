@@ -203,6 +203,7 @@ async function vectorSearch(text, rpc) {
       url: row.url,
       text: row.text,
       similarity: row.similarity || 0,
+      method: "vector",
     }));
 }
 
@@ -210,6 +211,7 @@ async function vectorSearch(text, rpc) {
 function keywordSearch(question, lang) {
   return retrieve(question, KB, lang, 3).map((doc) => ({
     id: doc.id ? `kb:${doc.id}` : null,
+    method: "keyword",
     title: doc.title[lang],
     page: doc.source.label[lang],
     url: doc.source.url,
@@ -293,10 +295,10 @@ export function citedSources(answer, docs, collectedDates = new Map()) {
   return [...byUrl.values()];
 }
 
-// 답변에 근거 자료에 없는 숫자(날짜, 기간, 학점 등)가 있으면 지어낸 것으로 보고 버립니다.
-// 검사 기준은 예전 hasUnsupportedNumbers와 같고, 무엇이 걸렸는지만 중복 없이 돌려줍니다(진단 로그용).
-// numbers: 근거에 없던 숫자 토큰, timeWords: 근거에 없던 시기 표현. 둘 다 비어 있으면 통과입니다.
-export function unsupportedNumbers(answer, docs) {
+// 답변에 근거 자료와 원본 질문 모두에 없는 숫자가 있으면 지어낸 것으로 보고 버립니다.
+// 기존 근거 검사는 유지하고 질문의 숫자 토큰도 허용합니다. 걸린 값만 중복 없이 돌려줍니다.
+// numbers: 근거와 질문에 없던 숫자 토큰, timeWords: 근거에 없던 시기 표현.
+export function unsupportedNumbers(answer, docs, question = "") {
   const evidence = docs.map((d) => `${d.title} ${d.text}`).join(" ");
   // 줄 맨 앞의 목록 번호("1. ", "2) ", "① ")는 내용이 아니므로 빼고, 문장 안의 숫자는 모두 검사합니다.
   // 번호는 1~2자리 + 뒤에 공백이 있을 때만 빼서 "2026.03.02"나 "2025. " 같은 날짜 · 연도는 그대로 검사합니다.
@@ -304,7 +306,15 @@ export function unsupportedNumbers(answer, docs) {
     .replace(/\[\d+\]/g, " ")
     .replace(/^[ \t]*(?:\d{1,2}[.)]|[①-⑳])[ \t]+/gm, "")
     .match(/\d+(?:[.,]\d+)?/g) || [];
-  const missingNumbers = [...new Set(numbers.filter((n) => !evidence.includes(n)))];
+  // 질문의 숫자는 부분 문자열이 아닌 동일한 숫자 토큰만 허용합니다.
+  const questionNumbers = new Set(
+    question.match(/\d+(?:[.,]\d+)?/g) || []
+  );
+  const missingNumbers = [...new Set(
+    numbers.filter((n) =>
+      !evidence.includes(n) && !questionNumbers.has(n)
+    )
+  )];
   // 숫자 없이 쓴 시기 표현(영어 월 이름, 상순·중순·하순)도 근거에 없으면 지어낸 것으로 봅니다.
   // 근거는 한국어라서 영어 월 이름은 "4월"처럼 바꿔서 찾습니다.
   const lowerEvidence = evidence.toLowerCase();
@@ -424,6 +434,7 @@ export default async function handler(req, res) {
           retrieved: docs.map((doc) => ({
             id: doc.id ?? null,
             score: Number.isFinite(doc.similarity) ? doc.similarity : null,
+            method: doc.method,
           })),
         },
       }
@@ -451,7 +462,7 @@ export default async function handler(req, res) {
       console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
       return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
     }
-    const unsupported = unsupportedNumbers(answer, docs);
+    const unsupported = unsupportedNumbers(answer, docs, question);
     if (unsupported.numbers.length || unsupported.timeWords.length) {
       throw Object.assign(new Error("answer has numbers not in sources"), { unsupported });
     }

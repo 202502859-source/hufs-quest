@@ -48,6 +48,57 @@ export function checkCoreAnswer(c, answer) {
     return true;
   }
 
+  // 신청 가능 여부를 단순 키워드만으로 판단하지 않음.
+  if (c.id === "C11") {
+    const denied =
+      /신청[^.!?;]{0,25}(?:불가|불가능|수\s*없|안\s*됩|안\s*돼|못)/.test(text) ||
+      /신청\s*못/.test(text) ||
+      /(?:조기\s*졸업|대상자)[^.!?;]{0,30}(?:불가|불가능)/.test(text);
+
+    return denied;
+  }
+
+  // 예비수강신청과 실제 수강신청을 구분함.
+  if (c.id === "C15") {
+    const required =
+      /(?:별도(?:로|의)?|반드시|직접|다시)[^.!?;]{0,40}신청[^.!?;]{0,30}(?:해야|하여야|필수|필요)/.test(text) ||
+      /수강신청[^.!?;]{0,40}(?:별도|직접|다시)[^.!?;]{0,30}(?:해야|하여야|필수|필요)/.test(text);
+
+    const falseAutomatic =
+      /자동(?:으로)?\s*(?:완료됩니다|완료돼요|완료됨)/.test(text);
+
+    return required && !falseAutomatic;
+  }
+
+  if (c.id === "C18") {
+    const uniformClaim =
+      /(?:모든\s*학생|모두|전\s*학생|누구나|학번이나?\s*단과대학에?\s*관계없이)[^.!?;]{0,40}(?:동일합니다|동일하다|동일하며|동일하게|같습니다|같다|같으며|똑같습니다)/.test(text);
+
+    const deniesDifference =
+      /(?:다르지|차이가)\s*(?:않|없)|상이하지\s*않/.test(text);
+
+    if (uniformClaim || deniesDifference) {
+      return false;
+    }
+
+    const hasBasis =
+      /학번|단과대학|소속\s*대학|입학\s*연도|입학년도/.test(text);
+
+    const hasDifference =
+      /다르|다릅|달라|다른|다름|상이|차이가\s*있|같지\s*않|동일하지\s*않/.test(text);
+
+    const deniesException =
+      /(?:초과|이월)[^.!?;]{0,30}(?:불가|불가능|허용되지\s*않|가능하지\s*않|적용되지\s*않|적용하지\s*않|없습니다|없다)/.test(text);
+
+    const hasException =
+      /(?:초과|이월)[^.!?;]{0,50}(?:예외|가능|허용|추가|신청할\s*수|적용)/.test(text);
+
+    return (
+      (hasBasis && hasDifference) ||
+      (hasException && !deniesException)
+    );
+  }
+
   if (c.id === "C20") {
     const allCancelDenied =
       /(?:전체\s*과목|모든\s*과목|전\s*과목|전부)[^.!?;]{0,40}(?:불가|없|안\s*됩|안\s*돼|안\s*됨|못)/.test(text);

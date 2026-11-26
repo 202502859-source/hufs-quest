@@ -101,18 +101,60 @@ test("빈 데이터: 서버 응답은 빈 목록(화면은 학교 공지 안내)
   assert.deepEqual(eventsResponse([], NOW).items, []);
 });
 
-test("예시 분리: [예시]는 ?demoEvents=1일 때 화면에서만, 서버 응답에는 절대 없음", () => {
+test("예시 분리: [예시]는 ?demoEvents=1일 때 화면에서만, 서버 응답에는 절대 없음", async () => {
   assert.equal(demoEventsEnabled(""), false);
   assert.equal(demoEventsEnabled("?demoEvents=0"), false);
   assert.equal(demoEventsEnabled("?demoEvents=1"), true);
   const demos = upcomingEvents(demoEvents(NOW), NOW);
   assert.ok(demos.length >= 2 && demos.every((e) => e.demo && e.title.ko.startsWith("[예시]")));
-  demoEvents(NOW).forEach((e) => assert.deepEqual(eventProblems(e), [], `${e.id}: 예시도 형식 규칙을 지킴`));
+  // 팀 입력 모양 예시는 정적 데이터 규칙(eventProblems)을 지킴. 학생 제보(crowd) 예시는 정적 데이터에 쓸 수 없으므로
+  // api/events.js crowdItem이 만드는 모양(원문을 ko · en에 그대로, 제보자 수 · 팀 확인 여부)인지 따로 확인
+  demoEvents(NOW)
+    .filter((e) => e.sourceType !== "crowd")
+    .forEach((e) => assert.deepEqual(eventProblems(e), [], `${e.id}: 예시도 형식 규칙을 지킴`));
+  const crowd = demoEvents(NOW).filter((e) => e.sourceType === "crowd");
+  assert.equal(crowd.length, 1, "학생 제보 예시 1개");
+  assert.ok(crowd.every((e) => e.demo && e.reporters >= 1 && e.confirmed === false && e.title.ko === e.title.en && e.title.ko.startsWith("[예시]") && !e.checked));
 
   let body = null;
   const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(code) { this.code = code; return this; }, json(b) { body = b; return this; } };
-  handler({ method: "GET", url: "/api/events?demoEvents=1", query: { demoEvents: "1" } }, res);
+  await handler({ method: "GET", url: "/api/events?demoEvents=1", query: { demoEvents: "1" } }, res);
   assert.equal(res.code, 200);
   assert.equal(res.headers["Cache-Control"], "no-store");
   assert.ok(body.items.every((e) => !e.demo), "서버 응답에 예시 없음");
+});
+
+test("출처 배지: school · sns · host는 문구 키(한/영 문구 있음), 모르는 값이면 배지 없음", async () => {
+  const { sourceBadgeKey } = await import("../src/ui/eventView.js");
+  const { setLang, t } = await import("../src/state.js");
+  assert.equal(sourceBadgeKey("school"), "eventSourceSchool");
+  assert.equal(sourceBadgeKey("sns"), "eventSourceSns");
+  assert.equal(sourceBadgeKey("host"), "eventSourceHost");
+  for (const unknown of ["blog", "", undefined, null, "toString", "constructor"]) assert.equal(sourceBadgeKey(unknown), null, String(unknown));
+  setLang("ko");
+  assert.deepEqual(["school", "sns", "host"].map((s) => t(sourceBadgeKey(s))), ["학교 공지", "학생회·동아리 SNS", "주최 측 제공"]);
+  setLang("en");
+  assert.deepEqual(["school", "sns", "host"].map((s) => t(sourceBadgeKey(s))), ["School notice", "Student org SNS", "Provided by host"]);
+  setLang("ko");
+});
+
+test("행사 제보하기 링크: 주소가 https://로 시작할 때만, 빈 값이면 만들지 않음(EVENT_REPORT_URL은 11/26 구글 폼 연결)", async () => {
+  const { reportLinkUrl } = await import("../src/ui/eventView.js");
+  const { EVENT_REPORT_URL } = await import("../src/data/eventsApi.js");
+  assert.equal(reportLinkUrl(""), null);
+  assert.equal(reportLinkUrl(undefined), null);
+  assert.equal(reportLinkUrl("http://forms.gle/abc"), null, "http는 안 됨");
+  assert.equal(reportLinkUrl("javascript:alert(1)"), null);
+  assert.equal(reportLinkUrl("https://forms.gle/abc"), "https://forms.gle/abc");
+  // 행사 제보 구글 폼(11/26 연결). 주소 뒤 추적 값(?usp=…) 없이
+  assert.match(EVENT_REPORT_URL, /^https:\/\/docs\.google\.com\/forms\/d\/e\/[\w-]+\/viewform$/);
+  assert.equal(reportLinkUrl(EVENT_REPORT_URL), EVENT_REPORT_URL);
+});
+
+test("예시(?demoEvents=1)에 sns 예시 1개: 제목 [예시] 학생회 SNS 행사, 실제 계정 주소 아님", () => {
+  const sns = demoEvents(NOW).filter((e) => e.sourceType === "sns");
+  assert.equal(sns.length, 1);
+  assert.equal(sns[0].title.ko, "[예시] 학생회 SNS 행사");
+  assert.equal(sns[0].url, "https://www.instagram.com/");
+  assert.ok(sns[0].demo);
 });

@@ -8,6 +8,9 @@ const REFRESH_MS = 5 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 // 행사가 없을 때 안내하는 학교 홈페이지 공지 게시판("공지안내", 2026-11-24 확인)
 export const SCHOOL_NOTICE_URL = "https://www.hufs.ac.kr/hufs/11281/subview.do";
+// 11/26 게스트 제보 닫음으로 화면에서 사용 안 함(PM 결정: 이종헌). 되돌릴 수 있게 상수 · 테스트는 남겨 둡니다.
+// "행사 제보하기" 구글 폼 주소. 행사 제보 구글 폼(11/26 임현규 생성, 개인정보·이메일 수집 없음). https://로 시작하는 주소를 넣으면 행사 창에 링크가 보입니다(src/ui/eventView.js reportLinkUrl).
+export const EVENT_REPORT_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdoivsG9JPjDBbKmj5rsTVDppVuVsNzObtAMBPybEuRQA7qfg/viewform";
 
 /*
  * 학교 행사를 서버(api/events.js)에서 받아 옵니다.
@@ -80,6 +83,36 @@ export function demoEvents(nowMs) {
       place: { ko: "본관", en: "Main Hall" },
       buildingId: "main",
       category: "lecture",
+    },
+    {
+      ...base,
+      id: "demo-sns",
+      sourceType: "sns",
+      url: "https://www.instagram.com/", // 화면 확인용. 실제 계정 주소는 쓰지 않습니다
+      title: { ko: "[예시] 학생회 SNS 행사", en: "[Example] Student council SNS event" },
+      host: { ko: "[예시] 학과 학생회", en: "[Example] Department student council" },
+      summary: { ko: "화면 확인용 예시입니다. 실제 행사가 아니에요.", en: "A sample for checking the screen. Not a real event." },
+      startsAt: at(3, 9),
+      endsAt: at(3, 11),
+      place: { ko: "국제학사 및 학생회관", en: "GlobeeDorm & Student Union" },
+      buildingId: "union",
+      category: "recruit",
+    },
+    // 학생 제보 배지 확인용(api/events.js의 crowd 항목과 같은 모양: 원문을 ko · en에 그대로, 확인 날짜 없음)
+    {
+      id: "demo-crowd",
+      demo: true,
+      sourceType: "crowd",
+      reporters: 5,
+      confirmed: false,
+      title: { ko: "[예시] 학생 제보 행사", en: "[예시] 학생 제보 행사" },
+      host: { ko: "[예시] 동아리 연합회", en: "[예시] 동아리 연합회" },
+      summary: { ko: "화면 확인용 예시입니다. 실제 행사가 아니에요.", en: "화면 확인용 예시입니다. 실제 행사가 아니에요." },
+      startsAt: at(1, 9),
+      endsAt: at(1, 12),
+      place: { ko: "학생회관 앞", en: "학생회관 앞" },
+      buildingId: "union",
+      category: "festival",
     },
   ];
 }

@@ -12,13 +12,20 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { isRefusal } from "./lib/evalGrade.mjs";
+import { validateEvalTarget } from "./lib/evalTarget.mjs";
 import { CORE_1126 } from "./lib/evalCore1126.mjs";
-import { gradeRetrieval } from "./lib/evalRetrieval.mjs";
+import { gradeRetrieval, retrievalMethod } from "./lib/evalRetrieval.mjs";
 import { checkCoreAnswer } from "./lib/evalCoreGrade.mjs";
+import {
+  evidenceGroups,
+  gradeEvidenceGroups,
+  hasAdvancedSource
+} from "./lib/evalAdvancedEvidence.mjs";
 
 const args = process.argv.slice(2);
 let baseUrl = "https://hufs-quest.vercel.app";
 let suite = "legacy";
+let dataset = "original";
 let hiddenFile = null;
 let listOnly = false;
 
@@ -27,6 +34,14 @@ for (let i = 0; i < args.length; i++) {
 
   if (arg === "--suite") {
     suite = args[++i];
+  } else if (arg === "--dataset") {
+    dataset = args[++i];
+
+    if (!["original", "advanced"].includes(dataset)) {
+      throw new Error(
+        "--dataset은 original 또는 advanced만 가능합니다."
+      );
+    }
   } else if (arg === "--hidden-file") {
     hiddenFile = args[++i];
 
@@ -56,6 +71,28 @@ if (hiddenFile && suite !== "core-1126") {
 const BASE = baseUrl.endsWith("/")
   ? baseUrl.slice(0, -1)
   : baseUrl;
+// 개선 데이터 평가는 실서비스 주소에서 실행하지 않습니다.
+if (
+  dataset === "advanced" &&
+  !listOnly &&
+  (
+    new URL(BASE).hostname === "hufs-quest.vercel.app" ||
+    !baseUrl.startsWith("https://")
+  )
+) {
+  throw new Error(
+    "개선 데이터 평가는 별도의 HTTPS Preview 주소가 필요합니다."
+  );
+}
+
+// 목록 조회에서는 외부 요청을 보내지 않습니다.
+if (!listOnly) {
+  validateEvalTarget(
+    BASE,
+    process.env.EVAL_TRUSTED_PREVIEW_ORIGIN || ""
+  );
+}
+
 const DELAY_MS = 6500;
 const EVAL_ENV = readEvalEnv(["ASK_EVAL_TOKEN", "VERCEL_AUTOMATION_BYPASS_SECRET"]);
 const EXTRA_HEADERS = {
@@ -226,6 +263,7 @@ const CASES = suite === "legacy"
 
 if (listOnly) {
   console.log("평가 묶음:", suite);
+  console.log("평가 데이터 기준:", dataset);
   console.log("전체 문항 수:", CASES.length);
   console.log("숨긴 문항 수:", CASES.filter(c => c.hidden).length);
 
@@ -264,6 +302,7 @@ async function ask(question, lang) {
   const started = Date.now();
   const res = await fetch(`${BASE}/api/ask`, {
     method: "POST",
+    redirect: "error",
     headers: { "Content-Type": "application/json", ...EXTRA_HEADERS },
     body: JSON.stringify({ question, lang }),
     signal: AbortSignal.timeout(30000),
@@ -290,7 +329,7 @@ function grade(c, r) {
     c.pages.some((p) =>
       url.includes(`/${p}/`) || url.includes(`/${p}.`)
     )
-  );
+  ) || hasAdvancedSource(c, cited, dataset);
 
 
 
@@ -345,13 +384,40 @@ for (const [i, c] of CASES.entries()) {
   const retrieved = Array.isArray(r.debug?.retrieved)
     ? r.debug.retrieved
     : null;
-  const retrieval = gradeRetrieval(c.evidenceIds, retrieved);
+  // 기존 검색 방식 검증 결과를 먼저 확인합니다.
+  const originalRetrieval = gradeRetrieval(
+    c.evidenceIds,
+    retrieved
+  );
+
+  const groups = evidenceGroups(c, dataset);
+
+  // 키워드 조각은 원문 ID 체계와 다르므로
+  // 개선 데이터 평가에서 적중률을 산출하지 않습니다.
+  const hasNonVector = retrieved?.slice(0, 6).some(doc =>
+    doc?.method === "keyword" ||
+    String(doc?.id || "").startsWith("kb:") ||
+    (
+      doc?.method !== "vector" &&
+      !Number.isFinite(doc?.score)
+    )
+  );
+
+  const retrieval = dataset === "advanced"
+    ? (
+        originalRetrieval === null || hasNonVector
+          ? null
+          : gradeEvidenceGroups(groups, retrieved)
+      )
+    : originalRetrieval;
 rows.push({
   ...c,
   set: c.set || "base",
     status: r.status,
     retrieved,
     retrieval,
+    evidenceGroups: groups,
+    retrievalMethod: retrievalMethod(retrieved),
   mode: r.mode,
   ms: r.ms,
   answer: r.answer ?? null,
@@ -379,10 +445,33 @@ const measuredCoreRows = coreRows.filter(
   (x) => x.retrieval !== null
 );
 
+const publicCoreRows = coreRows.filter(
+  x => x.hidden !== true
+);
+
+const hiddenCoreRows = coreRows.filter(
+  x => x.hidden === true
+);
+
+const retrievalMethods = {};
+
+for (const row of coreRows) {
+  const method = row.retrievalMethod;
+  retrievalMethods[method] = (retrievalMethods[method] || 0) + 1;
+}
+
 const coreSummary = coreRows.length ? {
   total: coreRows.length,
   correct: coreRows.filter(x => x.result === "정확").length,
-  hidden: coreRows.filter(x => x.hidden === true).length,
+  hidden: hiddenCoreRows.length,
+  publicTotal: publicCoreRows.length,
+  publicCorrect: publicCoreRows.filter(
+    x => x.result === "정확"
+  ).length,
+  hiddenCorrect: hiddenCoreRows.filter(
+    x => x.result === "정확"
+  ).length,
+  retrievalMethods,
   retrievalMeasured: measuredCoreRows.length,
   retrievalUnmeasured: coreRows.length - measuredCoreRows.length,
   hitAt6: measuredCoreRows.filter(x => x.retrieval.hitAt6).length,
@@ -469,7 +558,19 @@ for (const type of [...new Set(inScope.map((x) => x.type))]) {
 if (coreSummary) {
   console.log("\n──────── core-1126 평가 ────────");
   console.log(`정답: ${coreSummary.correct}/${coreSummary.total}`);
-  console.log(`숨긴 문항: ${coreSummary.hidden}개`);
+  console.log(`공개 문항: ${coreSummary.publicCorrect}/${coreSummary.publicTotal}`);
+
+  if (coreSummary.hidden) {
+    console.log(`숨긴 문항: ${coreSummary.hiddenCorrect}/${coreSummary.hidden}`);
+  } else {
+    console.log("숨긴 문항: 미실행");
+  }
+
+  console.log("검색 방식별 문항 수:");
+
+  for (const [method, count] of Object.entries(coreSummary.retrievalMethods)) {
+    console.log(`  ${method}: ${count}개`);
+  }
   console.log(`검색 측정 가능: ${coreSummary.retrievalMeasured}/${coreSummary.total}`);
   console.log(`검색 측정 불가: ${coreSummary.retrievalUnmeasured}개`);
 
@@ -516,6 +617,7 @@ await writeFile(
   `${JSON.stringify({
     base: BASE,
     suite,
+    dataset,
     core1126: coreSummary,
     at: startedAt.toISOString(),
     correct,

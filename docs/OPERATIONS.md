@@ -56,7 +56,7 @@
 | --- | --- | --- |
 | 접속 | https://hufs-quest.vercel.app 를 PC와 휴대폰에서 열기 | 빈 화면, 로딩 멈춤 |
 | 에러 | Vercel → Logs (`/api/ask`, 진행 API). 진행 API는 `{"mode":"error","api":…,"code":…}` 줄로 남음(이메일 · 토큰 · user_id는 남기지 않음) | 5xx 증가, 같은 `api` · `code` 반복 |
-| 남용 | Vercel 로그 `/api/ask`의 `{"mode":"limited","reason":…}` 줄(429) 개수와 `reason`(`minute` · `day` · `global`) | 특정 시간대 급증, `global`이 나옴(오늘 전체 500 소진), `day`가 많음. 같은 줄의 `who`로 구분: `student`면 한 학생이 하루 50을 다 쓴 것, `guest`면 한 IP(학교 와이파이처럼 여럿이 같이 쓰는 IP 포함)가 하루 150을 다 쓴 것 → 게스트 쪽이 잦으면 `ASK_LIMITS.guestDay` 조정 검토 |
+| 남용 | Vercel 로그 `/api/ask`의 `{"mode":"limited","reason":…}` 줄(429) 개수와 `reason`(`minute` · `day` · `global`) | 특정 시간대 급증, `global`이 나옴(오늘 전체 2000 소진, 11/27~. eval 토큰 요청은 전체 한도에 세지 않고 로그 `limit: "eval-bypass"`), `day`가 많음. 같은 줄의 `who`로 구분: `student`면 한 학생이 하루 50을 다 쓴 것, `guest`면 한 IP(학교 와이파이처럼 여럿이 같이 쓰는 IP 포함)가 하루 150을 다 쓴 것 → 게스트 쪽이 잦으면 `ASK_LIMITS.guestDay` 조정 검토 |
 | 공용 카운터 | 같은 로그의 `limit` 값. `"db"` = 공용 카운터가 판단(정상), `"memory-first"` = 1분 10회 1차 제한에서 DB 호출 없이 끊음(정상, 연타 시 `"reason":"minute"`와 함께 나옴), **`"memory-fallback"`** = 공용 카운터를 못 씀. 원인은 바로 앞의 `usage limit unavailable: …` 줄(timeout · ask_hit 상태 코드 · network) | `"memory-fallback"`이나 `usage limit unavailable`이 나옴 → Supabase 호출 실패로 메모리 제한(인스턴스별 1분 10회)만 동작 중이라 하루 · 전체 상한이 꺼진 상태. `"reason":"day"`는 공용 카운터만 낼 수 있으므로, 이것이 보이면 공용 카운터는 동작 중 |
 | AI 비용 | CLOVA Studio 사용량, NCP 콘솔 비용 · **Budgets 알림**. 예산 화면은 크레딧을 쓰는 동안 0%로 보일 수 있으므로 **CLOVA Studio 사용량과 크레딧 잔액도 같이** 봄. 크레딧: 「한국외국어대학교 경진대회 크레딧」, 잔액 497,980원(11/26), 만료 2026-12-31 | 하루 토큰이 평소(약 11만)의 2배 이상, 크레딧 잔액이 예상보다 빨리 줄어듦 |
 | 답 길이 | Vercel 로그 `/api/ask`의 `{"mode":"ai", …}` 줄: `completionTokens`(답에 쓴 토큰), `finishReason`, `chars`(답 글자 수), 검색어 정리 쪽은 `rewrite`로 시작하는 같은 값. 질문 · 검색어 · 답 내용은 남기지 않음 | `finishReason`이 `"length"`(상한에 걸려 답이 잘림), `completionTokens`가 `maxTokens`에 가까움 |
@@ -140,7 +140,7 @@
 - 11/25에는 대회 전에 하지 않기로 했으나, 11/26 변경: 아래 공지 흐름대로 robots 허용 목록 페이지만 GitHub Actions로 확인(NCP 키 없음, 본문 열지 않음).
 
 **공지 흐름 (11/26 NCP 활용 계획, [ROADMAP.md 2장](ROADMAP.md#ncp-활용-계획-1126-종헌-결정)):**
-1. **목록 페이지만 자동 확인** — robots.txt가 허용하는 공지 목록 페이지에서 새 글이 있는지만 봅니다(GitHub Actions, 하루 3회, 권한 issues: write만, NCP 키 넣지 않음). 공지 본문은 자동으로 열지 않습니다.
+1. **목록 페이지만 자동 확인** — robots.txt가 허용하는 공지 목록 페이지에서 새 글이 있는지만 봅니다(GitHub Actions `.github/workflows/notice-watch.yml`, 하루 3회 09 · 13 · 18시, 권한 issues: write + 코드 받기용 contents: read, NCP 키 넣지 않음). 공지 본문은 자동으로 열지 않습니다. 감시 대상은 `scripts/lib/noticeWatch.mjs` `BOARDS`에 고정된 4곳(공지 11281 · 학사 11282 · 장학 11283 · 학생지원·장학팀 장학 12767, 11/26 robots.txt 확인)뿐입니다. 사용법은 [NOTICE_FLOW.md](NOTICE_FLOW.md).
 2. **이슈** — 새 공지 후보를 이슈로 남깁니다(제목 · 원문 링크만).
 3. **사람이 본문 복사(`.local/`)** — 팀원이 브라우저로 원문을 열어 본문을 `.local/`(저장소에 올라가지 않음)에 붙여 넣습니다.
 4. **HCX-007 초안** — 공지 추출 도우미가 HCX-007 + Structured Outputs로 마감일 초안을 만듭니다(중혁 11/28, 현규 연결 · 실제 1건 11/30. 그 전에는 지금 도우미 `scripts/extract-notice.mjs`로, 현규 실제 1건 11/28).
@@ -149,7 +149,8 @@
 7. **현규 대조** — 임현규가 원문과 1건씩 대조하고 `checked.on` · `by`를 채웁니다.
 8. **종헌 Merge** — 이종헌이 Merge합니다.
 - `checked`가 없으면 tests/deadlines.test.js가 실패해 Merge할 수 없습니다(Draft PR은 현규 대조 전까지 빨간불이 정상).
-- `checked`가 없는 항목은 API(`/api/deadlines`)가 내보내지 않습니다(현규 작업 1에서 구현 예정).
+- `checked`가 없는 항목은 API(`/api/deadlines`)가 내보내지 않습니다(`api/deadlines.js` `isChecked`, 테스트 포함). 실수로 Merge돼도 화면에 나오지 않습니다.
+- 이슈가 예상보다 많이 생기면 Actions 탭 → "새 공지 알림" → Disable workflow로 끄고 단톡에 알립니다.
 - 공지 본문을 **공개 이슈 · GitHub Actions로 처리하지 않습니다.** 본문에 직원 이름 · 연락처가 들어 있을 수 있고(공개 저장소라 노출), Actions에 NCP 키를 넣으면 오남용 위험이 있기 때문입니다.
 
 ## 8. 개인정보
@@ -190,3 +191,5 @@
 | 2026-11-26 | eval 규칙 변경(11/26 종헌 결정): 3장 점검표 아래와 5장 비용을 같은 문장으로(횟수 제한 없음·CLOVA 호출 비용 때문에 줄이지 않음, 결과 파일 · 정답 수 기록, 밤 점검 때 크레딧 잔액, 하루 1만 원 넘게 줄면 단톡 알림) | 이종헌 |
 | 2026-11-26 | 일정 변경(11/26 종헌 확정): 4장 전원 보안 점검 12/1 → 12/3 밤 기능 동결 때. 1장에 [BUDGET.md](BUDGET.md)(남은 결제 계획 · 예비비 · 장부) 링크 | 이종헌 |
 | 2026-11-26 | NCP 활용 계획(11/26 종헌 결정): 7장에 공지 흐름(목록 페이지만 자동 확인 → 이슈 → 사람이 본문 복사(`.local/`) → HCX-007 초안 → `noticeEvidence` 근거 검사 → `checked` 없이 Draft PR → 현규 대조 → 종헌 Merge). 1단계는 GitHub Actions(하루 3회, 권한 issues: write만, NCP 키 넣지 않음)로, 11/25 "대회 전 목록 자동 확인 안 함"을 11/26 변경. `checked`가 없으면 tests/deadlines.test.js가 실패해 Merge 불가(Draft PR은 현규 대조 전까지 빨간불이 정상), `checked` 없는 항목은 API가 내보내지 않음(현규 작업 1에서 구현 예정), 공지 본문은 공개 이슈 · Actions로 처리하지 않음(직원 정보 노출 · NCP 키 오남용 위험) | 이종헌 |
+| 2026-11-26 | 7장 공지 흐름 구현 반영(임현규, 작업지시서 11/26 작업 1): 감시 대상 4곳 고정(robots.txt 11/26 확인), Actions 권한(issues: write + checkout용 contents: read), 끄는 방법, `checked` 없는 항목 API 제외 구현, [NOTICE_FLOW.md](NOTICE_FLOW.md) | 임현규 |
+| 2026-11-27 | 검색창 한도 변경(11/27 PM 결정: 이종헌): 전체 하루 상한 500 → 2000, eval 토큰 요청은 Supabase `ask_hit`을 부르지 않아 전체 한도에서 빠짐(인스턴스 메모리 1분 120회 안전장치, 로그 `eval-bypass`). 11/26 밤 eval이 전체 500을 다 써 실서비스 검색창까지 429가 날 수 있었던 문제. 3장 남용 줄 갱신 | 이종헌 |

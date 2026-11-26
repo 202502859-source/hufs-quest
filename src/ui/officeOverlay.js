@@ -1,4 +1,4 @@
-import { BUILDING_INFO, MAP_BASE_DATE, REPORT_FORM_URL, SOURCES, officeSourceKeys, reportFormUrl } from "../data/buildingInfo.js";
+import { BUILDING_INFO, MAP_BASE_DATE, SOURCES, officeSourceKeys } from "../data/buildingInfo.js";
 import { isTouchDevice } from "../device.js";
 import { getLang, t } from "../state.js";
 import { createHudOverlay, el } from "./hudOverlay.js";
@@ -154,7 +154,11 @@ export function createOfficeOverlay(game, onClose) {
     row(list, "officeSource", sources);
     body.append(list);
 
-    if (REPORT_FORM_URL) body.append(newTabLink(reportFormUrl(placeId), t("mapReport"), "ho-mapbtn ho-report"));
+    // "실제와 달라요 (신고)": 11/26 게임 안 신고로 교체(구글 폼 REPORT_FORM_URL 대신). 창을 닫고 onClose({ report: placeId })로 알림 → CampusScene이 신고 창을 엶
+    const report = el("button", "ho-mapbtn ho-report", t("mapReport"));
+    report.type = "button";
+    report.addEventListener("click", () => overlay.hide({ report: placeId }));
+    body.append(report);
   };
 
   const render = (parts) => {
