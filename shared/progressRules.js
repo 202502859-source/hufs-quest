@@ -22,6 +22,10 @@ export const CHECKIN_POINTS = 5;
 // 지급은 DB 트리거(supabase/009_event_report_rewards.sql)가 하므로 값을 바꾸면 그 파일의 v_exp도 같이 바꿉니다(tests/eventReward.test.js가 확인).
 export const EVENT_REPORT_REWARD_EXP = 20;
 
+// 지도 신고("실제와 달라요")가 반영(accepted)되면 신고마다 1번(서로 다른 신고는 제한 없음).
+// 지급은 DB 트리거(supabase/010_map_reports.sql)가 하므로 값을 바꾸면 그 파일의 v_exp도 같이 바꿉니다(tests/mapReport.test.js가 확인).
+export const MAP_REPORT_REWARD_EXP = 20;
+
 // 완료 보상을 주는 퀘스트. mockReg(모의 수강신청)는 범위 밖이라 넣지 않습니다.
 export const REWARD_QUESTS = ["doubleMajor", "stampRally"];
 

@@ -23,5 +23,9 @@ export const showOriginalNote = (item, lang) => lang === "en" && item?.sourceTyp
 // 창 맨 아래 안내문 키: 목록에 학생 제보(crowd)가 하나라도 있으면 "'미확인' 학생 제보는 아직 팀이 확인하기 전" 문구, 없으면 기존 문구.
 export const footerKey = (items) => (Array.isArray(items) && items.some((item) => item?.sourceType === "crowd") ? "eventFooterCrowd" : "eventFooter");
 
-// "행사 제보하기" 링크 주소. https://로 시작할 때만 그 주소를, 아니면(빈 값 포함) null을 돌려줍니다(링크를 그리지 않음).
+// "행사 제보하기" 자리에 무엇을 둘지: 진짜 로그인(reportMode "app")이면 "form"(창 안 제보 폼),
+// 게스트 · 가짜 로그인이면 "login"("로그인하고 제보하기" 버튼). 11/26 게스트 제보 닫음(PM 결정: 이종헌).
+export const reportEntryKind = (mode) => (mode === "app" ? "form" : "login");
+
+// "행사 제보하기" 링크 주소. 11/26 게스트 제보 닫음으로 화면에서 사용 안 함(되돌릴 때 다시 씀). https://로 시작할 때만 그 주소를, 아니면(빈 값 포함) null을 돌려줍니다(링크를 그리지 않음).
 export const reportLinkUrl = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);

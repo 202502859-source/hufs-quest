@@ -117,8 +117,8 @@ test("알림 API: 안 본 알림의 건수 · 경험치 합계만 돌려주고, 
     first = await post(handler, "tok-a");
     second = await post(handler, "tok-a");
   });
-  assert.deepEqual(first.body, { count: 2, exp: 40 });
-  assert.deepEqual(second.body, { count: 0, exp: 0 });
+  assert.deepEqual(first.body, { count: 2, exp: 40, kinds: { event: 2, map: 0 } }, "kind 없는 행(010 전)은 행사로 셈");
+  assert.deepEqual(second.body, { count: 0, exp: 0, kinds: { event: 0, map: 0 } });
   assert.equal(first.headers["Cache-Control"], "no-store");
   assert.deepEqual(supabase.calls[0], { fn: "take_event_reward_notices", params: { p_user_id: "user-uuid-a" } });
   assert.deepEqual(logs.map((l) => JSON.parse(l)), [{ api: "reward-notices", count: 2 }], "로그는 건수만, 0건이면 안 남김");
@@ -151,8 +151,8 @@ test("알림 문구: 1건 · 여러 건, '+N EXP' 칩, 한국어 · 영어", () 
   assert.equal(t(one.key, one.vars), "Your reported event was verified!");
   assert.equal(t(many.key, many.vars), "3 reported events were verified!");
   setLang("ko");
-  assert.deepEqual(mergeNotices(null, { count: 1, exp: 20 }), { count: 1, exp: 20 });
-  assert.deepEqual(mergeNotices({ count: 1, exp: 20, until: 5 }, { count: 2, exp: 40 }), { count: 3, exp: 60 }, "떠 있는 알림과 합침");
+  assert.deepEqual(mergeNotices(null, { count: 1, exp: 20 }), { count: 1, exp: 20, kinds: { event: 1, map: 0 } });
+  assert.deepEqual(mergeNotices({ count: 1, exp: 20, until: 5 }, { count: 2, exp: 40 }), { count: 3, exp: 60, kinds: { event: 3, map: 0 } }, "떠 있는 알림과 합침");
 });
 
 test("알림 가져오기: POST · Bearer 토큰, 토큰 없으면 부르지 않음, 실패 · 이상한 응답은 null", async () => {
@@ -161,7 +161,7 @@ test("알림 가져오기: POST · Bearer 토큰, 토큰 없으면 부르지 않
     seen.push({ url, init });
     return { ok: true, json: async () => ({ count: 1, exp: 20 }) };
   };
-  assert.deepEqual(await takeRewardNotices({ fetchImpl: ok, token: "jwt" }), { count: 1, exp: 20 });
+  assert.deepEqual(await takeRewardNotices({ fetchImpl: ok, token: "jwt" }), { count: 1, exp: 20, kinds: { event: 1, map: 0 } });
   assert.equal(seen[0].url, "/api/reward-notices");
   assert.equal(seen[0].init.method, "POST");
   assert.equal(seen[0].init.headers.Authorization, "Bearer jwt");

@@ -14,7 +14,8 @@ export class TitleScene extends Phaser.Scene {
     super("Title");
   }
 
-  create() {
+  // data.openLogin: 캠퍼스 행사창의 "로그인하고 제보하기"에서 왔으면 true → 로그인 창을 바로 엽니다.
+  create(data = {}) {
     // 로그아웃하고 타이틀로 돌아오면 이미 만든 그림을 다시 만들지 않습니다.
     if (!this.textures.exists("tiles")) registerTextures(this);
     centerLayout(this);
@@ -42,6 +43,7 @@ export class TitleScene extends Phaser.Scene {
       if (!this.alive) return;
       this.starting = false;
       if (loggedIn) this.startStudent();
+      else if (data?.openLogin) this.begin("student");
     });
   }
 

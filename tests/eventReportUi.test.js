@@ -14,7 +14,8 @@ import {
   sendEventReport,
 } from "../src/data/eventReportApi.js";
 import { validateEventReport } from "../shared/eventReport.js";
-import { footerKey, showOriginalNote, sourceBadgeKey, sourceBadgeText } from "../src/ui/eventView.js";
+import { footerKey, reportEntryKind, showOriginalNote, sourceBadgeKey, sourceBadgeText } from "../src/ui/eventView.js";
+import { readFileSync } from "node:fs";
 import { setLang, t } from "../src/state.js";
 
 // 2026-11-26(목) 12:00 한국 시간
@@ -184,7 +185,7 @@ test("폼 위 안내 문구: N은 서버가 알려 준 기준(모르면 5), 비�
   assert.equal(DEFAULT_THRESHOLD, 5);
   assert.equal(
     t("eventFormNotice", { threshold: 5 }),
-    "전화번호·이메일·카카오 링크는 넣을 수 없어요. 로그인한 학생 5명이 같은 행사를 제보하면 '미확인' 표시와 함께 올라가요.",
+    "전화번호·이메일·카카오 링크는 넣을 수 없어요. 로그인한 학생 5명이 같은 행사를 제보하면 '미확인' 표시와 함께 올라가요. 팀이 확인하면 공개 전에 제보한 사람 모두 경험치 +20을 받아요.",
   );
   assert.equal(t("eventReportNote"), "제보는 팀이 출처를 확인한 뒤 올라가요");
   assert.equal(t("eventReportLoginHint"), "로그인하면 앱에서 바로 제보할 수 있어요");
@@ -224,4 +225,40 @@ test("새 문구 키는 모두 한국어 · 영어가 있음", () => {
       for (const key of keys) assert.ok(t(key, { count: 1, threshold: 5 }).trim(), `${lang}: ${key}`);
     });
   }
+});
+
+test("게스트 제보 닫음(11/26): 게스트 · mock 로그인이면 '로그인하고 제보하기', 진짜 로그인이면 제보 폼", () => {
+  assert.equal(reportEntryKind(reportMode({ authMode: "real", token: null })), "login", "게스트(로그인 안 함)");
+  assert.equal(reportEntryKind(reportMode({ authMode: "mock", token: "mock-access-token" })), "login", "가짜 로그인");
+  assert.equal(reportEntryKind(reportMode({ authMode: "real", token: "jwt" })), "form", "진짜 로그인");
+  assert.equal(t("eventReportLoginButton"), "로그인하고 제보하기 (경험치 제공)");
+  withLang("en", () => assert.equal(t("eventReportLoginButton"), "Log in to report (earn EXP)"));
+});
+
+test("게스트 제보 닫음(11/26): 행사창은 구글 폼 링크를 쓰지 않음, 상수는 주석과 함께 남김, 로그인 버튼은 타이틀 로그인 창으로", () => {
+  const overlay = readFileSync(new URL("../src/ui/eventOverlay.js", import.meta.url), "utf8");
+  const code = overlay.split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n"); // 주석 줄 제외
+  assert.doesNotMatch(code, /EVENT_REPORT_URL|reportLinkUrl|eventReportNote|eventReportLoginHint|"eventReportLink"/, "화면에서 구글 폼 링크 · 기존 안내를 쓰지 않음");
+  assert.match(overlay, /overlay\.hide\(\{ login: true \}\)/);
+  const eventsApi = readFileSync(new URL("../src/data/eventsApi.js", import.meta.url), "utf8");
+  assert.match(eventsApi, /11\/26 게스트 제보 닫음으로 화면에서 사용 안 함[^\n]*\n\/\/[^\n]*\nexport const EVENT_REPORT_URL = "https:\/\//, "상수 위 주석");
+  const campus = readFileSync(new URL("../src/scenes/CampusScene.js", import.meta.url), "utf8");
+  assert.match(campus, /if \(result\?\.login\) this\.goToLogin\(\);/);
+  assert.match(campus, /this\.scene\.start\("Title", \{ openLogin: true \}\)/);
+  const title = readFileSync(new URL("../src/scenes/TitleScene.js", import.meta.url), "utf8");
+  assert.match(title, /else if \(data\?\.openLogin\) this\.begin\("student"\);/, "타이틀의 재학생 로그인과 같은 방식으로 로그인 창");
+});
+
+test("행사창 제보 버튼 문구(11/26): '제보하고 경험치 쌓기'", () => {
+  assert.equal(t("eventReportOpen"), "제보하고 경험치 쌓기");
+  withLang("en", () => assert.equal(t("eventReportOpen"), "Report & earn EXP"));
+});
+
+test("폼 위 안내 영어 · 로그인 버튼 문구(11/26): 공개 전 제보자 +20 EXP 안내, '(경험치 제공)'", () => {
+  withLang("en", () => {
+    assert.equal(
+      t("eventFormNotice", { threshold: 5 }),
+      "Phone numbers, emails and Kakao links are not allowed. When 5 logged-in students report the same event, it is posted with an 'Unverified' label. When the team confirms it, everyone who reported before it was posted gets +20 EXP.",
+    );
+  });
 });

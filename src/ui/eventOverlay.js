@@ -2,7 +2,7 @@ import { kstParts } from "../../shared/deadlineCalc.js";
 import { EVENT_CATEGORIES, EVENT_WINDOW_DAYS } from "../../shared/eventCalc.js";
 import { REPORT_LIMITS, validateEventReport } from "../../shared/eventReport.js";
 import { BUILDING_INFO } from "../data/buildingInfo.js";
-import { EVENT_REPORT_URL, SCHOOL_NOTICE_URL, eventState, refreshEvents } from "../data/eventsApi.js";
+import { SCHOOL_NOTICE_URL, eventState, refreshEvents } from "../data/eventsApi.js";
 import {
   buildReportPayload,
   currentReportMode,
@@ -14,7 +14,7 @@ import {
 } from "../data/eventReportApi.js";
 import { getLang, t } from "../state.js";
 import { createHudOverlay, el } from "./hudOverlay.js";
-import { footerKey, reportLinkUrl, showOriginalNote, sourceBadgeText } from "./eventView.js";
+import { footerKey, reportEntryKind, showOriginalNote, sourceBadgeText } from "./eventView.js";
 
 const WEEKDAYS = { ko: ["일", "월", "화", "수", "목", "금", "토"], en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -87,7 +87,8 @@ const errorsFrom = (problems = []) => {
  *
  * "행사 제보하기"
  *   - 진짜 로그인(AUTH_MODE real) + 토큰 있음: 이 창 안에서 제보 폼을 엽니다(src/data/eventReportApi.js → POST /api/event-report).
- *   - 그 밖(로그인 안 함 · 가짜 로그인): "로그인하면 앱에서 바로 제보할 수 있어요" + 구글 폼 링크(EVENT_REPORT_URL).
+ *   - 그 밖(로그인 안 함 · 가짜 로그인): "로그인하고 제보하기" 버튼 → 창을 닫고 onClose({ login: true })로 알림
+ *     (CampusScene이 타이틀의 로그인 창을 엽니다). 11/26 PM 결정(이종헌)으로 구글 폼 링크(EVENT_REPORT_URL)는 쓰지 않습니다.
  * 모든 글자는 textContent로만 넣습니다(제보 내용 · 서버 응답도 마찬가지).
  * options.getReportMode · options.send는 화면 확인용으로 바꿔 끼울 수 있게 둔 것입니다(기본은 진짜 로그인 확인 · 서버 호출).
  */
@@ -102,9 +103,9 @@ export function createEventOverlay(game, onClose, { getReportMode = currentRepor
 
   const redraw = () => overlay?.redraw();
 
-  // "행사 제보하기" 자리. 앱 제보면 폼 여는 버튼, 아니면 구글 폼 링크 + 안내. 링크 주소가 없으면 null.
+  // "행사 제보하기" 자리. 진짜 로그인이면 폼 여는 버튼, 아니면 "로그인하고 제보하기"(창을 닫고 로그인 창으로).
   function reportEntry() {
-    if (mode === "app") {
+    if (reportEntryKind(mode) === "form") {
       const button = el("button", "ho-mapbtn ho-report-open", t("eventReportOpen"));
       button.type = "button";
       button.addEventListener("click", () => {
@@ -114,11 +115,10 @@ export function createEventOverlay(game, onClose, { getReportMode = currentRepor
       });
       return button;
     }
-    const url = reportLinkUrl(EVENT_REPORT_URL);
-    if (!url) return null;
-    const wrap = el("span", "ho-report-event");
-    wrap.append(link(url, t("eventReportLink")), el("span", "ho-report-note", t("eventReportNote")), el("span", "ho-report-note ho-report-hint", t("eventReportLoginHint")));
-    return wrap;
+    const button = el("button", "ho-mapbtn ho-report-open", t("eventReportLoginButton"));
+    button.type = "button";
+    button.addEventListener("click", () => overlay.hide({ login: true }));
+    return button;
   }
 
   function field(labelKey, control, { required = false, hintKey = null, errorField, wide = false } = {}) {
