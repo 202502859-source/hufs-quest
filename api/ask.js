@@ -42,6 +42,7 @@ import { fetchCollectedDates } from "./_lib/sourceDates.js";
 import { checkAskLimit, checkMemoryAskLimit, isEvalRequest } from "./_lib/usageLimit.js";
 import { buildCacheKey, canUseAnswerCache, shouldCacheAnswer, getAnswerCache, setAnswerCache } from "./_lib/answerCache.js";
 import { todayContext, ungroundedDates } from "../shared/academicDate.js";
+import { unsupportedContacts } from "./_lib/contactGuard.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
 import { stripListNumbers, dropInvalidCitations, trimTruncated, isRefusalAnswer } from "./_lib/answerFormat.js";
 
@@ -471,6 +472,11 @@ export default async function handler(req, res) {
       console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
       return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
     }
+    // 근거 조각에도 질문에도 없는 이메일 · 전화번호 · 인터넷 주소가 있으면 숫자 검사와 똑같이 근거 원문을 대신 보여 줍니다(11/27).
+    const contacts = unsupportedContacts(answer, docs, question);
+    if (contacts.length) {
+      throw Object.assign(new Error("answer has contacts not in sources"), { unsupportedContact: contacts });
+    }
     const unsupported = unsupportedNumbers(answer, docs, question);
     if (unsupported.numbers.length || unsupported.timeWords.length) {
       throw Object.assign(new Error("answer has numbers not in sources"), { unsupported });
@@ -491,11 +497,19 @@ export default async function handler(req, res) {
     const unsupportedLog = err.unsupported
       ? { unsupportedNumbers: err.unsupported.numbers.slice(0, 5), unsupportedTimeWords: err.unsupported.timeWords.length }
       : {};
+    // 연락처 검사에 걸렸으면 이유와 종류별 개수만 남깁니다. 연락처 값 · 답 내용은 남기지 않습니다.
+    const contactLog = err.unsupportedContact
+      ? {
+          reason: "unsupported_contact",
+          unsupportedContacts: err.unsupportedContact.length,
+          unsupportedContactKinds: [...new Set(err.unsupportedContact.map((c) => c.kind))],
+        }
+      : {};
     // AI 연결이 안 되면 근거 원문을 그대로 보여 줍니다. 추측한 답은 만들지 않습니다.
     // 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다.
     const top = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
     const collectedDates = await fetchCollectedDates(top, rpc);
-    console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, ...contactLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({
       mode: "evidence",
       answer: top.map((d) => d.text).join("\n"),
