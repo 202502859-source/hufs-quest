@@ -20,5 +20,8 @@ export function sourceBadgeText(item, t) {
 // 영어 화면에서 학생 제보(원문 한국어 그대로)면 제목 아래 "Original text (Korean)"를 붙입니다.
 export const showOriginalNote = (item, lang) => lang === "en" && item?.sourceType === "crowd";
 
+// 창 맨 아래 안내문 키: 목록에 학생 제보(crowd)가 하나라도 있으면 "'미확인' 학생 제보는 아직 팀이 확인하기 전" 문구, 없으면 기존 문구.
+export const footerKey = (items) => (Array.isArray(items) && items.some((item) => item?.sourceType === "crowd") ? "eventFooterCrowd" : "eventFooter");
+
 // "행사 제보하기" 링크 주소. https://로 시작할 때만 그 주소를, 아니면(빈 값 포함) null을 돌려줍니다(링크를 그리지 않음).
 export const reportLinkUrl = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);

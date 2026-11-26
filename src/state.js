@@ -230,6 +230,11 @@ const STRINGS = {
     ko: "팀이 원문을 직접 확인해 옮긴 행사예요. 일시 · 장소 · 신청 방법은 원문에서 다시 확인하세요.",
     en: "Events copied by our team after checking the original posts. Please confirm details in the source.",
   },
+  // 목록에 학생 제보(crowd)가 있을 때의 안내문(src/ui/eventView.js footerKey)
+  eventFooterCrowd: {
+    ko: "팀 확인 행사는 원문을 직접 확인해 옮긴 것이고, '미확인' 학생 제보는 아직 팀이 확인하기 전이에요. 일시·장소·신청 방법은 원문이나 주최 측에서 다시 확인하세요.",
+    en: "Team-checked events were copied from the original source; 'Unverified' student reports have not been checked by the team yet. Please confirm the time, place and sign-up with the original source or the host.",
+  },
   eventDemoTag: { ko: "[예시]", en: "[Example]" },
   eventCatFestival: { ko: "축제", en: "Festival" },
   eventCatBriefing: { ko: "설명회", en: "Briefing" },

@@ -14,7 +14,7 @@ import {
 } from "../data/eventReportApi.js";
 import { getLang, t } from "../state.js";
 import { createHudOverlay, el } from "./hudOverlay.js";
-import { reportLinkUrl, showOriginalNote, sourceBadgeText } from "./eventView.js";
+import { footerKey, reportLinkUrl, showOriginalNote, sourceBadgeText } from "./eventView.js";
 
 const WEEKDAYS = { ko: ["일", "월", "화", "수", "목", "금", "토"], en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -277,7 +277,7 @@ export function createEventOverlay(game, onClose, { getReportMode = currentRepor
     const data = eventState.data;
     const lang = getLang();
     title.textContent = t("eventTitle", { days: EVENT_WINDOW_DAYS });
-    footer.textContent = t("eventFooter");
+    footer.textContent = t(footerKey(data?.items));
     asOf.textContent = data ? asOfText(data) : t("deadlineLoading");
     if (view === "form" && mode === "app") {
       renderForm(body);

@@ -14,7 +14,7 @@ import {
   sendEventReport,
 } from "../src/data/eventReportApi.js";
 import { validateEventReport } from "../shared/eventReport.js";
-import { showOriginalNote, sourceBadgeKey, sourceBadgeText } from "../src/ui/eventView.js";
+import { footerKey, showOriginalNote, sourceBadgeKey, sourceBadgeText } from "../src/ui/eventView.js";
 import { setLang, t } from "../src/state.js";
 
 // 2026-11-26(목) 12:00 한국 시간
@@ -156,6 +156,28 @@ test("학생 제보 배지: 미확인 · 팀 확인(ko · en), 기존 배지는 
   assert.equal(showOriginalNote(unverified, "en"), true);
   assert.equal(showOriginalNote(unverified, "ko"), false);
   assert.equal(showOriginalNote({ sourceType: "school" }, "en"), false);
+});
+
+test("창 아래 안내문: 학생 제보(crowd)가 하나라도 있으면 미확인 안내 문구, 없으면 기존 문구 그대로(ko · en)", () => {
+  const school = { sourceType: "school" };
+  const crowd = { sourceType: "crowd", reporters: 5, confirmed: false };
+  assert.equal(footerKey([school]), "eventFooter");
+  assert.equal(footerKey([]), "eventFooter");
+  assert.equal(footerKey(undefined), "eventFooter", "목록을 아직 못 받았을 때");
+  assert.equal(footerKey([school, crowd]), "eventFooterCrowd");
+  assert.equal(footerKey([{ ...crowd, confirmed: true }]), "eventFooterCrowd", "팀 확인된 학생 제보만 있어도 같은 문구");
+  assert.equal(
+    t("eventFooterCrowd"),
+    "팀 확인 행사는 원문을 직접 확인해 옮긴 것이고, '미확인' 학생 제보는 아직 팀이 확인하기 전이에요. 일시·장소·신청 방법은 원문이나 주최 측에서 다시 확인하세요.",
+  );
+  assert.equal(t("eventFooter"), "팀이 원문을 직접 확인해 옮긴 행사예요. 일시 · 장소 · 신청 방법은 원문에서 다시 확인하세요.", "기존 문구는 그대로");
+  withLang("en", () => {
+    assert.equal(
+      t("eventFooterCrowd"),
+      "Team-checked events were copied from the original source; 'Unverified' student reports have not been checked by the team yet. Please confirm the time, place and sign-up with the original source or the host.",
+    );
+    assert.equal(t("eventFooter"), "Events copied by our team after checking the original posts. Please confirm details in the source.");
+  });
 });
 
 test("폼 위 안내 문구: N은 서버가 알려 준 기준(모르면 5), 비로그인 안내는 기존 문구 + 로그인 안내", () => {
