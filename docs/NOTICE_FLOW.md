@@ -40,7 +40,10 @@ robots.txt(www · student 같은 규칙)는 `/bbs/*`, `/bbs/*/*/*/artclView.do`,
 
 1. GitHub 앱 알림 → 이슈를 엽니다. 후보 줄의 **[목록에서 열기]**로 목록 페이지에 간 뒤 글을 클릭해 엽니다(원문 주소를 직접 입력하면 막힐 수 있음).
 2. 본문 전체를 복사해 `C:\dev\hufs-quest\.local\notices\글번호.txt`에 붙여 넣습니다(UTF-8). `.local/`은 저장소에 올라가지 않습니다.
-3. PowerShell(저장소 폴더, 커밋 안 한 변경이 없어야 함):
+3. 실행 전에 `git status`가 깨끗한지 확인합니다(커밋 안 한 변경이 있으면 `notice:draft`가 새 브랜치를 만들지 않고 멈춤). 그다음 PowerShell(저장소 폴더):
+   ```powershell
+   git status --short   # 아무것도 안 나오면 깨끗함
+   ```
    ```powershell
    npm.cmd run notice:draft -- .local/notices/272350.txt https://www.hufs.ac.kr/bbs/hufs/2181/272350/artclView.do
    ```
