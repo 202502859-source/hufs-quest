@@ -251,7 +251,7 @@ gantt
 - [ ] 시연 동선 건물 그래픽 생성·교체(`src/gfx/textures.js`). 동선 밖 건물은 지금 그림 유지
 - [x] 마감 임박 공지 화면(`src/ui/deadlineOverlay.js`)을 실제 데이터와 연결 (14일 이내 기준 · `접수 예정` 배지 · `확인 MM.DD` 표기 · `?demoDeadlines=1` 분리)
 - [ ] 퀘스트 목적지·퀴즈 배치를 건물 ID로 연결(이미 `quest.destination`은 ID), 새 퀴즈 배치
-- [ ] 진행 저장 `VITE_PROGRESS_MODE=real` 전환 후 Preview에서 임현규와 확인
+- [x] 진행 저장 `VITE_PROGRESS_MODE=real` 전환 후 Preview에서 확인 — 11/27 확인: Vercel Production · Preview 모두 `real`(이종헌). 11/26 Preview에서 행사 · 지도 제보 보상(+20 경험치)이 서버에 저장되는 것 확인
 
 **신중혁 (AI)**
 - [ ] 답변 문장을 근거 문서와 한 번 더 대조하는 검증 단계 추가(`api/ask.js`)
