@@ -97,6 +97,22 @@ export function demoEvents(nowMs) {
       buildingId: "union",
       category: "recruit",
     },
+    // 학생 제보 배지 확인용(api/events.js의 crowd 항목과 같은 모양: 원문을 ko · en에 그대로, 확인 날짜 없음)
+    {
+      id: "demo-crowd",
+      demo: true,
+      sourceType: "crowd",
+      reporters: 5,
+      confirmed: false,
+      title: { ko: "[예시] 학생 제보 행사", en: "[예시] 학생 제보 행사" },
+      host: { ko: "[예시] 동아리 연합회", en: "[예시] 동아리 연합회" },
+      summary: { ko: "화면 확인용 예시입니다. 실제 행사가 아니에요.", en: "화면 확인용 예시입니다. 실제 행사가 아니에요." },
+      startsAt: at(1, 9),
+      endsAt: at(1, 12),
+      place: { ko: "학생회관 앞", en: "학생회관 앞" },
+      buildingId: "union",
+      category: "festival",
+    },
   ];
 }
 
