@@ -12,7 +12,7 @@ import { PROGRESS_MODE, getProgress } from "../data/progressApi.js";
 import { addNoticeToast } from "../ui/noticeToast.js";
 import { DAILY_QUIZ_BONUS_EXP, EVENT_REPORT_REWARD_EXP, STAMP_RALLY_REWARD } from "../../shared/progressRules.js";
 import { STAMP_RALLY_STOPS } from "../../shared/stampRally.js";
-import { STAMP_TOTAL, dailyState, nextStop, refreshDailyIfNewDay } from "../dailyQuests.js";
+import { STAMP_TOTAL, dailyState, nextStop, refreshDailyIfNewDay, retryRallyComplete } from "../dailyQuests.js";
 import { buildingInfo } from "../data/buildingInfo.js";
 import { DAILY_FONT, MINIMAP, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudLeftLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
 import { addConfetti, addStampMark, addStampSlot } from "../ui/stampMark.js";
@@ -91,9 +91,12 @@ export class HudScene extends Phaser.Scene {
       delay: DAILY_CHECK_MS,
       loop: true,
       callback: () =>
-        refreshDailyIfNewDay().then((changed) => {
-          if (changed) this.dirty = true;
-        }),
+        refreshDailyIfNewDay()
+          // 스탬프 4곳을 다 모았는데 완주 저장이 실패했던 경우(네트워크 오류 등) 여기서 다시 요청합니다.
+          .then((changed) => retryRallyComplete().then((retried) => changed || retried))
+          .then((changed) => {
+            if (changed) this.dirty = true;
+          }),
     });
     this.input.on("pointerup", (pointer) => {
       if (pointer.id === this.padPointerId) this.setPadDirection(0, 0, null);
@@ -441,7 +444,7 @@ export class HudScene extends Phaser.Scene {
     this.showToast(t("stampCollected", { n: outcome.count, total: STAMP_TOTAL }), { y, size: DAILY_TOAST.stamp });
     if (outcome.completedNow) {
       const text = isGuest() ? t("rallyCompleteGuest") : t("rallyComplete", { exp: outcome.gained?.exp || STAMP_RALLY_REWARD.exp });
-      this.showToast(text, { y: y + 36, size: DAILY_TOAST.complete });
+      this.showToast(text, { y: y + 42, size: DAILY_TOAST.complete });
       this.pendingConfetti = true;
     }
   }

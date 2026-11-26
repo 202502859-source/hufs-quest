@@ -31,42 +31,47 @@ export function dailyPanelSize({ touch, guest, collapsed, minimapPanelWidth, tab
   if (collapsed) return { w: tabWidth, h: tabH, tabH, rows: null };
   const stamp = touch ? DAILY_STAMP.touch : DAILY_STAMP.pc;
   const stampsW = DAILY_STAMP_COUNT * stamp.radius * 2 + (DAILY_STAMP_COUNT - 1) * stamp.gap;
-  const noteH = guest ? DAILY_FONT.note + 4 : 0;
+  // 글자 한 줄의 실제 높이(Galmuri11은 글자 크기보다 줄이 조금 높음)
+  const LH = { row: DAILY_FONT.row + 4, small: DAILY_FONT.small + 3, note: DAILY_FONT.note + 3 };
+  const noteH = guest ? LH.note + 3 : 0;
   if (touch) {
     // 낮고 넓게: [스탬프 랠리 / 다음: …] 옆에 도장 4칸, 아래 한 줄에 [일일 퀴즈 · 맞춘 정답]
     const w = Math.max(minimapPanelWidth, 228);
+    const y0 = tabH + 4;
+    const rallyH = Math.max(LH.row + LH.small, stamp.radius * 2 + 2);
+    const quizY = y0 + rallyH + 3;
     const rows = {
-      rallyLabel: { x: 8, y: tabH + 5 },
-      next: { x: 8, y: tabH + 5 + DAILY_FONT.row + 3 },
-      stamps: { x: w - 10 - stampsW + stamp.radius, y: tabH + 5 + 14, ...stamp },
-      rallyZone: { y: tabH, h: 5 + 28 + 2 },
-      quizLabel: { x: 8, y: tabH + 5 + 28 + 4 },
-      quizCount: { x: w - 8, y: tabH + 5 + 28 + 4 + 1, alignRight: true },
-      quizZone: { y: tabH + 5 + 28 + 2, h: 4 + 13 + 3 },
-      note: guest ? { x: 8, y: tabH + 5 + 28 + 4 + 13 + 4 } : null,
+      rallyLabel: { x: 8, y: y0 },
+      next: { x: 8, y: y0 + LH.row },
+      stamps: { x: w - 10 - stampsW + stamp.radius, y: y0 + rallyH / 2, ...stamp },
+      rallyZone: { y: tabH, h: quizY - 1 - tabH },
+      quizLabel: { x: 8, y: quizY },
+      quizCount: { x: w - 8, y: quizY + 1, alignRight: true },
+      quizZone: { y: quizY - 1, h: LH.row + 2 },
+      note: guest ? { x: 8, y: quizY + LH.row + 2 } : null,
       shortNext: true, // "다음: 학생회관"처럼 약칭으로(도장 옆 칸이 좁음)
     };
-    return { w, h: tabH + 5 + 28 + 4 + 13 + 6 + noteH, tabH, rows };
+    return { w, h: quizY + LH.row + 5 + noteH, tabH, rows };
   }
   // PC: 미니맵과 같은 폭, 위에서 아래로 [스탬프 랠리 → 도장 4칸 → 다음: …] [일일 퀴즈 → 맞춘 정답]
   const w = minimapPanelWidth;
-  const y0 = tabH + 6;
-  const stampsY = y0 + 14 + 3 + stamp.radius;
+  const y0 = tabH + 5;
+  const stampsY = y0 + LH.row + 3 + stamp.radius;
   const nextY = stampsY + stamp.radius + 4;
-  const quizY = nextY + 13 + 7;
-  const countY = quizY + 14 + 1;
+  const quizY = nextY + LH.small + 5;
+  const countY = quizY + LH.row;
   const rows = {
     rallyLabel: { x: 10, y: y0 },
     stamps: { x: Math.round((w - stampsW) / 2) + stamp.radius, y: stampsY, ...stamp },
     next: { x: 10, y: nextY },
-    rallyZone: { y: tabH, h: quizY - 4 - tabH },
+    rallyZone: { y: tabH, h: quizY - 3 - tabH },
     quizLabel: { x: 10, y: quizY },
     quizCount: { x: 10, y: countY, alignRight: false },
-    quizZone: { y: quizY - 4, h: 4 + 14 + 1 + 13 + 4 },
-    note: guest ? { x: 10, y: countY + 13 + 4 } : null,
+    quizZone: { y: quizY - 3, h: 3 + LH.row + LH.small + 3 },
+    note: guest ? { x: 10, y: countY + LH.small + 2 } : null,
     shortNext: false,
   };
-  return { w, h: countY + 13 + 7 + noteH, tabH, rows };
+  return { w, h: countY + LH.small + 7 + noteH, tabH, rows };
 }
 
 /*
