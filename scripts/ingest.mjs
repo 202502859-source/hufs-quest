@@ -87,6 +87,11 @@ if (!SUPABASE_SERVICE_KEY.startsWith("sb_secret_")) {
 const rest = `${SUPABASE_URL.replace(/\/$/, "")}/rest/v1`;
 const supabaseHeaders = { apikey: SUPABASE_SERVICE_KEY, "Content-Type": "application/json" };
 
+// 시험용 DB의 Legacy JWT 인증을 지원합니다.
+if (TABLE === "chunks_next" && !SUPABASE_SERVICE_KEY.startsWith("sb_secret_")) {
+  supabaseHeaders.Authorization = `Bearer ${SUPABASE_SERVICE_KEY}`;
+}
+
 // 임베딩 · 저장이 실패하면 같은 조각(저장은 같은 묶음)을 2초 · 5초 · 10초 뒤 다시 시도합니다(scripts/lib/retry.mjs).
 // 그래도 실패하면 멈춘 조각 번호 · id와 저장을 마친 조각 수를 출력하고, 옛 조각은 지우지 않고 종료 코드 1로 끝냅니다.
 const rows = [];
