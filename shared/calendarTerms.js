@@ -5,10 +5,12 @@
 //  - exclude: 질문에 그 말이 없을 때 빼는 일정 이름(예: "개강"을 물으면 "계절학기 개강"은 빼기)
 // 이 표에 없는 말은 바로 찾기를 하지 않고 지금처럼 검색합니다. 표를 바꾸면 tests/calendarRoute.test.js를 같이 고칩니다.
 export const CALENDAR_TOPICS = [
-  { key: "preRegistration", ask: /사전\s*수강\s*신청|예비\s*수강\s*신청|pre-?registration/i, item: /사전수강신청/ },
+  // 11/27: "예비수강신청(함)"은 관심강좌를 담아 두는 것으로 "사전수강신청"과 다른 제도라 이 항목에서 뺌(애매하면 넣지 않음)
+  { key: "preRegistration", ask: /사전\s*수강\s*신청|pre-?registration/i, item: /사전수강신청/ },
   { key: "registrationChange", ask: /수강\s*(?:신청\s*)?(?:변경|정정)|add\s*\/?\s*drop/i, item: /^수강신청\s*변경/ },
   { key: "registrationCancel", ask: /수강\s*(?:신청\s*)?(?:취소|철회)|course\s*withdrawal|withdraw\s+from\s+(?:a\s+)?course/i, item: /^수강신청\s*취소/ },
-  { key: "registration", ask: /수강\s*신청|course\s*registration|register\s+for\s+(?:courses|classes)/i, item: /^수강신청(?:\s*\(|$)/ },
+  // "예비수강신청"은 학사일정 일정 이름이 아니므로 정규 수강신청으로 보지 않음(바로 찾기 건너뜀)
+  { key: "registration", ask: /(?<!예비\s*)수강\s*신청|course\s*registration|register\s+for\s+(?:courses|classes)/i, item: /^수강신청(?:\s*\(|$)/ },
   { key: "midterm", ask: /중간\s*(?:고사|시험|평가)|midterm/i, item: /중간시험/ },
   { key: "final", ask: /기말\s*(?:고사|시험|평가)|final\s*exams?/i, item: /기말시험/ },
   { key: "makeup", ask: /보강\s*(?:주간|기간)|make-?up\s*(?:week|classes)/i, item: /보강주간/ },
@@ -16,10 +18,20 @@ export const CALENDAR_TOPICS = [
   { key: "gradeCheck", ask: /성적\s*(?:열람|정정|확인|이의)|grade\s*(?:check|correction|appeal)/i, item: /성적\s*열람/ },
   { key: "commencement", ask: /학위\s*수여식|졸업식|commencement|graduation\s*ceremony/i, item: /학위수여식/ },
   { key: "seasonal", ask: /계절\s*학기|summer\s*session|winter\s*session/i, item: /계절학기/ },
-  { key: "semesterStart", ask: /개강|학기\s*시작|classes\s*(?:begin|start)|semester\s*(?:begin|start)/i, item: /개강/, exclude: /계절학기/ },
+  // 11/27: "개학"은 일정 이름 "개강"과 같은 일정으로 봄
+  { key: "semesterStart", ask: /개강|개학|학기\s*시작|classes\s*(?:begin|start)|semester\s*(?:begin|start)/i, item: /개강/, exclude: /계절학기/ },
   { key: "semesterEnd", ask: /종강|classes\s*end|semester\s*end/i, item: /종강/, exclude: /계절학기/ },
 ];
 
 // 날짜를 묻는 말. "기간에"(장소 · 때를 나타내는 말)처럼 날짜를 묻지 않는 쓰임은 넣지 않습니다.
+// 11/27: "몇 월 며칠", "몇일", "며칠간", "일자", "언제부터 · 언제까지"(언제로 잡힘), "what day"도 날짜 질문으로
 export const DATE_QUESTION =
-  /언제|며칠|몇\s*일|날짜|일정|기간\s*(?:은|이|을|도|좀|알려|이야|이에요|인가|\?|$)|마감|(?:개강|종강|시작|마감|신청)일|시작(?:해|하|돼|되|은|이)|끝나|\bwhen\b|\bwhat\s+date|\bdates?\b|\bdeadline|\bperiod\b|\bschedule/i;
+  /언제|며칠|몇\s*일|몇\s*월|날짜|일자|일정|기간\s*(?:은|이|을|도|좀|알려|이야|이에요|인가|\?|$)|마감|(?:개강|개학|종강|시작|마감|신청|종료)일|시작(?:해|하|돼|되|은|이)|끝나|\bwhen\b|\bwhat\s+(?:date|day)\b|\bdates?\b|\bdeadline|\bperiod\b|\bschedule/i;
+
+// 날짜 말고 다른 것을 같이 묻는 말(11/27 PM 결정). 이 말이 있으면 바로 찾기를 건너뛰고 지금처럼 검색합니다.
+// 성적은 "성적 열람 · 정정 · 확인 · 이의"(학사일정 일정 이름)일 때만 날짜 질문으로 둡니다.
+export const OTHER_INTENT =
+  /성적(?!\s*(?:열람|정정|확인|이의))|학점|방법|어떻게|어디|장소|위치|대상|자격|조건|서류|준비물|제출|절차|비용|금액|등록금|누가|누구|몇\s*명|인원|\bhow\b|\bwhere\b|\bwho\b|eligib|requirement|document|\bfees?\b|\bgrades?\b(?!\s*(?:check|correction|appeal))|\bcredits?\b/i;
+
+// 계절학기를 말했는지(여름 · 겨울 없이 "계절학기"만 말해도). 이때는 계절학기 학기만 후보로 봅니다.
+export const SEASONAL_WORD = /계절\s*학기|summer\s*session|winter\s*session/i;

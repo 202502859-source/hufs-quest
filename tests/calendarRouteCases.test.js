@@ -143,3 +143,41 @@ test("'YYYY년 N학기'는 지금처럼 YYYY학년도 N학기", () => {
   assert.equal(routeCalendar("2027년 1학기 개강일이 언제야?", { today: TODAY }).semester, "2027-1");
   assert.equal(routeCalendar("2026년 2학기 정규 수강신청 기간은?", { today: TODAY }).semester, "2026-2");
 });
+
+// ── 11/27 PM 결정: 계절학기만 말한 질문 · 날짜 말고 다른 것을 같이 묻는 질문 · 날짜 질문 넓히기 · 일정 이름의 다른 말 ──
+test("계절학기만 말하면 계절학기 학기만 후보: '계절학기 수강신청 언제야?'는 학사일정에 없어 바로 찾기 건너뜀(정규 수강신청으로 가지 않음)", () => {
+  assert.equal(routeCalendar("계절학기 수강신청 언제야?", { today: TODAY }), null);
+  assert.equal(routeCalendar("여름 계절학기 수강신청 언제야?", { today: TODAY }), null);
+  // 계절학기 일정 자체(개강 · 종강)는 그대로
+  assert.deepEqual(rows(routeCalendar("계절학기 종강 언제야?", { today: TODAY })), ["2027.01.13: 계절학기 종강"]);
+});
+
+test("날짜 말고 다른 것(성적 · 방법 · 장소 · 대상 · 자격 · 서류 등)을 같이 물으면 바로 찾기 건너뜀", () => {
+  for (const q of [
+    "겨울 계절학기 성적 언제 나와?",
+    "수강신청 언제 어떻게 해?",
+    "졸업식 어디서 해?",
+    "휴학 신청 언제까지 하고 서류는 뭐가 필요해?",
+    "수강신청 대상이 누구고 언제야?",
+    "계절학기 학점은 언제 들어와?",
+  ]) {
+    assert.equal(routeCalendar(q, { today: TODAY }), null, q);
+  }
+  // 성적은 학사일정 일정 이름(성적 열람 · 정정)일 때만 날짜 질문
+  assert.deepEqual(rows(routeCalendar("2학기 성적 열람 기간 언제야?", { today: TODAY })), ["2026.12.28 ~ 2027.01.04: 제2학기 성적 열람 및 정정"]);
+});
+
+test("날짜 질문 넓히기: 며칠 · 몇 월 며칠 · 몇일 · 언제부터/언제까지 · 일자", () => {
+  for (const q of ["중간고사 몇 월 며칠이야?", "기말고사 몇일이야?", "기말고사 언제부터야?", "휴학 신청 언제까지야?", "학위수여식 일자 알려줘"]) {
+    assert.ok(routeCalendar(q, { today: TODAY }), q);
+  }
+  const r = routeCalendar("2028년 2월 졸업식 며칠이야?", { today: TODAY });
+  assert.deepEqual(rows(r), ["2028.02.18: 2028년 전기 학위수여식"]);
+  assert.equal(r.termBasis, null);
+});
+
+test("일정 이름의 다른 말: 졸업식 → 학위수여식, 개학 → 개강. '예비수강신청'은 다른 제도라 넣지 않음", () => {
+  assert.deepEqual(rows(routeCalendar("개학 언제야?", { today: TODAY })), ["2027.03.02: 2027학년도 제1학기 개강"]);
+  assert.deepEqual(rows(routeCalendar("2027년 8월 졸업식 언제야?", { today: TODAY })), ["2027.08.20: 2027년 후기 학위수여식"]);
+  assert.equal(routeCalendar("예비수강신청 언제야?", { today: TODAY }), null);
+});
