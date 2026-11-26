@@ -18,6 +18,10 @@ export const QUEST_REWARD = { exp: 10, points: 10 };
 // 출석(하루 첫 접속): 한국 시간 하루 한 번 포인트 5.
 export const CHECKIN_POINTS = 5;
 
+// 행사 제보가 팀 확인(confirmed)되면 그 행사가 공개되기 전에 제보한 학생마다 1번(행사마다, 하루 상한 없음).
+// 지급은 DB 트리거(supabase/009_event_report_rewards.sql)가 하므로 값을 바꾸면 그 파일의 v_exp도 같이 바꿉니다(tests/eventReward.test.js가 확인).
+export const EVENT_REPORT_REWARD_EXP = 20;
+
 // 완료 보상을 주는 퀘스트. mockReg(모의 수강신청)는 범위 밖이라 넣지 않습니다.
 export const REWARD_QUESTS = ["doubleMajor", "stampRally"];
 

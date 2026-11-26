@@ -276,6 +276,9 @@ const STRINGS = {
   quizCap: { ko: "오늘 퀴즈로 받을 수 있는 경험치({cap})를 다 받았어요.", en: "You've reached today's quiz EXP limit ({cap})." },
   quizSaving: { ko: "저장하는 중…", en: "Saving…" },
   saveFailed: { ko: "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't save. Please try again in a moment." },
+  // 행사 제보 보상 알림(src/data/rewardNotices.js · HudScene). 앞에 "+20 EXP" 칩이 붙습니다.
+  eventRewardNotice: { ko: "제보한 행사가 확인되어 경험치가 올랐어요", en: "Your reported event was verified!" },
+  eventRewardNoticeMany: { ko: "제보한 행사 {count}건이 확인되어 경험치가 올랐어요", en: "{count} reported events were verified!" },
   checkInReward: { ko: "출석 보상 +{points} 포인트", en: "Daily check-in +{points} points" },
   progressLoading: { ko: "진행 기록을 불러오는 중…", en: "Loading your progress…" },
   progressLoadFailed: { ko: "진행 기록을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't load your progress. Please try again in a moment." },
