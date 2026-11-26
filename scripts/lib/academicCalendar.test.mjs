@@ -244,3 +244,70 @@ test("구조화 과정에서 원본 객체 수정 없음", () => {
 
   assert.deepEqual(source, before);
 });
+
+test("해당 학기 필드 전체 검증", () => {
+  assert.ok(items.every(
+    item => Object.hasOwn(item, "targetSemester")
+  ));
+
+  const allowed = new Set([
+    "2026-1", "2026-2", "2027-1",
+    "2026-summer", "2026-winter", null
+  ]);
+
+  assert.ok(items.every(
+    item => allowed.has(item.targetSemester)
+  ));
+});
+
+const semesterCases = [
+  ["11360-01-03", "2026-1"],
+  ["11360-01-24", "2026-1"],
+  ["11360-01-23", "2026-summer"],
+  ["11360-02-01", "2026-summer"],
+  ["11360-02-02", "2026-1"],
+  ["11360-02-03", "2026-2"],
+  ["11360-02-04", "2026-2"],
+  ["11360-02-05", "2026-2"],
+  ["11360-02-08", "2026-1"],
+  ["11360-03-01", "2026-2"],
+  ["11360-03-19", "2026-winter"],
+  ["11360-03-21", "2026-2"],
+  ["11360-04-02", "2026-winter"],
+  ["11360-04-03", "2026-2"],
+  ["11360-04-04", "2027-1"],
+  ["11360-04-05", "2027-1"],
+  ["11360-04-08", "2027-1"],
+  ["11360-04-09", "2026-2"],
+  ["11360-04-10", "2027-1"],
+  ["11360-02-06", null],
+  ["11360-04-01", null]
+];
+
+for (const [id, expected] of semesterCases) {
+  test(`해당 학기 분류: ${id}`, () => {
+    const item = items.find(d => d.id === id);
+
+    assert.ok(item);
+
+    assert.equal(
+      item.targetSemester,
+      expected
+    );
+  });
+}
+
+test("2027-1 수강신청은 다음 학년도 개강일이 아님", () => {
+  const next = items.filter(
+    item => item.targetSemester === "2027-1"
+  );
+
+  assert.equal(next.length, 4);
+
+  assert.equal(
+    next.filter(item =>
+      item.name.includes("개강")
+    ).length,
+    0
+  );
+});

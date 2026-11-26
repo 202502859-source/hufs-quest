@@ -121,6 +121,71 @@ function toISODate(value) {
   return iso;
 }
 
+// 일정 시행 시기와 실제 적용 학기를 구분합니다.
+export function resolveTargetSemester(year, period, name) {
+  const text = name.replace(/\s+/g, "");
+
+  if (text.includes("계절학기")) {
+    if (text.includes("하계")) return `${year}-summer`;
+    if (text.includes("동계")) return `${year}-winter`;
+
+    if (period === "spring" || period === "summer") {
+      return `${year}-summer`;
+    }
+
+    if (period === "fall" || period === "winter") {
+      return `${year}-winter`;
+    }
+  }
+
+  const explicitYear = text.match(
+    /(\d{4})학년도제?([12])학기/
+  );
+
+  if (explicitYear) {
+    return `${explicitYear[1]}-${explicitYear[2]}`;
+  }
+
+  const explicitSemester = text.match(
+    /제?([12])학기/
+  );
+
+  if (explicitSemester) {
+    const targetYear =
+      period === "winter" &&
+      explicitSemester[1] === "1"
+        ? year + 1
+        : year;
+
+    return `${targetYear}-${explicitSemester[1]}`;
+  }
+
+  if (/후기(?:졸업|학위수여식)/.test(text)) {
+    return `${year}-1`;
+  }
+
+  if (/전기(?:졸업|학위수여식)/.test(text)) {
+    return `${year}-2`;
+  }
+
+  if (/수강신청|휴[․·ㆍ.]?복학/.test(text)) {
+    if (period === "spring") return `${year}-1`;
+
+    if (period === "summer" || period === "fall") {
+      return `${year}-2`;
+    }
+
+    if (period === "winter") return `${year + 1}-1`;
+  }
+
+  if (/학기개시일|졸업시험|졸업논문|심사보고서/.test(text)) {
+    if (period === "spring") return `${year}-1`;
+    if (period === "fall") return `${year}-2`;
+  }
+
+  return null;
+}
+
 export function structureCalendar(chunks) {
   const calendar = chunks.filter(
     c => /^11360-\d{2}$/.test(c.id)
@@ -240,6 +305,11 @@ export function structureCalendar(chunks) {
         id: `${sourceId}-${String(i + 1).padStart(2, "0")}`,
         academicYear: year,
         period,
+        targetSemester: resolveTargetSemester(
+          year,
+          period,
+          match[3]
+        ),
         name: match[3],
         startDate,
         endDate,
