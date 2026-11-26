@@ -8,6 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "collect": "node scripts/collect.mjs",
+    "calendar": "node scripts/generate-calendar.mjs",
     "ingest": "node scripts/ingest.mjs",
     "eval": "node scripts/eval.mjs",
     "test": "node --test \"scripts/lib/*.test.mjs\" \"tests/*.test.js\"",
