@@ -101,7 +101,7 @@ test("빈 데이터: 서버 응답은 빈 목록(화면은 학교 공지 안내)
   assert.deepEqual(eventsResponse([], NOW).items, []);
 });
 
-test("예시 분리: [예시]는 ?demoEvents=1일 때 화면에서만, 서버 응답에는 절대 없음", () => {
+test("예시 분리: [예시]는 ?demoEvents=1일 때 화면에서만, 서버 응답에는 절대 없음", async () => {
   assert.equal(demoEventsEnabled(""), false);
   assert.equal(demoEventsEnabled("?demoEvents=0"), false);
   assert.equal(demoEventsEnabled("?demoEvents=1"), true);
@@ -111,7 +111,7 @@ test("예시 분리: [예시]는 ?demoEvents=1일 때 화면에서만, 서버 �
 
   let body = null;
   const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(code) { this.code = code; return this; }, json(b) { body = b; return this; } };
-  handler({ method: "GET", url: "/api/events?demoEvents=1", query: { demoEvents: "1" } }, res);
+  await handler({ method: "GET", url: "/api/events?demoEvents=1", query: { demoEvents: "1" } }, res);
   assert.equal(res.code, 200);
   assert.equal(res.headers["Cache-Control"], "no-store");
   assert.ok(body.items.every((e) => !e.demo), "서버 응답에 예시 없음");
