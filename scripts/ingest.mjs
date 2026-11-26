@@ -9,6 +9,9 @@
 // 진행 표시는 50조각마다 한 줄. 임베딩 · 저장 실패는 2 · 5 · 10초 뒤 최대 3번 다시 시도하고,
 // 그래도 실패하면 멈춘 조각(번호 · id)을 출력하고 옛 조각 삭제 없이 종료 코드 1로 끝납니다.
 import { readFile } from "node:fs/promises";
+import {
+  validateAdvancedChunks
+} from "./lib/validateAdvancedChunks.mjs";
 import { existsSync, readFileSync } from "node:fs";
 import { withRetry, progressLine, stopMessage } from "./lib/retry.mjs";
 
@@ -56,33 +59,17 @@ const rawChunks = JSON.parse(
   await readFile(new URL(dataFile, ROOT), "utf8")
 );
 
-if (advanced) {
-  const requiredFields = [
-    "id", "title", "url", "section",
-    "text", "collected_at", "parent_id",
-    "topic", "subtopic", "campus",
-    "cohort_min", "cohort_max"
-  ];
+// 시험용 개선 데이터만 추가 검증합니다.
+let chunks = rawChunks;
 
-  if (
-    !Array.isArray(rawChunks) ||
-    rawChunks.length === 0 ||
-    rawChunks.some(c =>
-      !requiredFields.every(key => Object.hasOwn(c, key))
-    ) ||
-    new Set(rawChunks.map(c => c.id)).size !== rawChunks.length
-  ) {
-    console.error("개선 데이터 필드 또는 ID 검증 실패");
+if (advanced) {
+  try {
+    chunks = validateAdvancedChunks(rawChunks, 532);
+  } catch (error) {
+    console.error("개선 데이터 검증 실패:", error.message);
     process.exit(1);
   }
 }
-
-const chunks = advanced
-  ? rawChunks.map(c => ({
-      ...c,
-      split_label: c.split_label ?? null
-    }))
-  : rawChunks;
 
 console.log(`데이터 파일: ${dataFile}`);
 console.log(`조각 ${chunks.length}개`);
