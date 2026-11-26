@@ -107,7 +107,14 @@ test("예시 분리: [예시]는 ?demoEvents=1일 때 화면에서만, 서버 �
   assert.equal(demoEventsEnabled("?demoEvents=1"), true);
   const demos = upcomingEvents(demoEvents(NOW), NOW);
   assert.ok(demos.length >= 2 && demos.every((e) => e.demo && e.title.ko.startsWith("[예시]")));
-  demoEvents(NOW).forEach((e) => assert.deepEqual(eventProblems(e), [], `${e.id}: 예시도 형식 규칙을 지킴`));
+  // 팀 입력 모양 예시는 정적 데이터 규칙(eventProblems)을 지킴. 학생 제보(crowd) 예시는 정적 데이터에 쓸 수 없으므로
+  // api/events.js crowdItem이 만드는 모양(원문을 ko · en에 그대로, 제보자 수 · 팀 확인 여부)인지 따로 확인
+  demoEvents(NOW)
+    .filter((e) => e.sourceType !== "crowd")
+    .forEach((e) => assert.deepEqual(eventProblems(e), [], `${e.id}: 예시도 형식 규칙을 지킴`));
+  const crowd = demoEvents(NOW).filter((e) => e.sourceType === "crowd");
+  assert.equal(crowd.length, 1, "학생 제보 예시 1개");
+  assert.ok(crowd.every((e) => e.demo && e.reporters >= 1 && e.confirmed === false && e.title.ko === e.title.en && e.title.ko.startsWith("[예시]") && !e.checked));
 
   let body = null;
   const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(code) { this.code = code; return this; }, json(b) { body = b; return this; } };
