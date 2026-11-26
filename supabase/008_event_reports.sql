@@ -11,7 +11,8 @@
 --
 -- 흐름 (api/event-report.js)
 --   1. 서버가 입력을 검사(shared/eventReport.js)한 뒤 event_report_hit로 하루 횟수를 셉니다(AI를 부르기 전).
---   2. 같은 env · 시작일 ±1일(한국 시간) · hidden 아닌 묶음 최대 10개를 후보로 읽고, 후보가 있으면 HCX-007이 같은 행사인지 고릅니다.
+--   2. 같은 env · 시작일 ±1일(한국 시간) 묶음 최대 10개(hidden 아닌 묶음 먼저, 남는 자리에 hidden)를 후보로 읽고,
+--      후보가 있으면 HCX-007이 같은 행사인지 고릅니다. hidden 묶음과 같은 행사면 서버가 아래 submit_event_report를 부르지 않습니다(저장 안 함, 재게시 방지).
 --   3. submit_event_report가 제보 저장 + 서로 다른 user_id 수 다시 세기 + 기준 이상이면 collecting → published 를 한 번에 처리합니다.
 --   4. api/events.js가 같은 env의 published · confirmed 묶음만 행사 창에 "학생 제보 N명" 으로 보여 줍니다.
 --
@@ -25,7 +26,7 @@
 --
 -- 팀이 하는 일 (Table Editor에서 event_clusters.status 를 바꿈)
 --   · 'confirmed' : 팀이 원문을 확인함 → 행사 창 배지가 "팀 확인"으로 바뀜
---   · 'hidden'    : 숨김 → 행사 창에서 빠지고, 새 제보가 이 묶음에 합쳐지지 않음
+--   · 'hidden'    : 숨김 → 행사 창에서 빠지고, 같은 행사 제보는 저장하지 않음(새 묶음으로 다시 공개되지 않게)
 
 -- 묶음: 같은 행사로 판단된 제보 모음
 CREATE TABLE IF NOT EXISTS public.event_clusters (

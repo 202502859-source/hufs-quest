@@ -7,8 +7,10 @@ import { eventProblems } from "../shared/eventCalc.js";
 import { resetProgressRateLimit } from "../api/_lib/progressServer.js";
 import {
   EVENT_REPORT_DAILY_LIMIT,
+  AI_RESULTS,
   MATCH_URL,
   candidateRange,
+  matchCluster,
   createEventReportHandler,
   reportEnv,
   reportThreshold,
@@ -194,6 +196,11 @@ async function send(handler, token, body) {
   return res;
 }
 
+function lastReportLog(logs) {
+  const line = [...logs.lines].reverse().find((l) => l.includes('"api":"event-report"'));
+  return line ? JSON.parse(line) : null;
+}
+
 function quietLogs() {
   const lines = [];
   const orig = { log: console.log, error: console.error };
@@ -361,10 +368,11 @@ test("후보가 없으면 AI를 부르지 않고 새 묶음, 응답에는 result
   assert.equal(clova.seen.length, 0, "후보 없음 → AI 안 부름");
   assert.equal(supabase.clusters[0].env, "preview");
   assert.equal(supabase.clusters[0].title, "외대 겨울 축제", "대표 내용은 첫 제보 원문");
-  // 로그: api · result · ms · ai만, 내용 · 이메일 · user_id 없음
+  // 로그: api · result · ms · ai · aiResult만, 내용 · 이메일 · user_id 없음
   const line = JSON.parse(logs.lines.find((l) => l.includes("event-report")));
-  assert.deepEqual(Object.keys(line).sort(), ["ai", "api", "ms", "result"]);
+  assert.deepEqual(Object.keys(line).sort(), ["ai", "aiResult", "api", "ms", "result"]);
   assert.equal(line.ai, false);
+  assert.equal(line.aiResult, null, "후보가 없어 AI를 안 불렀으면 null");
   assert.ok(logs.lines.every((l) => !l.includes("user-uuid") && !l.includes("hufs.ac.kr") && !l.includes("축제")));
 });
 
@@ -462,21 +470,23 @@ test("AI가 후보 밖 id를 주면 새 묶음", async () => {
   }
   assert.equal(supabase.clusters.length, 2);
   assert.equal(supabase.calls.rpc.filter((c) => c.fn === "submit_event_report")[1].params.p_cluster_id, null);
+  assert.equal(lastReportLog(logs).aiResult, "out_of_list");
 });
 
 test("AI 실패(HTTP 오류 · 예외 · JSON 아님 · 10초 초과 · 키 없음)면 새 묶음", async () => {
   const failures = {
-    http500: async () => ({ ok: false, status: 500, json: async () => ({}) }),
-    throws: async () => {
+    http_error: async () => ({ ok: false, status: 500, json: async () => ({}) }),
+    network: async () => {
       throw new Error("network down");
     },
-    notJson: async () => ({ ok: true, json: async () => ({ result: { message: { content: "같은 행사입니다: 1" } } }) }),
-    hang: (url, init) =>
+    parse_error: async () => ({ ok: true, json: async () => ({ result: { message: { content: "같은 행사입니다: 1" } } }) }),
+    timeout: (url, init) =>
       new Promise((_, reject) => {
         init.signal.addEventListener("abort", () => reject(new Error("aborted")));
       }),
     ignoresSignal: () => new Promise(() => {}),
   };
+  const expected = { http_error: "http_error", network: "http_error", parse_error: "parse_error", timeout: "timeout", ignoresSignal: "timeout" };
   for (const [name, fetchImpl] of Object.entries(failures)) {
     resetProgressRateLimit();
     const supabase = createFakeSupabase({ users: students(2) });
@@ -492,6 +502,9 @@ test("AI 실패(HTTP 오류 · 예외 · JSON 아님 · 10초 초과 · 키 없�
     assert.equal(res.statusCode, 200, name);
     assert.equal(res.body.result, "new", name);
     assert.equal(supabase.clusters.length, 2, name);
+    const line = lastReportLog(logs);
+    assert.equal(line.aiResult, expected[name], name);
+    assert.equal(line.ai, true, name);
   }
   // 키 없음: 후보가 있어도 AI를 부르지 않고 새 묶음
   resetProgressRateLimit();
@@ -506,9 +519,29 @@ test("AI 실패(HTTP 오류 · 예외 · JSON 아님 · 10초 초과 · 키 없�
     logs.restore();
   }
   assert.equal(clova.seen.length, 0);
+  assert.deepEqual([lastReportLog(logs).ai, lastReportLog(logs).aiResult], [false, "no_key"]);
 });
 
-test("env가 다른 묶음 · hidden 묶음 · 시작일이 ±1일 밖인 묶음은 후보가 아님", async () => {
+test("AI 결과 종류: matchCluster가 match · none · http_error · parse_error · timeout · out_of_list · no_key를 돌려줌", async () => {
+  const cands = [{ id: 3, title: "축제", host: null, starts_at: "2026-12-01T08:00:00Z", ends_at: "2026-12-01T12:00:00Z", place: "학생회관" }];
+  const reply = (content) => async () => ({ ok: true, json: async () => ({ result: { message: { content } } }) });
+  const run = (fetchImpl, opts = {}) => matchCluster(report(), cands, { fetchImpl, apiKey: "k", timeoutMs: 30, ...opts });
+  assert.deepEqual(await run(reply('{"matchId":"3"}')), { matchId: "3", result: "match" });
+  assert.deepEqual(await run(reply('{"matchId":3}')), { matchId: "3", result: "match" }, "숫자 id도 인정");
+  assert.deepEqual(await run(reply('{"matchId":"none"}')), { matchId: null, result: "none" });
+  assert.deepEqual(await run(reply('{"matchId":null}')), { matchId: null, result: "none" });
+  assert.deepEqual(await run(reply('{"matchId":"4"}')), { matchId: null, result: "out_of_list" });
+  assert.deepEqual(await run(reply("같은 행사")), { matchId: null, result: "parse_error" }, "JSON 아님");
+  assert.deepEqual(await run(reply("{}")), { matchId: null, result: "parse_error" }, "matchId 없음");
+  assert.deepEqual(await run(async () => ({ ok: true, json: async () => ({ result: {} }) })), { matchId: null, result: "parse_error" }, "content 없음");
+  assert.deepEqual(await run(async () => ({ ok: false, status: 429, json: async () => ({}) })), { matchId: null, result: "http_error" });
+  assert.deepEqual(await run(async () => { throw new Error("down"); }), { matchId: null, result: "http_error" });
+  assert.deepEqual(await run(() => new Promise(() => {})), { matchId: null, result: "timeout" });
+  assert.deepEqual(await run(reply('{"matchId":"3"}'), { apiKey: "" }), { matchId: null, result: "no_key" });
+  assert.deepEqual([...AI_RESULTS].sort(), ["http_error", "match", "no_key", "none", "out_of_list", "parse_error", "timeout"]);
+});
+
+test("env가 다른 묶음 · 시작일이 ±1일 밖인 묶음은 후보가 아님", async () => {
   resetProgressRateLimit();
   const supabase = createFakeSupabase({ users: students(4) });
   const clova = fakeClova((cands) => cands[0]?.id ?? "none");
@@ -521,16 +554,62 @@ test("env가 다른 묶음 · hidden 묶음 · 시작일이 ±1일 밖인 묶음
     assert.equal(clova.seen.length, 0, "다른 env 묶음은 후보에도 안 들어감");
     assert.deepEqual(supabase.clusters.map((c) => c.env), ["production", "preview"]);
 
-    supabase.clusters[1].status = "hidden";
-    assert.equal((await send(preview, "tok-3", report())).body.result, "new", "hidden 묶음에는 합치지 않음");
-    assert.equal(clova.seen.length, 0);
-
-    // 3번 묶음(12/1 시작)에서 2일 뒤(12/3) 시작 제보 → 후보 아님
-    assert.equal((await send(preview, "tok-4", report({ startsAt: "2026-12-03T17:00:00+09:00", endsAt: "2026-12-03T21:00:00+09:00" }))).body.result, "new");
+    // 2번 묶음(12/1 시작)에서 2일 뒤(12/3) 시작 제보 → 후보 아님
+    assert.equal((await send(preview, "tok-3", report({ startsAt: "2026-12-03T17:00:00+09:00", endsAt: "2026-12-03T21:00:00+09:00" }))).body.result, "new");
     assert.equal(clova.seen.length, 0);
   } finally {
     logs.restore();
   }
+});
+
+test("숨긴 행사 재게시 막기: hidden 묶음과 같은 제보 → 저장 RPC 없음 · 응답 joined · reporters 0, 하루 시도 수는 1 늘어남", async () => {
+  resetProgressRateLimit();
+  const supabase = createFakeSupabase({ users: students(2) });
+  const clova = fakeClova((cands) => cands[0].id);
+  const handler = createEventReportHandler({ supabase, now, apiKey: "k", fetch: clova.fetchImpl });
+  const logs = quietLogs();
+  let res;
+  try {
+    await send(handler, "tok-1", report());
+    supabase.clusters[0].status = "hidden"; // 팀이 숨김
+    res = await send(handler, "tok-2", report());
+  } finally {
+    logs.restore();
+  }
+  assert.equal(res.statusCode, 200);
+  assert.deepEqual(res.body, { result: "joined", reporters: 0, threshold: 5 }, "숨김 사실을 알리지 않는 평범한 응답");
+  const submits = supabase.calls.rpc.filter((c) => c.fn === "submit_event_report");
+  assert.equal(submits.length, 1, "두 번째 제보는 저장 RPC를 부르지 않음");
+  assert.equal(supabase.clusters.length, 1, "새 묶음으로 다시 공개되지 않음");
+  assert.equal(supabase.reports.length, 1);
+  const hits = supabase.calls.rpc.filter((c) => c.fn === "event_report_hit" && c.params.p_user_id === "user-uuid-2");
+  assert.equal(hits.length, 1, "하루 시도 수는 그대로 셈");
+  const line = lastReportLog(logs);
+  assert.deepEqual([line.result, line.ai, line.aiResult], ["hidden_match", true, "match"]);
+  assert.deepEqual(Object.keys(line).sort(), ["ai", "aiResult", "api", "ms", "result"], "로그에 묶음 id · 내용 없음");
+  assert.ok(!clova.seen[0].body.messages[1].content.includes("hidden"), "AI에 묶음 상태를 보내지 않음");
+  assert.ok(logs.lines.every((l) => !l.includes("user-uuid") && !l.includes("축제")));
+});
+
+test("후보 순서: hidden이 아닌 묶음 먼저, 남는 자리에 hidden, 최대 10개", async () => {
+  resetProgressRateLimit();
+  const row = (id, status) => ({ id, env: "preview", status, title: `행사${id}`, host: null, summary: "내용", starts_at: "2026-12-01T08:00:00.000Z", ends_at: "2026-12-01T12:00:00.000Z", place: "학생회관", building_id: null, category: "other", source_url: null, reporter_count: 1, published_at: null });
+  const supabase = createFakeSupabase({ users: students(2) });
+  supabase.clusters.push(row(100, "hidden"), row(101, "collecting"), row(102, "published"));
+  const clova = fakeClova(() => "none");
+  const handler = createEventReportHandler({ supabase, now, apiKey: "k", fetch: clova.fetchImpl });
+  const logs = quietLogs();
+  try {
+    await send(handler, "tok-1", report());
+    for (let id = 103; id < 115; id++) supabase.clusters.push(row(id, "collecting"));
+    await send(handler, "tok-2", report());
+  } finally {
+    logs.restore();
+  }
+  const ids = (i) => JSON.parse(clova.seen[i].body.messages[1].content).후보.map((c) => c.id);
+  assert.deepEqual(ids(0), ["101", "102", "100"], "hidden은 뒤에");
+  assert.equal(ids(1).length, 10, "최대 10개");
+  assert.ok(!ids(1).includes("100"), "자리가 차면 hidden은 빠짐");
 });
 
 test("DB 저장 오류는 500, 로그에는 오류 종류만", async () => {

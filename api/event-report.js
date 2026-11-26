@@ -4,10 +4,13 @@
  * - 입력 검사 shared/eventReport.js → 하루 시도 수 확인(event_report_hit, 계정당 3 · env 전체 상한) → 후보 묶음 읽기
  *   → 후보가 있으면 HCX-007(Structured Outputs)이 같은 행사 묶음을 고름 → submit_event_report(supabase/008_event_reports.sql)가
  *   저장 · 제보자 수 다시 세기 · 기준 이상이면 공개를 한 번에 처리.
- * - 같은 행사 판단: 후보 묶음 = 같은 env · hidden 아님 · 시작일이 ±1일(한국 시간)인 묶음 최대 10개. 후보가 없으면 AI를 부르지 않음.
- *   AI가 후보 밖 id를 주거나, 오류이거나, 10초를 넘기면 새 묶음.
+ * - 같은 행사 판단: 후보 묶음 = 같은 env · 시작일이 ±1일(한국 시간)인 묶음 최대 10개(hidden이 아닌 묶음 먼저, 남는 자리에 hidden).
+ *   후보가 없으면 AI를 부르지 않음. AI가 후보 밖 id를 주거나, 오류이거나, 10초를 넘기면 새 묶음.
+ * - 숨긴 행사 재게시 막기: AI가 hidden 묶음을 고르면 저장(submit_event_report)하지 않고 평범한 응답
+ *   { result: "joined", reporters: 0, threshold }을 돌려줍니다(제보자에게 숨김 사실을 알리지 않음). 하루 시도 수는 그대로 1 늘어납니다.
  * - 응답: { result: "new" | "joined" | "duplicate" | "published", reporters, threshold }. user_id · 다른 사람 제보는 넣지 않습니다.
- * - 로그: api · result · ms · ai(AI를 불렀는지)만. 제보 내용 · 이메일 · user_id는 남기지 않습니다.
+ * - 로그: api · result(숨긴 묶음과 같으면 "hidden_match") · ms · ai(AI를 불렀는지) · aiResult(AI 결과 종류)만.
+ *   제보 내용 · 이메일 · user_id · 묶음 id 목록은 남기지 않습니다.
  *
  * 환경 변수(Vercel에만)
  * - SUPABASE_URL, SUPABASE_SERVICE_KEY: 서버 DB(기존 값 재사용)
@@ -61,28 +64,39 @@ export function candidateRange(startsAt) {
 
 const kstText = (iso) => `${new Date(Date.parse(iso) + KST_OFFSET_MS).toISOString().slice(0, 16)}+09:00`;
 
+// 후보 묶음: 같은 env · 시작일 ±1일. hidden이 아닌 묶음을 먼저(제보자 수 많은 순), 남는 자리에 hidden 묶음을 넣어 최대 10개.
+// hidden도 후보에 넣는 이유: 팀이 숨긴 행사를 다시 제보하면 그 묶음과 같은 행사로 잡아, 새 묶음으로 다시 공개되지 않게 하려고.
 async function loadCandidates(supabase, env, startsAt) {
   const { from, to } = candidateRange(startsAt);
-  const { data, error } = await supabase
-    .from("event_clusters")
-    .select("id, title, host, starts_at, ends_at, place")
-    .eq("env", env)
-    .neq("status", "hidden")
-    .gte("starts_at", from)
-    .lt("starts_at", to)
-    .order("reporter_count", { ascending: false })
-    .limit(MAX_CANDIDATES);
-  if (error) throw error;
-  return (data ?? []).slice(0, MAX_CANDIDATES);
+  const base = () =>
+    supabase
+      .from("event_clusters")
+      .select("id, status, title, host, starts_at, ends_at, place")
+      .eq("env", env)
+      .gte("starts_at", from)
+      .lt("starts_at", to);
+  const [visible, hidden] = await Promise.all([
+    base().neq("status", "hidden").order("reporter_count", { ascending: false }).limit(MAX_CANDIDATES),
+    base().eq("status", "hidden").order("reporter_count", { ascending: false }).limit(MAX_CANDIDATES),
+  ]);
+  if (visible.error) throw visible.error;
+  if (hidden.error) throw hidden.error;
+  return [...(visible.data ?? []), ...(hidden.data ?? [])].slice(0, MAX_CANDIDATES);
 }
 
 /*
- * HCX-007에 같은 행사 묶음을 묻습니다. 돌려주는 값: 후보 id(문자열) 또는 null(새 묶음).
- * 후보 밖 id · JSON이 아님 · HTTP 오류 · 시간 초과 · 키 없음 → 모두 null.
- * AI에는 행사명 · 주최 · 날짜 · 장소만 보냅니다(이메일 · user_id · 소개글 없음).
+ * HCX-007에 같은 행사 묶음을 묻습니다. 돌려주는 값: { matchId, result }
+ *   matchId: 후보 id(문자열) 또는 null(새 묶음). result가 match가 아니면 항상 null
+ *   result(로그용 결과 종류, 내용 · id는 담지 않음):
+ *     match(후보 중 하나) · none(같은 행사 없음) · out_of_list(후보 밖 id) · parse_error(JSON 아님 · matchId 없음)
+ *     · http_error(HTTP 오류 · 네트워크 오류) · timeout(timeoutMs 초과) · no_key(CLOVA_API_KEY 없음, 부르지 않음)
+ * AI에는 행사명 · 주최 · 날짜 · 장소만 보냅니다(이메일 · user_id · 소개글 · 묶음 상태 없음).
  */
+export const AI_RESULTS = Object.freeze(["match", "none", "http_error", "parse_error", "timeout", "out_of_list", "no_key"]);
+
 export async function matchCluster(report, candidates, { fetchImpl = fetch, apiKey = process.env.CLOVA_API_KEY, timeoutMs = MATCH_TIMEOUT_MS } = {}) {
-  if (!apiKey || !candidates.length) return null;
+  if (!apiKey) return { matchId: null, result: "no_key" };
+  if (!candidates.length) return { matchId: null, result: "none" };
   const ids = candidates.map((c) => String(c.id));
   const brief = (e) => ({ title: e.title, host: e.host ?? null, startsAt: e.startsAt, endsAt: e.endsAt, place: e.place });
   const payload = {
@@ -110,38 +124,50 @@ export async function matchCluster(report, candidates, { fetchImpl = fetch, apiK
 
   const controller = new AbortController();
   let timer;
-  // fetch가 신호를 무시해도 timeoutMs가 지나면 null(새 묶음)로 끝냅니다.
+  const miss = (result) => ({ matchId: null, result });
+  // fetch가 신호를 무시해도 timeoutMs가 지나면 timeout(새 묶음)으로 끝냅니다.
   const timeout = new Promise((resolve) => {
     timer = setTimeout(() => {
       controller.abort();
-      resolve(null);
+      resolve(miss("timeout"));
     }, timeoutMs);
   });
   const ask = async () => {
-    const response = await fetchImpl(MATCH_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const content = data?.result?.message?.content;
-    if (typeof content !== "string") return null;
-    const matchId = JSON.parse(content)?.matchId;
-    if (typeof matchId !== "string" && typeof matchId !== "number") return null;
+    let data;
+    try {
+      const response = await fetchImpl(MATCH_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!response.ok) return miss("http_error");
+      data = await response.json();
+    } catch {
+      return miss(controller.signal.aborted ? "timeout" : "http_error");
+    }
+    let matchId;
+    try {
+      const content = data?.result?.message?.content;
+      matchId = typeof content === "string" ? JSON.parse(content)?.matchId : undefined;
+    } catch {
+      return miss("parse_error");
+    }
+    if (matchId === null || matchId === NO_MATCH) return miss("none");
+    if (typeof matchId !== "string" && typeof matchId !== "number") return miss("parse_error");
     const id = String(matchId);
-    return ids.includes(id) ? id : null;
+    return ids.includes(id) ? { matchId: id, result: "match" } : miss("out_of_list");
   };
   try {
-    return await Promise.race([ask().catch(() => null), timeout]);
+    return await Promise.race([ask(), timeout]);
   } finally {
     clearTimeout(timer);
   }
 }
 
-function logReport(result, startedAt, ai) {
-  console.log(JSON.stringify({ api: "event-report", result, ms: Date.now() - startedAt, ai }));
+// aiResult: AI_RESULTS 중 하나. AI 단계까지 가지 않았거나 후보가 없어 부르지 않았으면 null
+function logReport(result, startedAt, ai, aiResult = null) {
+  console.log(JSON.stringify({ api: "event-report", result, ms: Date.now() - startedAt, ai, aiResult }));
 }
 
 export function createEventReportHandler(deps = {}) {
@@ -168,6 +194,7 @@ export function createEventReportHandler(deps = {}) {
     const env = reportEnv(deps.vercelEnv ?? process.env.VERCEL_ENV);
     const threshold = reportThreshold(deps.threshold ?? process.env.EVENT_REPORT_THRESHOLD);
     let ai = false;
+    let aiResult = null;
 
     try {
       const { data: hitData, error: hitError } = await auth.supabase.rpc("event_report_hit", {
@@ -187,12 +214,21 @@ export function createEventReportHandler(deps = {}) {
       const candidates = await loadCandidates(auth.supabase, env, report.startsAt);
       let matchId = null;
       if (candidates.length) {
-        ai = Boolean(deps.apiKey ?? process.env.CLOVA_API_KEY);
-        matchId = await matchCluster(report, candidates, {
+        const apiKey = deps.apiKey ?? process.env.CLOVA_API_KEY;
+        ai = Boolean(apiKey);
+        const matched = await matchCluster(report, candidates, {
           fetchImpl: deps.fetch ?? fetch,
-          apiKey: deps.apiKey ?? process.env.CLOVA_API_KEY,
+          apiKey,
           timeoutMs: deps.matchTimeoutMs ?? MATCH_TIMEOUT_MS,
         });
+        matchId = matched.matchId;
+        aiResult = matched.result;
+      }
+
+      // 숨긴 묶음과 같은 행사: 저장하지 않고, 숨김 사실을 알리지 않는 평범한 응답(하루 시도 수는 위에서 이미 1 늘어남)
+      if (matchId !== null && candidates.find((c) => String(c.id) === matchId)?.status === "hidden") {
+        logReport("hidden_match", startedAt, ai, aiResult);
+        return res.status(200).json({ result: "joined", reporters: 0, threshold });
       }
 
       const { data, error } = await auth.supabase.rpc("submit_event_report", {
@@ -215,7 +251,7 @@ export function createEventReportHandler(deps = {}) {
       const result = ["new", "joined", "duplicate", "published"].includes(row?.result) ? row.result : null;
       if (!result) throw { code: "bad_rpc_result" };
 
-      logReport(result, startedAt, ai);
+      logReport(result, startedAt, ai, aiResult);
       return res.status(200).json({ result, reporters: Number(row.reporters ?? 0), threshold });
     } catch (error) {
       logServerError("event-report", error);
