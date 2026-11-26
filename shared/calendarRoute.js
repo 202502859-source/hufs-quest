@@ -12,7 +12,7 @@
 //     학기가 분명하면(연도+학기, 이번 · 다음 · 지난 학기) termBasis · alternatives 없음. clarify는 기본 답을 못 고를 때만.
 // 순수 함수: 오늘 날짜(YYYY-MM-DD, 한국 날짜)를 받아 판단하고, 네트워크 · 로그가 없습니다.
 import { ACADEMIC_CALENDAR } from "./academicCalendar.js";
-import { CALENDAR_TOPICS, DATE_QUESTION } from "./calendarTerms.js";
+import { CALENDAR_TOPICS, DATE_QUESTION, OTHER_INTENT, SEASONAL_WORD } from "./calendarTerms.js";
 
 const CALENDAR_PAGE = "https://www.hufs.ac.kr/hufs/11360/subview.do";
 export const CALENDAR_DOC_TITLE = "학사일정 바로 찾기";
@@ -210,6 +210,8 @@ const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "ju
 export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } = {}) {
   const q = String(question ?? "");
   if (!today || !DATE_QUESTION.test(q)) return null;
+  // 날짜 말고 다른 것(성적 · 방법 · 장소 · 대상 · 자격 · 서류 등)을 같이 물으면 바로 찾기를 건너뜁니다(11/27 PM 결정).
+  if (OTHER_INTENT.test(q)) return null;
   const topic = topicOf(q);
   if (!topic) return null;
   const items = matchingItems(topic, q, calendar.items || []);
@@ -235,7 +237,11 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
     const y = String(term.calYear);
     pool = items.filter((i) => i.startDate.startsWith(y) || (i.endDate || "").startsWith(y));
   }
-  if (!pool.length) return null; // 그 연도 · 달에 그 일정이 없으면 지금처럼 검색
+  // "계절학기"를 말했으면(여름 · 겨울 없이도) 계절학기 학기만 후보로 봅니다. 정규 학기 일정으로 가지 않게(11/27 PM 결정).
+  if (SEASONAL_WORD.test(q) && topic.key !== "seasonal") {
+    pool = pool.filter((i) => /-(?:summer|winter)$/.test(i.targetSemester));
+  }
+  if (!pool.length) return null; // 그 연도 · 달 · 계절학기에 그 일정이 없으면 지금처럼 검색
   // 학기 말과 종류가 맞는 후보 학기(계절학기 말이면 계절학기만, "1학기"면 1학기만)
   const bySemester = new Map();
   for (const item of pool) {
