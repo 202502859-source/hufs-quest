@@ -19,6 +19,8 @@
  *    하위 질문이 둘이면 각각 따로 답하고, 근거가 없는 쪽은 그 부분만 "찾지 못했어요"라고 답하게 합니다.
  *    출력 토큰 상한(ANSWER_MAX_TOKENS 400)에 걸려 끊기면 마지막으로 끝난 문장까지만 남기고(로그 truncated: true),
  *    끝난 문장이 하나도 없으면 5번처럼 원문을 보여 줍니다(api/_lib/answerFormat.js trimTruncated).
+ *    답에 근거 번호 [n]이 하나도 없이 "찾지 못 · 공개되어 있지 않 …"만 말하면(isRefusalAnswer) 답을 내보내지 않고
+ *    근거가 없을 때와 같은 "찾지 못함"으로 돌려줍니다(로그 mode "none", reason "refusal", 답변 캐시에 저장하지 않음).
  *    지시문에는 한국 시간 기준 오늘 날짜 · 현재 학기를 붙이고(shared/academicDate.js),
  *    답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거에 없으면 "찾지 못함"으로 바꿉니다
  *    (로그 mode "guard", reason "ungrounded-date" 또는 "ungrounded-year").
@@ -40,7 +42,7 @@ import { checkAskLimit, checkMemoryAskLimit, isEvalRequest } from "./_lib/usageL
 import { buildCacheKey, canUseAnswerCache, shouldCacheAnswer, getAnswerCache, setAnswerCache } from "./_lib/answerCache.js";
 import { todayContext, ungroundedDates } from "../shared/academicDate.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
-import { stripListNumbers, dropInvalidCitations, trimTruncated } from "./_lib/answerFormat.js";
+import { stripListNumbers, dropInvalidCitations, trimTruncated, isRefusalAnswer } from "./_lib/answerFormat.js";
 
 const CLOVA_BASE = "https://clovastudio.stream.ntruss.com";
 const CHAT_URL = `${CLOVA_BASE}/v3/chat-completions/HCX-005`;
@@ -454,6 +456,12 @@ export default async function handler(req, res) {
     // truncated: 출력 토큰 상한에 걸려 끝난 문장까지만 남겼는지(모든 로그에 함께 남김)
     usage = { maxTokens: ANSWER_MAX_TOKENS, ...result.usage, chars: result.answer.length, droppedCitations: result.droppedCitations, truncated: result.truncated };
     const { answer } = result;
+    // 근거 번호 없이 "자료에 없다"고만 하는 답은 내보내지 않습니다. 이런 답에 근거에 없는 부서 · 앱 이름이 섞여도(11/26 셔틀버스)
+    // 사용자는 "찾지 못함"만 보게 됩니다. 숫자 검사보다 먼저 보고, 답 내용은 로그에 남기지 않으며 답변 캐시에도 저장하지 않습니다.
+    if (isRefusalAnswer(answer)) {
+      console.log(JSON.stringify({ mode: "none", reason: "refusal", cacheHit: false, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+      return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
+    }
     // 근거 조각 어디에도 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)를 말하면
     // (예: 2026학년도 일정만 있는데 "2027년 3월 2일", "2027학년도 1학기 개강은 3월 2일") 원문도 보여 주지 않고 "찾지 못함"으로 답합니다.
     const ungrounded = ungroundedDates(answer, docs);
