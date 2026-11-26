@@ -136,6 +136,7 @@ test("mergeDocs: 유사도가 없는 조각(키워드 검색)도 순서를 지�
 // ── api/ask.js 연결: 하위 질문 2개 동시 검색 · 한쪽 실패 시 그쪽만 키워드 · RPC 허용 목록 · 로그에 질문 없음 ──
 test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그쪽만 키워드 검색, 로그에는 개수만", async () => {
   const ENV = { ASK_IP_SALT: "test-salt", SUPABASE_URL: "https://db.example.test", SUPABASE_SERVICE_KEY: "test-service-key", CLOVA_API_KEY: "test-clova-key" };
+  ENV.ASK_EVAL_TOKEN = "test-mixed-eval-token";
   const keys = [...Object.keys(ENV), "CHUNKS_RPC"];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
   Object.assign(process.env, ENV);
@@ -180,9 +181,19 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
   console.error = () => {};
   try {
     const { default: handler } = await import("../api/ask.js");
-    const call = async (question, ip) => {
+    const call = async (question, ip, evalMode = false) => {
       const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
-      await handler({ method: "POST", headers: { "x-forwarded-for": ip }, body: { question, lang: "ko" } }, res);
+      const headers = { "x-forwarded-for": ip };
+
+      if (evalMode) {
+        headers["x-ask-eval-token"] = ENV.ASK_EVAL_TOKEN;
+      }
+
+      await handler({
+        method: "POST",
+        headers,
+        body: { question, lang: "ko" }
+      }, res);
       return res;
     };
     const lastLog = () => JSON.parse(logs.at(-1));
@@ -208,7 +219,29 @@ test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그�
     embedTexts.length = 0;
     rpcUrls.length = 0;
     failEmbedFor = "부전공 이수 학점";
-    await call("이중전공과 부전공은 각각 몇 학점이야?", "203.0.113.81");
+    const mixed = await call(
+      "이중전공과 부전공은 각각 몇 학점이야?",
+      "203.0.113.81",
+      true
+    );
+
+    assert.equal(mixed.code, 200);
+
+    const retrieved = mixed.body.debug.retrieved;
+
+    assert.ok(retrieved.some(d =>
+      d.method === "vector" &&
+      d.id === "a-10" &&
+      Number.isFinite(d.score)
+    ));
+
+    assert.ok(retrieved.some(d =>
+      d.method === "keyword" &&
+      d.id.startsWith("kb:") &&
+      d.score === null
+    ));
+
+    assert.equal(Object.hasOwn(both.body, "debug"), false);
     assert.equal(rpcUrls.length, 1);
     assert.ok(rpcUrls[0].endsWith("/rest/v1/rpc/match_chunks_next"));
     log = lastLog();

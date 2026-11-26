@@ -48,6 +48,28 @@ export function checkCoreAnswer(c, answer) {
     return true;
   }
 
+  // 신청 가능 여부를 단순 키워드만으로 판단하지 않음.
+  if (c.id === "C11") {
+    const denied =
+      /신청[^.!?;]{0,25}(?:불가|불가능|수\s*없|안\s*됩|안\s*돼|못)/.test(text) ||
+      /신청\s*못/.test(text) ||
+      /(?:조기\s*졸업|대상자)[^.!?;]{0,30}(?:불가|불가능)/.test(text);
+
+    return denied;
+  }
+
+  // 예비수강신청과 실제 수강신청을 구분함.
+  if (c.id === "C15") {
+    const required =
+      /(?:별도(?:로|의)?|반드시|직접|다시)[^.!?;]{0,40}신청[^.!?;]{0,30}(?:해야|하여야|필수|필요)/.test(text) ||
+      /수강신청[^.!?;]{0,40}(?:별도|직접|다시)[^.!?;]{0,30}(?:해야|하여야|필수|필요)/.test(text);
+
+    const falseAutomatic =
+      /자동(?:으로)?\s*(?:완료됩니다|완료돼요|완료됨)/.test(text);
+
+    return required && !falseAutomatic;
+  }
+
   if (c.id === "C20") {
     const allCancelDenied =
       /(?:전체\s*과목|모든\s*과목|전\s*과목|전부)[^.!?;]{0,40}(?:불가|없|안\s*됩|안\s*돼|안\s*됨|못)/.test(text);

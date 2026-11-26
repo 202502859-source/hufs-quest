@@ -203,6 +203,7 @@ async function vectorSearch(text, rpc) {
       url: row.url,
       text: row.text,
       similarity: row.similarity || 0,
+      method: "vector",
     }));
 }
 
@@ -210,6 +211,7 @@ async function vectorSearch(text, rpc) {
 function keywordSearch(question, lang) {
   return retrieve(question, KB, lang, 3).map((doc) => ({
     id: doc.id ? `kb:${doc.id}` : null,
+    method: "keyword",
     title: doc.title[lang],
     page: doc.source.label[lang],
     url: doc.source.url,
@@ -424,6 +426,7 @@ export default async function handler(req, res) {
           retrieved: docs.map((doc) => ({
             id: doc.id ?? null,
             score: Number.isFinite(doc.similarity) ? doc.similarity : null,
+            method: doc.method,
           })),
         },
       }
