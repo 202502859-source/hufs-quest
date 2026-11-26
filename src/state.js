@@ -343,7 +343,7 @@ const STRINGS = {
   mapBaseDate: { ko: "{year}년 {month}월 기준 캠퍼스", en: "Campus as of {month}/{year}" },
   mapOfficial: { ko: "공식 캠퍼스 지도 ↗", en: "Official campus map ↗" },
   // 11/26 게임 안 신고로 교체: 바깥 링크(↗)가 아니라 게임 안 창(src/ui/mapReportOverlay.js)을 엽니다.
-  mapReport: { ko: "실제와 달라요 (신고)", en: "Report a difference" },
+  mapReport: { ko: "실제와 달라요 (신고 시 경험치 제공)", en: "Report a difference (earn EXP)" },
   mapReportTitle: { ko: "지도 정보 신고", en: "Report map info" },
   mapReportFooter: {
     ko: "팀이 원문과 현장을 확인한 뒤 지도를 고쳐요. 신고 내용은 팀만 볼 수 있어요.",

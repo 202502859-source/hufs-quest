@@ -287,3 +287,8 @@ test("구글 폼은 화면에서 안 씀(상수 · 함수 · 테스트는 주석
   assert.ok(functions.includes("map-report.js"));
   assert.ok(functions.length <= 12, `서버 함수 ${functions.length}개`);
 });
+
+test("신고 버튼 문구(11/26): '실제와 달라요 (신고 시 경험치 제공)'", () => {
+  assert.equal(t("mapReport"), "실제와 달라요 (신고 시 경험치 제공)");
+  withLang("en", () => assert.equal(t("mapReport"), "Report a difference (earn EXP)"));
+});
