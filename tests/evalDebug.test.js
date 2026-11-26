@@ -187,7 +187,7 @@ test("인증된 eval 요청은 검색 조각 ID와 점수를 반환", async () =
 
   assert.equal(result.mode, "ai");
   assert.deepEqual(result.debug, {
-    retrieved: [{ id: DOC.id, score: 0.9 }]
+    retrieved: [{ id: DOC.id, score: 0.9, method: "vector" }]
   });
 });
 
@@ -235,7 +235,7 @@ test("날짜 검증 실패 시에도 검색 조각 정보 유지", async () => {
 
   assert.equal(result.mode, "none");
   assert.deepEqual(result.debug.retrieved, [
-    { id: DOC.id, score: 0.9 }
+    { id: DOC.id, score: 0.9, method: "vector" }
   ]);
 });
 
@@ -247,7 +247,7 @@ test("답변 생성 실패 시에도 검색 조각 정보 유지", async () => {
 
   assert.equal(result.mode, "evidence");
   assert.deepEqual(result.debug.retrieved, [
-    { id: DOC.id, score: 0.9 }
+    { id: DOC.id, score: 0.9, method: "vector" }
   ]);
 });
 
@@ -262,6 +262,7 @@ test("키워드 검색 조각의 점수는 null", async () => {
   for (const doc of result.debug.retrieved) {
     assert.ok(doc.id.startsWith("kb:"));
     assert.equal(doc.score, null);
+    assert.equal(doc.method, "keyword");
   }
 });
 
