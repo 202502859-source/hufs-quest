@@ -179,6 +179,10 @@ const STRINGS = {
   aiClose: { ko: "닫기 (Esc)", en: "Close (Esc)" },
   aiPrevPage: { ko: "◀ 이전", en: "◀ Previous" },
   aiNextPage: { ko: "다음 ▶", en: "Next ▶" },
+  // 학사일정 바로 찾기(C03): 기준 학기 안내 · 다른 학기 버튼 · 학기 되묻기
+  aiTermBasis: { ko: "{label} 기준으로 답했어요", en: "Answered for {label}" },
+  aiAltTerm: { ko: "{label} 일정 보기", en: "{label} dates" },
+  aiWhichSemester: { ko: "어느 학기 일정을 찾으세요?", en: "Which semester?" },
   questAskHere: { ko: "화면 맨 위 검색창", en: "The search bar at the top" },
   mapButton: { ko: "전체 지도 (M)", en: "Full Map (M)" },
   mapTitle: { ko: "서울캠퍼스 전체 지도", en: "Seoul Campus Map" },
