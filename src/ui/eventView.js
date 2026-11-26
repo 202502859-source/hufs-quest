@@ -2,9 +2,30 @@
  * 학교 행사 창(eventOverlay.js)에서 쓰는 순수 함수입니다(화면 · CSS 없이 테스트할 수 있게 따로 둠).
  */
 
-// 출처 종류(shared/events.js sourceType) → 배지 문구 키(src/state.js). 모르는 값이면 null(배지 없음).
-const SOURCE_BADGE_KEY = { school: "eventSourceSchool", sns: "eventSourceSns", host: "eventSourceHost" };
-export const sourceBadgeKey = (sourceType) => (Object.hasOwn(SOURCE_BADGE_KEY, sourceType) ? SOURCE_BADGE_KEY[sourceType] : null);
+// 출처 종류(shared/events.js sourceType · 학생 제보 "crowd") → 배지 문구 키(src/state.js). 모르는 값이면 null(배지 없음).
+// crowd는 팀 확인 여부(confirmed)에 따라 "학생 제보 R명 · 미확인" / "학생 제보 R명 · 팀 확인"(문구의 {count}에 제보자 수).
+const SOURCE_BADGE_KEY = { school: "eventSourceSchool", sns: "eventSourceSns", host: "eventSourceHost", crowd: "eventSourceCrowd" };
+export const sourceBadgeKey = (sourceType, confirmed = false) => {
+  if (!Object.hasOwn(SOURCE_BADGE_KEY, sourceType)) return null;
+  return sourceType === "crowd" && confirmed === true ? "eventSourceCrowdChecked" : SOURCE_BADGE_KEY[sourceType];
+};
 
-// "행사 제보하기" 링크 주소. https://로 시작할 때만 그 주소를, 아니면(빈 값 포함) null을 돌려줍니다(링크를 그리지 않음).
+// 배지 글자. t는 src/state.js의 t(테스트에서도 같은 함수를 넘김). 배지가 없으면 null.
+export function sourceBadgeText(item, t) {
+  const key = sourceBadgeKey(item?.sourceType, item?.confirmed);
+  if (!key) return null;
+  return item.sourceType === "crowd" ? t(key, { count: Math.max(0, Number(item.reporters) || 0) }) : t(key);
+}
+
+// 영어 화면에서 학생 제보(원문 한국어 그대로)면 제목 아래 "Original text (Korean)"를 붙입니다.
+export const showOriginalNote = (item, lang) => lang === "en" && item?.sourceType === "crowd";
+
+// 창 맨 아래 안내문 키: 목록에 학생 제보(crowd)가 하나라도 있으면 "'미확인' 학생 제보는 아직 팀이 확인하기 전" 문구, 없으면 기존 문구.
+export const footerKey = (items) => (Array.isArray(items) && items.some((item) => item?.sourceType === "crowd") ? "eventFooterCrowd" : "eventFooter");
+
+// "행사 제보하기" 자리에 무엇을 둘지: 진짜 로그인(reportMode "app")이면 "form"(창 안 제보 폼),
+// 게스트 · 가짜 로그인이면 "login"("로그인하고 제보하기" 버튼). 11/26 게스트 제보 닫음(PM 결정: 이종헌).
+export const reportEntryKind = (mode) => (mode === "app" ? "form" : "login");
+
+// "행사 제보하기" 링크 주소. 11/26 게스트 제보 닫음으로 화면에서 사용 안 함(되돌릴 때 다시 씀). https://로 시작할 때만 그 주소를, 아니면(빈 값 포함) null을 돌려줍니다(링크를 그리지 않음).
 export const reportLinkUrl = (url) => (typeof url === "string" && url.startsWith("https://") ? url : null);

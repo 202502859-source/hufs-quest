@@ -23,6 +23,7 @@ import { createEventOverlay } from "../ui/eventOverlay.js";
 import { createQuestOverlay } from "../ui/questOverlay.js";
 import { createSearchBar } from "../ui/searchBar.js";
 import { createOfficeOverlay } from "../ui/officeOverlay.js";
+import { createMapReportOverlay } from "../ui/mapReportOverlay.js";
 import { nearestOfficePlace } from "../ui/officeView.js";
 
 const CAMERA_ZOOM = 3;
@@ -229,6 +230,7 @@ export class CampusScene extends Phaser.Scene {
     this.eventOverlay ??= createEventOverlay(this.game, (result) => {
       this.closeOverlay();
       if (result?.showOnMap) this.openMap(result.showOnMap);
+      if (result?.login) this.goToLogin();
     });
     this.eventOverlay.show();
   }
@@ -237,8 +239,22 @@ export class CampusScene extends Phaser.Scene {
   openOffice(placeId) {
     if (this.anyOverlayOpen()) return;
     this.pauseForOverlay();
-    this.officeOverlay ??= createOfficeOverlay(this.game, () => this.closeOverlay());
+    this.officeOverlay ??= createOfficeOverlay(this.game, (result) => {
+      this.closeOverlay();
+      if (result?.report) this.openMapReport(result.report);
+    });
     this.officeOverlay.show(placeId);
+  }
+
+  // 건물 상세 · 전체 지도의 "실제와 달라요 (신고)": 게임 안 신고 창(진짜 로그인이면 폼, 아니면 로그인 버튼).
+  openMapReport(placeId) {
+    if (this.anyOverlayOpen()) return;
+    this.pauseForOverlay();
+    this.mapReportOverlay ??= createMapReportOverlay(this.game, (result) => {
+      this.closeOverlay();
+      if (result?.login) this.goToLogin();
+    });
+    this.mapReportOverlay.show(placeId);
   }
 
   // 가장 가까운 건물 소개 안내원 머리 위에 문구를 띄웁니다(맵 v1 · v2 모두 place.guide). 정문 쪽 문구는 없습니다.
@@ -266,7 +282,8 @@ export class CampusScene extends Phaser.Scene {
         this.plannerOverlay?.isOpen() ||
         this.eventOverlay?.isOpen() ||
         this.questOverlay?.isOpen() ||
-        this.officeOverlay?.isOpen(),
+        this.officeOverlay?.isOpen() ||
+        this.mapReportOverlay?.isOpen(),
     );
   }
 
@@ -318,6 +335,20 @@ export class CampusScene extends Phaser.Scene {
     this.scene.resume();
   }
 
+  // 게스트 · 가짜 로그인이 행사창에서 "로그인하고 제보하기"를 누르면: 열린 창과 장면을 닫고 타이틀로 가서
+  // 타이틀의 "재학생 로그인"과 같은 로그인 창을 엽니다(TitleScene begin("student")). 로그인하면 캠퍼스로 다시 들어옵니다.
+  goToLogin() {
+    if (this.loggingOut) return;
+    this.loggingOut = true;
+    this.stopPlayer();
+    if (this.dialog?.isOpen) this.dialog.close();
+    this.searchBar.setVisible(false);
+    this.searchBar.clear();
+    ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
+    resetSession();
+    this.scene.start("Title", { openLogin: true });
+  }
+
   // HUD의 로그아웃 버튼. 열린 창과 장면을 모두 닫고, 로그인과 진행 상태를 지운 뒤 타이틀로 돌아갑니다.
   async logout() {
     if (this.loggingOut) return;
@@ -329,6 +360,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.questOverlay?.isOpen()) this.questOverlay.hide();
     if (this.plannerOverlay?.isOpen()) this.plannerOverlay.hide();
     if (this.officeOverlay?.isOpen()) this.officeOverlay.hide();
+    if (this.mapReportOverlay?.isOpen()) this.mapReportOverlay.hide();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
     ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
