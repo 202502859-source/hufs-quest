@@ -417,9 +417,21 @@ export default async function handler(req, res) {
     rpc,
   };
 
+  // 인증된 eval 요청에만 최종 검색 근거 ID와 점수를 반환합니다.
+  const evalDebug = evalMode
+    ? {
+        debug: {
+          retrieved: docs.map((doc) => ({
+            id: doc.id ?? null,
+            score: Number.isFinite(doc.similarity) ? doc.similarity : null,
+          })),
+        },
+      }
+    : {};
+
   if (!docs.length) {
     console.log(JSON.stringify({ mode: "none", cacheHit: false, retrieval, rewritten, ...searchLog, ...limitLog, ...rewriteLog, ms: Date.now() - started }));
-    return res.status(200).json({ mode: "none", answer: null, sources: [] });
+    return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
   }
 
   // 출력 토큰 상한을 정하려고 답변 언어 · 글자 수 · 토큰 수만 로그에 남깁니다. 질문과 답변 내용은 남기지 않습니다.
@@ -437,7 +449,7 @@ export default async function handler(req, res) {
     if (ungrounded.length) {
       const reason = ungrounded.some((x) => x.includes("-")) ? "ungrounded-date" : "ungrounded-year";
       console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
-      return res.status(200).json({ mode: "none", answer: null, sources: [] });
+      return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
     }
     const unsupported = unsupportedNumbers(answer, docs);
     if (unsupported.numbers.length || unsupported.timeWords.length) {
@@ -449,7 +461,7 @@ export default async function handler(req, res) {
     if (useCache && shouldCacheAnswer({ mode: "ai", truncated: result.truncated })) {
       await setAnswerCache({ cacheKey, lang, answer, sources });
     }
-    return res.status(200).json({ mode: "ai", answer, sources });
+    return res.status(200).json({ mode: "ai", answer, sources, ...evalDebug });
   } catch (err) {
     console.error("generation failed:", err.message);
     if (err.usage) usage = { maxTokens: ANSWER_MAX_TOKENS, ...err.usage };
@@ -468,6 +480,7 @@ export default async function handler(req, res) {
       mode: "evidence",
       answer: top.map((d) => d.text).join("\n"),
       sources: citedSources("", top, collectedDates),
+      ...evalDebug,
     });
   }
 }
