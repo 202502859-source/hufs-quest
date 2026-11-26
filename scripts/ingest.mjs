@@ -1,5 +1,7 @@
 // 2단계: data/chunks.json을 CLOVA 임베딩으로 벡터화해 Supabase chunks(또는 --target next면 chunks_next) 테이블에 저장합니다.
 // 실행: npm run ingest   (.env에 CLOVA_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY 필요)
+// 개선 데이터: --target next --advanced --dry-run
+// 실제 개선 데이터 저장은 팀 승인 및 --confirm-advanced 필요.
 // 옵션: --dry-run  임베딩·저장 없이 조각 수만 확인
 //       --keep     이번에 없는 옛 조각을 지우지 않음
 //       --target next  실서비스 chunks 대신 시험용 chunks_next 테이블에 저장 · 옛 조각 삭제 · 개수 확인
@@ -19,6 +21,8 @@ const TABLES = { live: "chunks", next: "chunks_next" };
 
 const args = process.argv.slice(2);
 const dryRun = args.includes("--dry-run");
+const advanced = args.includes("--advanced");
+const confirmAdvanced = args.includes("--confirm-advanced");
 const keepOld = args.includes("--keep");
 const targetArg = args.find((a) => a.startsWith("--target="))?.split("=")[1]
   ?? (args.includes("--target") ? args[args.indexOf("--target") + 1] : "live");
@@ -28,12 +32,59 @@ if (!TABLE) {
   process.exit(1);
 }
 
+// 개선 데이터는 반드시 시험용 DB에서만 사용합니다.
+if (advanced && targetArg !== "next") {
+  console.error("--advanced는 --target next와 함께 사용해야 합니다.");
+  process.exit(1);
+}
+
+if (advanced && !dryRun && !confirmAdvanced) {
+  console.error("개선 데이터 저장은 팀 승인 후 --confirm-advanced가 필요합니다.");
+  process.exit(1);
+}
+
 const banner = `대상 테이블: ${TABLE}${TABLE === "chunks" ? "  (실서비스 DB)" : "  (시험용)"}${dryRun ? "  [dry-run: 저장 안 함]" : ""}`;
 console.log(`${"=".repeat(60)}\n  ${banner}\n${"=".repeat(60)}`);
 
 loadEnv(new URL(".env", ROOT));
 const { CLOVA_API_KEY, SUPABASE_URL, SUPABASE_SERVICE_KEY } = process.env;
-const chunks = JSON.parse(await readFile(new URL("data/chunks.json", ROOT), "utf8"));
+const dataFile = advanced
+  ? "data/chunks-next-full.json"
+  : "data/chunks.json";
+
+const rawChunks = JSON.parse(
+  await readFile(new URL(dataFile, ROOT), "utf8")
+);
+
+if (advanced) {
+  const requiredFields = [
+    "id", "title", "url", "section",
+    "text", "collected_at", "parent_id",
+    "topic", "subtopic", "campus",
+    "cohort_min", "cohort_max"
+  ];
+
+  if (
+    !Array.isArray(rawChunks) ||
+    rawChunks.length === 0 ||
+    rawChunks.some(c =>
+      !requiredFields.every(key => Object.hasOwn(c, key))
+    ) ||
+    new Set(rawChunks.map(c => c.id)).size !== rawChunks.length
+  ) {
+    console.error("개선 데이터 필드 또는 ID 검증 실패");
+    process.exit(1);
+  }
+}
+
+const chunks = advanced
+  ? rawChunks.map(c => ({
+      ...c,
+      split_label: c.split_label ?? null
+    }))
+  : rawChunks;
+
+console.log(`데이터 파일: ${dataFile}`);
 console.log(`조각 ${chunks.length}개`);
 if (dryRun) process.exit(0);
 
