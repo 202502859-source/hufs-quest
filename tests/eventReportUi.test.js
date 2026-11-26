@@ -14,7 +14,8 @@ import {
   sendEventReport,
 } from "../src/data/eventReportApi.js";
 import { validateEventReport } from "../shared/eventReport.js";
-import { footerKey, showOriginalNote, sourceBadgeKey, sourceBadgeText } from "../src/ui/eventView.js";
+import { footerKey, reportEntryKind, showOriginalNote, sourceBadgeKey, sourceBadgeText } from "../src/ui/eventView.js";
+import { readFileSync } from "node:fs";
 import { setLang, t } from "../src/state.js";
 
 // 2026-11-26(목) 12:00 한국 시간
@@ -224,4 +225,26 @@ test("새 문구 키는 모두 한국어 · 영어가 있음", () => {
       for (const key of keys) assert.ok(t(key, { count: 1, threshold: 5 }).trim(), `${lang}: ${key}`);
     });
   }
+});
+
+test("게스트 제보 닫음(11/26): 게스트 · mock 로그인이면 '로그인하고 제보하기', 진짜 로그인이면 제보 폼", () => {
+  assert.equal(reportEntryKind(reportMode({ authMode: "real", token: null })), "login", "게스트(로그인 안 함)");
+  assert.equal(reportEntryKind(reportMode({ authMode: "mock", token: "mock-access-token" })), "login", "가짜 로그인");
+  assert.equal(reportEntryKind(reportMode({ authMode: "real", token: "jwt" })), "form", "진짜 로그인");
+  assert.equal(t("eventReportLoginButton"), "로그인하고 제보하기");
+  withLang("en", () => assert.equal(t("eventReportLoginButton"), "Log in to report"));
+});
+
+test("게스트 제보 닫음(11/26): 행사창은 구글 폼 링크를 쓰지 않음, 상수는 주석과 함께 남김, 로그인 버튼은 타이틀 로그인 창으로", () => {
+  const overlay = readFileSync(new URL("../src/ui/eventOverlay.js", import.meta.url), "utf8");
+  const code = overlay.split("\n").filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line)).join("\n"); // 주석 줄 제외
+  assert.doesNotMatch(code, /EVENT_REPORT_URL|reportLinkUrl|eventReportNote|eventReportLoginHint|"eventReportLink"/, "화면에서 구글 폼 링크 · 기존 안내를 쓰지 않음");
+  assert.match(overlay, /overlay\.hide\(\{ login: true \}\)/);
+  const eventsApi = readFileSync(new URL("../src/data/eventsApi.js", import.meta.url), "utf8");
+  assert.match(eventsApi, /11\/26 게스트 제보 닫음으로 화면에서 사용 안 함[^\n]*\n\/\/[^\n]*\nexport const EVENT_REPORT_URL = "https:\/\//, "상수 위 주석");
+  const campus = readFileSync(new URL("../src/scenes/CampusScene.js", import.meta.url), "utf8");
+  assert.match(campus, /if \(result\?\.login\) this\.goToLogin\(\);/);
+  assert.match(campus, /this\.scene\.start\("Title", \{ openLogin: true \}\)/);
+  const title = readFileSync(new URL("../src/scenes/TitleScene.js", import.meta.url), "utf8");
+  assert.match(title, /else if \(data\?\.openLogin\) this\.begin\("student"\);/, "타이틀의 재학생 로그인과 같은 방식으로 로그인 창");
 });

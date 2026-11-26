@@ -229,6 +229,7 @@ export class CampusScene extends Phaser.Scene {
     this.eventOverlay ??= createEventOverlay(this.game, (result) => {
       this.closeOverlay();
       if (result?.showOnMap) this.openMap(result.showOnMap);
+      if (result?.login) this.goToLogin();
     });
     this.eventOverlay.show();
   }
@@ -316,6 +317,20 @@ export class CampusScene extends Phaser.Scene {
     this.input.keyboard.resetKeys();
     this.searchBar.setVisible(true);
     this.scene.resume();
+  }
+
+  // 게스트 · 가짜 로그인이 행사창에서 "로그인하고 제보하기"를 누르면: 열린 창과 장면을 닫고 타이틀로 가서
+  // 타이틀의 "재학생 로그인"과 같은 로그인 창을 엽니다(TitleScene begin("student")). 로그인하면 캠퍼스로 다시 들어옵니다.
+  goToLogin() {
+    if (this.loggingOut) return;
+    this.loggingOut = true;
+    this.stopPlayer();
+    if (this.dialog?.isOpen) this.dialog.close();
+    this.searchBar.setVisible(false);
+    this.searchBar.clear();
+    ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
+    resetSession();
+    this.scene.start("Title", { openLogin: true });
   }
 
   // HUD의 로그아웃 버튼. 열린 창과 장면을 모두 닫고, 로그인과 진행 상태를 지운 뒤 타이틀로 돌아갑니다.

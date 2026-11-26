@@ -8,6 +8,7 @@ const REFRESH_MS = 5 * 60 * 1000;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 // 행사가 없을 때 안내하는 학교 홈페이지 공지 게시판("공지안내", 2026-11-24 확인)
 export const SCHOOL_NOTICE_URL = "https://www.hufs.ac.kr/hufs/11281/subview.do";
+// 11/26 게스트 제보 닫음으로 화면에서 사용 안 함(PM 결정: 이종헌). 되돌릴 수 있게 상수 · 테스트는 남겨 둡니다.
 // "행사 제보하기" 구글 폼 주소. 행사 제보 구글 폼(11/26 임현규 생성, 개인정보·이메일 수집 없음). https://로 시작하는 주소를 넣으면 행사 창에 링크가 보입니다(src/ui/eventView.js reportLinkUrl).
 export const EVENT_REPORT_URL = "https://docs.google.com/forms/d/e/1FAIpQLSdoivsG9JPjDBbKmj5rsTVDppVuVsNzObtAMBPybEuRQA7qfg/viewform";
 
