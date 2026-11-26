@@ -1,4 +1,4 @@
--- 작성: 행사 제보 보상(feat/event-report-reward). 실행 전 — 실행한 사람 · 날짜 · 확인 결과를 이 줄에 적어 주세요.
+-- 작성: 행사 제보 보상(feat/event-report-reward). 실행·확인: 이종헌 (Supabase SQL Editor, 11/26 밤). 확인 쿼리 ①②③ 정상
 -- HUFS Quest: 행사 제보가 팀 확인(confirmed)되면 제보자에게 경험치 + 게임 안 알림
 -- 먼저 001_progress_schema.sql · 008_event_reports.sql이 실행되어 있어야 합니다.
 -- Supabase Dashboard > SQL Editor 에 전체 내용을 붙여넣고 Run 하세요. 기존 테이블 · 함수는 건드리지 않습니다.
