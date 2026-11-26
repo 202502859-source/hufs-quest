@@ -222,6 +222,7 @@ const STRINGS = {
   eventSourceSns: { ko: "학생회·동아리 SNS", en: "Student org SNS" },
   eventSourceHost: { ko: "주최 측 제공", en: "Provided by host" },
   eventReportLink: { ko: "행사 제보하기 ↗", en: "Report an event ↗" },
+  // eventReportLink · eventReportNote · eventReportLoginHint: 11/26 게스트 제보 닫음으로 화면에서 사용 안 함(되돌릴 때 씀)
   eventReportNote: { ko: "제보는 팀이 출처를 확인한 뒤 올라가요", en: "Reports are posted after the team checks the source" },
   eventChecked: { ko: "확인 {date}", en: "Checked {date}" },
   eventEmpty: { ko: "등록된 행사가 없어요. 학교 공지에서 확인해 주세요", en: "No events listed. Please check the school notices" },
@@ -246,6 +247,7 @@ const STRINGS = {
   eventSourceCrowdChecked: { ko: "학생 제보 {count}명 · 팀 확인", en: "Student reports: {count} · Team checked" },
   eventCrowdOriginal: { ko: "원문(한국어)", en: "Original text (Korean)" },
   eventReportLoginHint: { ko: "로그인하면 앱에서 바로 제보할 수 있어요", en: "Log in to report right in the app" },
+  eventReportLoginButton: { ko: "로그인하고 제보하기", en: "Log in to report" },
   eventReportOpen: { ko: "행사 제보하기", en: "Report an event" },
   eventFormTitle: { ko: "행사 제보", en: "Report an event" },
   eventFormBack: { ko: "← 행사 목록", en: "← Event list" },
