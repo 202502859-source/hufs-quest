@@ -156,6 +156,29 @@ function nextOrPrevious(question, termText, semesters, chosen) {
   return index >= 0 && pick ? [alternativeOf(question, termText, pick.id)] : [];
 }
 
+// 답변 생성에 덧붙이는 한 줄(바로 찾기를 한 질문에만). 다른 학기 자료의 날짜로 답하지 않게 합니다(11/27 Preview D3 · D4 · D8에서 확인).
+export function calendarNote(route, lang = "ko") {
+  if (!route || route.clarify) return "";
+  if (lang === "en") {
+    return `[Academic calendar] Treat this question as asking about ${semesterLabel(route.semester, "en")}. Answer with the dates in source [1] (academic calendar lookup), not dates from other semesters or years in other sources. If the dates have already passed as of today, say so.`;
+  }
+  return `[학사일정 기준] 이 질문은 ${semesterLabel(route.semester)} 일정을 묻는 것으로 본다. [1] 학사일정 바로 찾기 자료의 날짜로 답하고, 다른 자료에 있는 다른 학기 · 연도의 날짜로 대신하지 않는다. 오늘 기준 이미 지난 일정이면 지났다고 말한다.`;
+}
+
+// 답에 바로 찾기 일정의 날짜(월 · 일)가 하나라도 있는지. 없으면 ask.js가 원문 보여 주기로 바꿉니다(서버에서 한 번 더 막기).
+export function answerHasRouteDate(answer, route) {
+  if (!route?.dates?.length) return true;
+  const text = String(answer ?? "");
+  const found = new Set();
+  for (const m of text.matchAll(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/g)) found.add(`${Number(m[1])}-${Number(m[2])}`);
+  for (const m of text.matchAll(/(?:\d{4}\s*[.\-/]\s*)?(\d{1,2})\s*[.\-/]\s*(\d{1,2})(?!\d)/g)) found.add(`${Number(m[1])}-${Number(m[2])}`);
+  for (const m of text.matchAll(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\b/gi)) {
+    found.add(`${MONTH_NAMES.indexOf(m[1].toLowerCase()) + 1}-${Number(m[2])}`);
+  }
+  return route.dates.some((iso) => found.has(`${Number(iso.slice(5, 7))}-${Number(iso.slice(8, 10))}`));
+}
+const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
 // question: 원 질문, today: 한국 날짜 "YYYY-MM-DD". 해당 없으면 null(검색창은 지금과 똑같이 동작).
 export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } = {}) {
   const q = String(question ?? "");
@@ -221,6 +244,7 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
     semester: chosen,
     explicit,
     lines,
+    dates: rows.flatMap((i) => [i.startDate, i.endDate].filter(Boolean)),
     doc: {
       id: `calendar:${chosen}:${topic.key}`,
       title: CALENDAR_DOC_TITLE,
