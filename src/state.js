@@ -248,7 +248,7 @@ const STRINGS = {
   eventCrowdOriginal: { ko: "원문(한국어)", en: "Original text (Korean)" },
   eventReportLoginHint: { ko: "로그인하면 앱에서 바로 제보할 수 있어요", en: "Log in to report right in the app" },
   eventReportLoginButton: { ko: "로그인하고 제보하기", en: "Log in to report" },
-  eventReportOpen: { ko: "행사 제보하기", en: "Report an event" },
+  eventReportOpen: { ko: "제보하고 경험치 쌓기", en: "Report & earn EXP" },
   eventFormTitle: { ko: "행사 제보", en: "Report an event" },
   eventFormBack: { ko: "← 행사 목록", en: "← Event list" },
   eventFormNotice: {

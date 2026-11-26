@@ -248,3 +248,8 @@ test("게스트 제보 닫음(11/26): 행사창은 구글 폼 링크를 쓰지 �
   const title = readFileSync(new URL("../src/scenes/TitleScene.js", import.meta.url), "utf8");
   assert.match(title, /else if \(data\?\.openLogin\) this\.begin\("student"\);/, "타이틀의 재학생 로그인과 같은 방식으로 로그인 창");
 });
+
+test("행사창 제보 버튼 문구(11/26): '제보하고 경험치 쌓기'", () => {
+  assert.equal(t("eventReportOpen"), "제보하고 경험치 쌓기");
+  withLang("en", () => assert.equal(t("eventReportOpen"), "Report & earn EXP"));
+});
