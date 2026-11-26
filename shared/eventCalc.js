@@ -68,7 +68,8 @@ export function eventProblems(e) {
   if (!KST_TIME.test(e.endsAt ?? "")) p.push("endsAt: +09:00 형식");
   if (Date.parse(e.endsAt) < Date.parse(e.startsAt)) p.push("endsAt이 startsAt보다 빠름");
   if (!EVENT_CATEGORIES.includes(e.category)) p.push(`category: ${EVENT_CATEGORIES.join(" · ")} 중 하나`);
-  if (!SOURCE_TYPES.includes(e.sourceType)) p.push(`sourceType: ${SOURCE_TYPES.join(" · ")} 중 하나`);
+  if (e.sourceType === "crowd") p.push("sourceType: crowd는 앱 안 학생 제보(api/events.js) 전용 — shared/events.js에 쓸 수 없음");
+  else if (!SOURCE_TYPES.includes(e.sourceType)) p.push(`sourceType: ${SOURCE_TYPES.join(" · ")} 중 하나`);
   if (!e.checked || !DATE.test(e.checked.on ?? "") || typeof e.checked.by !== "string" || !e.checked.by.trim()) p.push("checked: { on: YYYY-MM-DD, by } 필요");
 
   const host = e.url === undefined ? null : hostOf(e.url);
