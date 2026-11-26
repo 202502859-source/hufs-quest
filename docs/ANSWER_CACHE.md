@@ -68,4 +68,4 @@
 2. 최신 `main`에서 `feat/answer-cache` 브랜치 생성
 3. `shared/academicDate.js`, `api/_lib/answerCache.js`, `api/ask.js`, `scripts/ingest.mjs` 구현
 4. 단위 테스트 추가 (`node --test`): 캐시 키 정규화 · 언어 분리(`ko`/`en`), `eval` 우회, 저장 조건(`mode: "ai"` && `truncated: false`만 허용), 영어 단어 경계(`know` 통과 / `now` 제외) 검증
-5. Preview 배포에서 동일 질문 2회 호출 비교표(`cacheHit: false` -> `true`, 응답 시간 `ms` 단축) 확인 후 12/2 기능 동결 전 Merge
+5. Preview 배포에서 동일 질문 2회 호출 비교표(`cacheHit: false` -> `true`, 응답 시간 `ms` 단축) 확인 후 12/3 밤 기능 동결 전 Merge
