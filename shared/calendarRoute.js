@@ -7,7 +7,9 @@
 //       연도 없이 "1학기" · "2학기"만 있으면 아직 끝나지 않은 가장 가까운 그 학기.
 //     - 학기 말이 없으면(방식 B): 그 항목이 있는 학기 중 일정이 오늘 이후에 끝나는 가장 가까운 학기.
 //     - 방식 B로 하나를 못 정하면(후보 일정이 모두 지났거나, 같은 날짜의 후보 학기가 둘 이상) clarify(방식 A).
-//  3) 연도를 질문에서 직접 받지 않았으면 termBasis를 붙이고, 같은 항목이 있는 다른 학기를 최대 2개 alternatives로.
+//  3) 학기가 분명하지 않은 질문이면 termBasis를 붙이고, alternatives는 1개(11/27 PM 확정):
+//     기본 답 다음에 오는 같은 항목(종류를 말했으면 같은 종류 중 다음), 없으면 바로 전 것, 둘 다 없으면 없음.
+//     학기가 분명하면(연도+학기, 이번 · 다음 · 지난 학기) termBasis · alternatives 없음. clarify는 기본 답을 못 고를 때만.
 // 순수 함수: 오늘 날짜(YYYY-MM-DD, 한국 날짜)를 받아 판단하고, 네트워크 · 로그가 없습니다.
 import { ACADEMIC_CALENDAR } from "./academicCalendar.js";
 import { CALENDAR_TOPICS, DATE_QUESTION } from "./calendarTerms.js";
@@ -81,15 +83,16 @@ export function findTerm(question, today) {
     const m = question.match(re);
     if (!m) continue;
     const found = read(m);
-    if (found.semester) return { semester: found.semester, part: parseSemester(found.semester).part, explicitYear: true, text: m[0] };
-    if (found.year) return { semester: null, part: null, year: found.year, explicitYear: false, text: m[0] };
+    // explicit: 학기가 분명한 질문(연도+학기, 이번 · 다음 · 지난 학기). 이때는 termBasis · alternatives를 붙이지 않습니다(11/27 PM 확정).
+    if (found.semester) return { semester: found.semester, part: parseSemester(found.semester).part, explicit: true, text: m[0] };
+    if (found.year) return { semester: null, part: null, year: found.year, explicit: false, text: m[0] };
     if (found.relative !== undefined) {
-      return { semester: shiftSemester(currentSemester(today), found.relative), part: null, explicitYear: false, text: m[0] };
+      return { semester: shiftSemester(currentSemester(today), found.relative), part: null, explicit: true, text: m[0] };
     }
     // 연도 없이 학기만: 아직 끝나지 않은 가장 가까운 그 학기
     const y = Number(today.slice(0, 4));
     const semester = [y - 1, y, y + 1].map((year) => `${year}-${found.part}`).find((id) => semesterEnd(id) >= today);
-    return { semester, part: found.part, explicitYear: false, text: m[0] };
+    return { semester, part: found.part, explicit: false, text: m[0] };
   }
   return null;
 }
@@ -107,9 +110,9 @@ function matchingItems(topic, question, items) {
   return items.filter((item) => {
     if (!item.targetSemester || !topic.item.test(item.name)) return false;
     if (topic.exclude && topic.exclude.test(item.name) && !topic.exclude.test(question)) return false;
-    // 계절학기를 물으면서 개강 · 종강을 말했으면 그 일정만
-    if (topic.key === "seasonal" && /개강/.test(question) && !/개강/.test(item.name)) return false;
-    if (topic.key === "seasonal" && /종강/.test(question) && !/종강/.test(item.name)) return false;
+    // 계절학기를 물으면서 시작(개강) · 끝(종강)을 말했으면 그 일정만
+    if (topic.key === "seasonal" && /개강|시작|start|begin/i.test(question) && !/개강/.test(item.name)) return false;
+    if (topic.key === "seasonal" && /종강|끝나|끝이|\bend/i.test(question) && !/종강/.test(item.name)) return false;
     return true;
   });
 }
@@ -121,16 +124,36 @@ function retarget(question, termText, semester) {
   if (!/[가-힣]/.test(question)) {
     return `${semesterLabel(semester, "en").replace(/\s*\((?:1st|2nd) semester\)$/, "")}: ${question.trim()}`;
   }
-  const rest = (termText ? question.replace(termText, " ") : question).replace(/\s+/g, " ").trim();
+  let rest = termText ? question.replace(termText, " ") : question;
+  // "계절학기 언제 시작해?"처럼 학기 종류 말만 있으면 그 말을 학기 이름으로 바꿔 "계절학기"가 두 번 나오지 않게 합니다.
+  if (!termText && /summer|winter/.test(semester)) rest = rest.replace(/계절\s*학기/, " ");
+  rest = rest.replace(/\s+/g, " ").trim();
   return `${semesterLabel(semester)} ${rest}`.trim();
 }
 
+const alternativeOf = (question, termText, id) => ({
+  semester: id,
+  label: semesterLabel(id),
+  labelEn: semesterLabel(id, "en"),
+  question: retarget(question, termText, id),
+});
+
+// clarify용: 오늘과 가까운 학기 최대 2개
 function alternativesFor(question, termText, semesters, chosen, today, max = 2) {
   return semesters
     .filter((s) => s.id !== chosen)
     .sort((a, b) => daysBetween(a.date, today) - daysBetween(b.date, today) || a.id.localeCompare(b.id))
     .slice(0, max)
-    .map((s) => ({ semester: s.id, label: semesterLabel(s.id), labelEn: semesterLabel(s.id, "en"), question: retarget(question, termText, s.id) }));
+    .map((s) => alternativeOf(question, termText, s.id));
+}
+
+// 다른 학기 버튼(11/27 PM 확정): 1개. 기본 답 다음에 오는 같은 항목(종류를 말했으면 같은 종류 중 다음),
+// 다음 것이 데이터에 없으면 바로 전 것, 둘 다 없으면 없음. 학기 순서는 그 학기 일정의 가장 이른 시작일로 정합니다.
+function nextOrPrevious(question, termText, semesters, chosen) {
+  const ordered = [...semesters].sort((a, b) => a.first.localeCompare(b.first) || a.id.localeCompare(b.id));
+  const index = ordered.findIndex((s) => s.id === chosen);
+  const pick = ordered[index + 1] || ordered[index - 1];
+  return index >= 0 && pick ? [alternativeOf(question, termText, pick.id)] : [];
 }
 
 // question: 원 질문, today: 한국 날짜 "YYYY-MM-DD". 해당 없으면 null(검색창은 지금과 똑같이 동작).
@@ -157,7 +180,7 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
     .map(([id, list]) => {
       const upcoming = list.map(itemDate).filter((d) => d >= today).sort();
       const dates = list.map((i) => i.startDate).sort();
-      return { id, list, next: upcoming[0] || null, date: upcoming[0] || dates.at(-1) };
+      return { id, list, next: upcoming[0] || null, date: upcoming[0] || dates.at(-1), first: dates[0] };
     });
 
   let chosen = null;
@@ -184,15 +207,19 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
   }
 
   const rows = [...bySemester.get(chosen)].sort((a, b) => a.startDate.localeCompare(b.startDate) || a.id.localeCompare(b.id));
+  // 오늘 이전에 끝난 일정은 줄 끝에 "(오늘 기준 지난 일정)"을 붙여, 이미 지났다는 것을 답에 말할 수 있게 합니다.
   const lines = rows.map(
-    (i) => `[${CALENDAR_DOC_TITLE}] ${docLabel(chosen)} > ${fmt(i.startDate)}${i.endDate ? ` ~ ${fmt(i.endDate)}` : ""}: ${i.name}`,
+    (i) =>
+      `[${CALENDAR_DOC_TITLE}] ${docLabel(chosen)} > ${fmt(i.startDate)}${i.endDate ? ` ~ ${fmt(i.endDate)}` : ""}: ${i.name}` +
+      (itemDate(i) < today ? " (오늘 기준 지난 일정)" : ""),
   );
   const urls = [...new Set(rows.map((i) => i.sourceUrl))];
+  const explicit = Boolean(term?.explicit);
   return {
     clarify: false,
     topic: topic.key,
     semester: chosen,
-    explicitYear: Boolean(term?.explicitYear),
+    explicit,
     lines,
     doc: {
       id: `calendar:${chosen}:${topic.key}`,
@@ -201,7 +228,8 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
       text: lines.join("\n"),
       method: "calendar",
     },
-    termBasis: term?.explicitYear ? null : { semester: chosen, label: semesterLabel(chosen), labelEn: semesterLabel(chosen, "en") },
-    alternatives: alternativesFor(q, term?.text ?? null, candidates, chosen, today),
+    // 학기가 분명한 질문(연도+학기, 이번 · 다음 · 지난 학기)에는 기준 학기 안내 · 다른 학기 버튼을 붙이지 않습니다.
+    termBasis: explicit ? null : { semester: chosen, label: semesterLabel(chosen), labelEn: semesterLabel(chosen, "en") },
+    alternatives: explicit ? [] : nextOrPrevious(q, term?.text ?? null, candidates, chosen),
   };
 }
