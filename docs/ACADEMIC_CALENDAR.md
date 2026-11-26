@@ -213,8 +213,15 @@ targetSemester와 period를 별도로 관리한다.
    - 출처 링크는 11360 화면(2027학년도 일정은 `?year=2027`)이다.
    - 원문 보여 주기(evidence)로 넘어가도 이 자료가 맨 앞이다.
 4. **응답 칸**
-   - `termBasis: { semester, label, labelEn }`: 질문에 연도가 없어 학기를 규칙으로 골랐을 때만 붙는다.
-   - `alternatives: [{ semester, label, labelEn, question }]`: 같은 항목이 있는 다른 학기를 오늘과 가까운 순서로 최대 2개 붙인다.
+   - 다른 학기 버튼 규칙(11/27 PM 확정)
+     - 학기가 분명한 질문(연도+학기, "이번 · 다음 · 지난 학기")에는 `termBasis` · `alternatives`를 모두 붙이지 않는다.
+     - 그 밖에는 `termBasis: { semester, label, labelEn }`를 붙인다.
+   - `alternatives: [{ semester, label, labelEn, question }]`는 **1개**다.
+     - 기본 답 다음에 오는 같은 항목(질문이 1학기 · 2학기 · 계절학기처럼 종류를 말했으면 같은 종류 중 다음 것)을 고른다.
+     - 다음 것이 데이터에 없으면 바로 전 것, 둘 다 없으면 없음.
+     - 학기 순서는 그 학기 일정의 가장 이른 시작일로 정한다.
+     - clarify일 때만 오늘과 가까운 학기 최대 2개를 버튼으로 준다.
+   - 근거 줄의 일정이 오늘 이전에 끝났으면 줄 끝에 "(오늘 기준 지난 일정)"을 붙인다. 이미 지났다는 것을 답에 말할 수 있게 하려는 것이다.
      - question은 원 질문의 학기 말을 그 학기 이름으로 바꾼 문장이다. 영어 질문이면 "2027 Spring: …"처럼 앞에 붙인다.
    - clarify면 `{ mode: "clarify", clarify: true, answer: null, sources: [], alternatives }`.
 5. **바뀌지 않는 것**

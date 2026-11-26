@@ -9,7 +9,7 @@ test("'2학기 수강취소 기간' → 아직 끝나지 않은 2학기(2026-2)�
   const r = routeCalendar("2학기 수강취소 기간", { today: TODAY });
   assert.equal(r.clarify, false);
   assert.equal(r.semester, "2026-2");
-  assert.deepEqual(r.lines, ["[학사일정 바로 찾기] 2026학년도 제2학기 > 2026.09.22 ~ 2026.09.28: 수강신청 취소"]);
+  assert.deepEqual(r.lines, ["[학사일정 바로 찾기] 2026학년도 제2학기 > 2026.09.22 ~ 2026.09.28: 수강신청 취소 (오늘 기준 지난 일정)"]);
   assert.deepEqual(r.termBasis, { semester: "2026-2", label: "2026학년도 2학기", labelEn: "2026 Fall (2nd semester)" });
   assert.equal(r.doc.title, "학사일정 바로 찾기");
   assert.equal(r.doc.url, "https://www.hufs.ac.kr/hufs/11360/subview.do");
@@ -79,7 +79,7 @@ test("clarify(방식 A): 같은 날짜의 후보 학기가 둘이면 고르지 �
   assert.equal(routeCalendar("중간고사 언제야", { today: TODAY, calendar }).clarify, true);
 });
 
-test("질문에 학년도 · 학기가 있으면 그대로, termBasis 없음(C01 · C02 · C03 · C07 같은 질문)", () => {
+test("질문에 학년도 · 학기가 있으면 그대로, termBasis · alternatives 없음(C01 · C02 · C03 · C07 같은 질문)", () => {
   const cases = [
     ["2026년 1학기 수강신청 변경 기간은?", "2026-1", ["2026.03.03 ~ 2026.03.09: 수강신청 변경"]],
     ["2026년 1학기 기말고사 기간은?", "2026-1", ["2026.06.16 ~ 2026.06.22: 제1학기 기말시험"]],
@@ -90,8 +90,9 @@ test("질문에 학년도 · 학기가 있으면 그대로, termBasis 없음(C01
   for (const [q, semester, rows] of cases) {
     const r = routeCalendar(q, { today: TODAY });
     assert.equal(r.semester, semester, q);
-    assert.deepEqual(r.lines.map((l) => l.replace(/^.* > /, "")), rows, q);
+    assert.deepEqual(r.lines.map((l) => l.replace(/^.* > /, "").replace(" (오늘 기준 지난 일정)", "")), rows, q);
     assert.equal(r.termBasis, null, q);
+    assert.deepEqual(r.alternatives, [], q); // 학기가 분명하면 다른 학기 버튼 없음(11/27 PM 확정)
   }
 });
 
@@ -161,8 +162,7 @@ test("ask.js: 날짜 질문은 학사일정 바로 찾기 줄을 근거 1순위�
     const routed = await call("2026년 2학기 수강취소 기간은?", "203.0.113.80");
     assert.equal(routed.body.mode, "ai");
     assert.equal(routed.body.termBasis, undefined); // 연도를 말했으므로 기준 학기 안내 없음
-    assert.ok(Array.isArray(routed.body.alternatives));
-    assert.ok(routed.body.alternatives.every((a) => a.label && a.question));
+    assert.equal(routed.body.alternatives, undefined); // 학기가 분명하면 다른 학기 버튼도 없음
     assert.match(firstDoc, /학사일정 바로 찾기/);
     assert.match(firstDoc, /2026\.09\.22 ~ 2026\.09\.28: 수강신청 취소/);
     assert.ok(!calls.some((u) => u.includes("get_answer_cache"))); // 날짜 질문은 캐시를 쓰지 않음
