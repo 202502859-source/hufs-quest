@@ -217,7 +217,12 @@ const STRINGS = {
   eventSignup: { ko: "신청", en: "Sign-up" },
   eventShowOnMap: { ko: "지도에서 보기", en: "Show on map" },
   eventSourceLink: { ko: "원문 ↗", en: "Source ↗" },
+  // 출처 칸 맨 앞 배지(출처 종류, src/ui/eventView.js sourceBadgeKey)
+  eventSourceSchool: { ko: "학교 공지", en: "School notice" },
+  eventSourceSns: { ko: "학생회·동아리 SNS", en: "Student org SNS" },
   eventSourceHost: { ko: "주최 측 제공", en: "Provided by host" },
+  eventReportLink: { ko: "행사 제보하기 ↗", en: "Report an event ↗" },
+  eventReportNote: { ko: "제보는 팀이 출처를 확인한 뒤 올라가요", en: "Reports are posted after the team checks the source" },
   eventChecked: { ko: "확인 {date}", en: "Checked {date}" },
   eventEmpty: { ko: "등록된 행사가 없어요. 학교 공지에서 확인해 주세요", en: "No events listed. Please check the school notices" },
   eventNoticeLink: { ko: "학교 공지 ↗", en: "School notices ↗" },
