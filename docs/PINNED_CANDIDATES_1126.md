@@ -17,9 +17,9 @@
 
 | ID | 질문 | 고정 답변 | 근거 조각 ID | 원문 문장 | URL |
 | --- | --- | --- | --- | --- | --- |
-| K2 | 일반 이중전공과 후기 이중전공 신청 시기는 어떻게 달라? | 일반 이중전공은 1학년 과정 종료 전에 신청하며, 후기 이중전공은 매년 4월 중 연 1회 신청합니다. | 11384-01, 11384-10 | 1학년 과정 종료전에 학교 홈페이지 종합정보시스템에서 신청 / 매년 4월 중 (연1회) | https://www.hufs.ac.kr/hufs/11384/subview.do |
-| K3 | 이중전공이랑 부전공은 각각 언제 신청해? | 일반 이중전공과 부전공은 모두 1학년 과정 종료 전에 학교 홈페이지 종합정보시스템에서 신청합니다. | 11384-01, 11385-01 | 1학년 과정 종료전에 학교 홈페이지 종합정보시스템에서 신청 / 1학년 과정 종료 전에 학교 홈페이지 종합정보시스템에서 신청. | https://www.hufs.ac.kr/hufs/11384/subview.do / https://www.hufs.ac.kr/hufs/11385/subview.do |
-| E2 | When can I apply for a double major? | You can apply for a regular double major before completing your first-year program through the university's integrated information system. | 11384-01 | 1학년 과정 종료전에 학교 홈페이지 종합정보시스템에서 신청 | https://www.hufs.ac.kr/hufs/11384/subview.do |
+| K2 | 일반 이중전공과 후기 이중전공 신청 시기는 어떻게 달라? | 일반 이중전공은 1학년 과정 종료 전에 종합정보시스템에서 신청합니다. 후기 이중전공은 같은 전공을 부전공으로 이수 중인 7~8학기 학생이 매년 4월 중(연 1회) 신청합니다. | 11384-01, 11384-09, 11384-10 | 1학년 과정 종료전에 학교 홈페이지 종합정보시스템에서 신청 / 부전공을 이수중인 7~8학기 재학생, 7학기 이후 8학기 이전 휴학생으로 희망 이중전공과 동일한 부전공을 이수중인 자. / 매년 4월 중 (연1회) | https://www.hufs.ac.kr/hufs/11384/subview.do |
+| K3 | 이중전공이랑 부전공은 각각 언제 신청해? | 일반 이중전공과 부전공은 모두 1학년 과정 종료 전에 학교 홈페이지 종합정보시스템에서 신청합니다. 후기 이중전공은 별도 제도로 매년 4월에 신청합니다(7~8학기 부전공 이수자 대상). | 11384-01, 11385-01, 11384-09, 11384-10 | 1학년 과정 종료전에 학교 홈페이지 종합정보시스템에서 신청 / 1학년 과정 종료 전에 학교 홈페이지 종합정보시스템에서 신청. / 부전공을 이수중인 7~8학기 재학생, 7학기 이후 8학기 이전 휴학생으로 희망 이중전공과 동일한 부전공을 이수중인 자. / 매년 4월 중 (연1회) | https://www.hufs.ac.kr/hufs/11384/subview.do / https://www.hufs.ac.kr/hufs/11385/subview.do |
+| E2 | When can I apply for a double major? | You can apply for a regular double major before the end of your first year through the university's integrated information system. | 11384-01 | 1학년 과정 종료전에 학교 홈페이지 종합정보시스템에서 신청 | https://www.hufs.ac.kr/hufs/11384/subview.do |
 
 ## 3. 예비 후보
 
@@ -42,7 +42,7 @@ K1은 시연 검수에서 정답이었으나 학번별 조건
 
 ## 5. 검증 및 적용 원칙
 
-- 로컬 data/chunks.json 근거 조각 5개 확인 완료.
+- 로컬 data/chunks.json 근거 조각 6개 확인 완료.
 - 근거 조각 수집일: 2026-11-20.
 - 공식 웹페이지 재대조 및 PM 승인 대기.
 - 우선 후보 3개, 예비 후보 1개 제출.
