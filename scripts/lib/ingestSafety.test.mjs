@@ -11,6 +11,7 @@ import {
 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
 const root = mkdtempSync(
@@ -90,7 +91,8 @@ function run(args) {
     process.execPath,
     [
       "--import",
-      join(root, "block-network.mjs"),
+      // 윈도우에서는 "C:\…" 경로를 --import에 그대로 넘기면 주소로 읽지 못해 file:// 주소로 넘깁니다(#92와 같은 수정)
+      pathToFileURL(join(root, "block-network.mjs")).href,
       join(root, "scripts", "ingest.mjs"),
       ...args
     ],
