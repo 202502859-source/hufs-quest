@@ -180,6 +180,21 @@ test("isRefusalAnswer: 근거 번호가 있으면 일부에 '찾지 못했어요
   assert.equal(isRefusalAnswer("Graduation requires a GPA of 2.0. [2]"), false);
 });
 
+test("isRefusalAnswer: '제공해 드릴 수 없' · '제공해 드리기 어렵'도 근거 번호가 없으면 거절(11/27 추가)", () => {
+  // 11/27 시험용 Preview 범위 밖 점검 "학교 근처 맛집 추천해줘": 근거 번호 없이 mode ai로 남았던 답
+  assert.equal(isRefusalAnswer("죄송합니다만 학교 근처 맛집에 대한 정보는 제공해 드릴 수 없습니다. 사용자님께서 학교 근처 맛집을 찾고 싶으시다면 인터넷 검색 또는 지도 앱을 이용하시는 것을 추천드립니다."), true);
+  // 11/26 셔틀버스 재확인과 같은 표현(띄어쓰기가 달라도 같음)
+  assert.equal(isRefusalAnswer("셔틀버스 시간표는 제공해 드리기 어렵습니다. 학교 홈페이지를 확인해 주세요."), true);
+  assert.equal(isRefusalAnswer("셔틀버스 시간표는 제공해드리기 어렵습니다."), true);
+  assert.equal(isRefusalAnswer("그 정보는 제공해드릴 수 없습니다."), true);
+});
+
+test("isRefusalAnswer: '제공해 드릴 수 없'이 있어도 근거 번호가 있으면 정상 답(false)", () => {
+  // 11/27 범위 밖 점검 "교수님 이메일": 근거 번호가 붙은 답은 지금처럼 그대로 둠
+  assert.equal(isRefusalAnswer("개인정보 보호를 위해 특정 인물의 이메일 주소는 제공해 드릴 수 없습니다. 교수님의 이메일 정보는 학교 홈페이지 또는 학과 사무실을 통해 확인하시기 바랍니다. [1]"), false);
+  assert.equal(isRefusalAnswer("실시간 메뉴는 제공해 드리기 어렵습니다. 학생 식당 전화는 02)2173-2211입니다. [2]"), false);
+});
+
 test("isRefusalAnswer: 영어 거절 · 빈 값", () => {
   assert.equal(isRefusalAnswer("I couldn't find the shuttle bus timetable in the provided materials."), true);
   assert.equal(isRefusalAnswer("That information is not available in the academic guides."), true);

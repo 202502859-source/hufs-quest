@@ -54,7 +54,8 @@ export function trimTruncated(text) {
 }
 
 // 거절 표현(한국어 · 영어). 근거 번호가 없는 답에서만 봅니다.
-const REFUSAL = /찾지 못|찾을 수 없|공개되어 있지 않|공개되지 않|나와 있지 않|정보가 없|확인되지 않|couldn't find|could not find|not available|no information/i;
+// 11/27 "제공해 드릴 수 없" · "제공해 드리기 어렵" 추가(PM 승인: 이종헌. 11/26 셔틀 재확인 · 11/27 맛집 점검에서 근거 번호 없이 거절했는데 mode ai로 남음)
+const REFUSAL = /찾지 못|찾을 수 없|공개되어 있지 않|공개되지 않|나와 있지 않|정보가 없|확인되지 않|제공해\s*드릴\s*수\s*없|제공해\s*드리기\s*어렵|couldn't find|could not find|not available|no information/i;
 const CITATION = /\[\d+\]/;
 
 // 근거 번호 [숫자]가 하나도 없고 거절 표현이 있으면 true. 근거를 인용한 답(일부만 "찾지 못했어요")은 false입니다.
