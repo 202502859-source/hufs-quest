@@ -311,3 +311,45 @@ test("2027-1 수강신청은 다음 학년도 개강일이 아님", () => {
     0
   );
 });
+
+// ── 11/27: 2027학년도 화면(subview.do?year=2027) 조각을 함께 구조화 ──
+test("2026 · 2027학년도 조각 8개를 함께 구조화: 학년도별 63행, 2026 항목은 그대로", () => {
+  const all = chunks.filter(c => /^11360-(?:\d{4}-)?\d{2}$/.test(c.id));
+  const both = structureCalendar(all);
+
+  assert.equal(both.academicYear, 2026);
+  assert.deepEqual(both.academicYears, [2026, 2027]);
+  assert.equal(both.items.length, 126);
+  assert.deepEqual(both.items.filter(i => i.academicYear === 2026), items);
+
+  const y2027 = both.items.filter(i => i.academicYear === 2027);
+  assert.equal(y2027.length, 63);
+  assert.ok(y2027.every(i => i.id.startsWith("11360-2027-")));
+  assert.ok(y2027.every(i => i.sourceUrl === "https://www.hufs.ac.kr/hufs/11360/subview.do?year=2027"));
+});
+
+test("2027학년도 해당 학기 분류(같은 규칙): 제1학기 개강 · 여름 계절학기 · 2027-2 수강신청 · 2028-1 수강신청", () => {
+  const both = structureCalendar(chunks.filter(c => /^11360-(?:\d{4}-)?\d{2}$/.test(c.id)));
+  const find = (start, name) => both.items.find(i => i.startDate === start && i.name === name);
+
+  assert.equal(find("2027-03-02", "2027학년도 제1학기 개강").targetSemester, "2027-1");
+  assert.equal(find("2027-06-22", "하계방학 및 계절학기 개강").targetSemester, "2027-summer");
+  assert.equal(find("2027-08-09", "수강신청").targetSemester, "2027-2");
+  assert.equal(find("2028-02-07", "수강신청(2~4학년)").targetSemester, "2028-1");
+  assert.equal(find("2028-01-31", "사전수강신청").targetSemester, "2028-1");
+});
+
+test("2026 겨울방학 조각 안내 줄: 2027 조각이 생겨 '2027학년도 일정은 2027학년도 학사일정 조각 참고'", () => {
+  const winter = chunks.find(c => c.id === "11360-04");
+  assert.ok(winter.text.includes("2027학년도 일정은 2027학년도 학사일정 조각 참고"));
+  assert.ok(!winter.text.includes("개강일은 이 일정표에 없음"));
+  assert.deepEqual(calendarNotes(2026, "winter", true).at(-1), "2027학년도 일정은 2027학년도 학사일정 조각 참고");
+  // 2027 겨울방학 조각은 2028 화면이 없어 예전 문장 그대로
+  assert.ok(chunks.find(c => c.id === "11360-2027-04").text.includes("2028학년도 제1학기 개강일은 이 일정표에 없음"));
+});
+
+test("다른 학년도 조각의 id 연도와 본문 학년도가 다르면 차단", () => {
+  const all = structuredClone(chunks.filter(c => /^11360-(?:\d{4}-)?\d{2}$/.test(c.id)));
+  for (const c of all) if (c.id.startsWith("11360-2027-")) c.id = c.id.replace("2027", "2028");
+  assert.throws(() => structureCalendar(all), /학사일정/);
+});

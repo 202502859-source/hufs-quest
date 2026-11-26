@@ -64,7 +64,7 @@ let chunks = rawChunks;
 
 if (advanced) {
   try {
-    chunks = validateAdvancedChunks(rawChunks, 532);
+    chunks = validateAdvancedChunks(rawChunks, 536); // 11/27: 2027학년도 학사일정 조각 +4
   } catch (error) {
     console.error("개선 데이터 검증 실패:", error.message);
     process.exit(1);
