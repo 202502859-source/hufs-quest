@@ -12,6 +12,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { existsSync, readFileSync } from "node:fs";
 import { isRefusal } from "./lib/evalGrade.mjs";
+import { validateEvalTarget } from "./lib/evalTarget.mjs";
 import { CORE_1126 } from "./lib/evalCore1126.mjs";
 import { gradeRetrieval } from "./lib/evalRetrieval.mjs";
 import { checkCoreAnswer } from "./lib/evalCoreGrade.mjs";
@@ -81,6 +82,14 @@ if (
 ) {
   throw new Error(
     "개선 데이터 평가는 별도의 HTTPS Preview 주소가 필요합니다."
+  );
+}
+
+// 목록 조회에서는 외부 요청을 보내지 않습니다.
+if (!listOnly) {
+  validateEvalTarget(
+    BASE,
+    process.env.EVAL_TRUSTED_PREVIEW_ORIGIN || ""
   );
 }
 
@@ -293,6 +302,7 @@ async function ask(question, lang) {
   const started = Date.now();
   const res = await fetch(`${BASE}/api/ask`, {
     method: "POST",
+    redirect: "error",
     headers: { "Content-Type": "application/json", ...EXTRA_HEADERS },
     body: JSON.stringify({ question, lang }),
     signal: AbortSignal.timeout(30000),
