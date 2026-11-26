@@ -27,9 +27,13 @@ const BANNER = {
   text: hex(PALETTE.line), // 흰 선 #f2f0e6
 };
 
-// 기둥 세로 석재 판 5장: [폭, 높이(바닥부터 px)] — 가운데가 가장 높음
-export const SLABS = [[3, 38], [3, 46], [4, 54], [3, 46], [3, 38]];
-export const BASE_H = 10; // 경사 받침 높이
+// 기둥 세로 석재 판(서쪽 기둥 기준, 바깥 → 진입로 쪽): [폭, 높이(바닥부터 px)].
+// 진입로 쪽(안쪽)이 가장 높고 넓은 판, 바깥으로 갈수록 낮아짐. 판은 바깥에서 SLAB_FROM px부터 서고, 그 바깥은 경사 받침만.
+export const SLABS = [[3, 34], [3, 41], [4, 47], [6, 54]];
+export const SLAB_FROM = 8;
+// 경사 받침: 진입로 쪽 높이 RAMP_HIGH px에서 바깥 끝 RAMP_LOW px까지 비스듬히 낮아짐(기둥 폭 전체, 사선 줄무늬)
+export const RAMP_HIGH = 14;
+export const RAMP_LOW = 3;
 
 function canvasData(w, h) {
   const data = new Uint8ClampedArray(w * h * 4);
@@ -40,41 +44,56 @@ function canvasData(w, h) {
   return { data, put };
 }
 
-// 기둥 한 개: 폭 16 × (높이 54 + 그림자 2)
-export function paintPillar() {
+// 서쪽 기둥 좌표(u: 0 = 바깥 끝, W-1 = 진입로 쪽)에서 그 칸이 무엇인지: null(빈칸) · { ramp, stripe } · { slab, left, right, top }
+function pillarShape(W, H) {
+  const slabs = [];
+  let u = SLAB_FROM;
+  SLABS.forEach(([w, h], k) => {
+    slabs.push({ k, from: u, to: u + w - 1, top: H - h });
+    u += w;
+  });
+  const rampTop = (x) => H - Math.round(RAMP_LOW + ((RAMP_HIGH - RAMP_LOW) * x) / (W - 1));
+  return (x, y) => {
+    if (x < 0 || x >= W || y < 0 || y >= H) return null;
+    if (y >= rampTop(x)) return { ramp: true, top: rampTop(x) };
+    const s = slabs.find((q) => x >= q.from && x <= q.to);
+    return s && y >= s.top ? { slab: s.k, from: s.from, to: s.to, top: s.top } : null;
+  };
+}
+
+// 기둥 한 개: 폭 24 × (높이 54 + 그림자 2). side "west"(진입로 쪽 = 오른쪽) · "east"(거울, 진입로 쪽 = 왼쪽).
+// 모양만 거울로 뒤집고, 빛(왼쪽 위)은 뒤집지 않습니다: 어느 쪽 기둥이든 윗면 · 왼쪽 면 밝게, 오른쪽 면 어둡게.
+export function paintPillar(side = "west") {
   const { pillarW: W, pillarH: H, shadow } = GATE_ART;
   const { data, put } = canvasData(W, H + shadow);
-  // 실루엣: 판 5장 + 받침(아래 10줄, 위 5줄은 양옆 1px씩 들어간 경사)
-  const slabAt = [];
-  let sx = 0;
-  SLABS.forEach(([w, h], k) => {
-    for (let i = 0; i < w; i++) slabAt[sx + i] = { k, left: sx, right: sx + w - 1, top: H - h };
-    sx += w;
-  });
-  const baseTop = H - BASE_H;
-  const inBase = (x, y) => y >= baseTop && y < H && (y >= baseTop + BASE_H / 2 ? x >= 0 && x < W : x >= 1 && x < W - 1);
-  const inSlab = (x, y) => x >= 0 && x < W && y >= slabAt[x].top && y < baseTop;
-  const solid = (x, y) => inBase(x, y) || inSlab(x, y);
+  const shapeWest = pillarShape(W, H);
+  const mirror = side === "east";
+  const at = (x, y) => shapeWest(mirror ? W - 1 - x : x, y);
+  const solid = (x, y) => at(x, y) !== null;
+  const sameSlab = (a, b) => a && b && !a.ramp && !b.ramp && a.slab === b.slab;
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
-      if (!solid(x, y)) continue;
+      const p = at(x, y);
+      if (!p) continue;
       // 바깥 둘레 1px는 윤곽(건물과 같은 #2b3135)
       if (!solid(x - 1, y) || !solid(x + 1, y) || !solid(x, y - 1) || !solid(x, y + 1)) {
         put(x, y, STONE.outline);
         continue;
       }
-      if (inBase(x, y)) {
-        // 경사 받침: 맨 윗줄은 빛 받는 모서리, 왼쪽 밝게 · 오른쪽 그늘, 안쪽은 2px 간격 사선(/) 줄무늬
-        if (y === baseTop || !solid(x - 2, y) || (y === baseTop + BASE_H / 2 && !inBase(x, y - 1))) put(x, y, STONE.light);
-        else if (!solid(x + 2, y)) put(x, y, STONE.groove);
-        else put(x, y, (x + y) % 3 === 0 ? STONE.dark : STONE.mid);
+      if (p.ramp) {
+        // 경사 받침: 비스듬한 윗면은 빛 받는 모서리, 안쪽은 2px 간격 사선 줄무늬(바깥으로 내려가는 방향, 거울이면 반대)
+        const up = at(x, y - 1);
+        if (!up || !up.ramp) put(x, y, STONE.light);
+        else put(x, y, (mirror ? x - y + 300 : x + y) % 3 === 0 ? STONE.dark : STONE.mid);
         continue;
       }
-      const s = slabAt[x];
-      if (y === s.top + 1) put(x, y, STONE.light); // 윗면
-      else if (y === baseTop - 1) put(x, y, STONE.groove); // 판이 받침에 묻히는 그늘 줄
-      else if (x === s.left || (s.left === 0 && x === 1)) put(x, y, STONE.light); // 왼쪽 면
-      else if (x === s.right || (s.right === W - 1 && x === W - 2)) put(x, y, STONE.dark); // 오른쪽 면
+      const left = at(x - 1, y);
+      const right = at(x + 1, y);
+      const below = at(x, y + 1);
+      if (y === p.top + 1) put(x, y, STONE.light); // 윗면
+      else if (below && below.ramp) put(x, y, STONE.groove); // 판이 받침에 묻히는 그늘 줄
+      else if (!sameSlab(p, left) || !solid(x - 2, y)) put(x, y, STONE.light); // 판 왼쪽 면(윤곽 바로 안쪽 포함)
+      else if (!sameSlab(p, right) || !solid(x + 2, y)) put(x, y, STONE.dark); // 판 오른쪽 면(윤곽 바로 안쪽 포함)
       else put(x, y, STONE.mid);
     }
   }
@@ -156,11 +175,12 @@ export function addCampusGate(scene) {
     canvas.getContext("2d").putImageData(new ImageData(data, w, h), 0, 0);
     scene.textures.addCanvas(key, canvas);
   };
-  add("gate-pillar", paintPillar);
+  add("gate-pillar-west", () => paintPillar("west"));
+  add("gate-pillar-east", () => paintPillar("east"));
   add("gate-banner", paintBanner);
   // 정수 좌표 · 왼쪽 위 기준이라 카메라 3배에서 픽셀이 흐려지지 않습니다. 현수막은 기둥보다 살짝 뒤(양 끝이 기둥 안쪽 면에 물림).
   const { banner } = GATE;
-  const images = GATE.pillars.map((p) => scene.add.image(p.rect.x, p.rect.y, "gate-pillar").setOrigin(0).setDepth(GATE.depth));
+  const images = GATE.pillars.map((p, i) => scene.add.image(p.rect.x, p.rect.y, i === 0 ? "gate-pillar-west" : "gate-pillar-east").setOrigin(0).setDepth(GATE.depth));
   images.push(scene.add.image(banner.x, banner.y, "gate-banner").setOrigin(0).setDepth(GATE.depth - 0.5));
   return images;
 }

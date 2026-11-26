@@ -119,9 +119,9 @@ export const BUILDINGS = BUILDINGS_M.map((b, index) => {
 export const OPEN_SPACES = OPEN_SPACES_M.map((s) => {
   const poly = s.poly.map(toWorld);
   const c = centroid(poly);
-  // tagAt: "bottom"이면 맵 위 이름표를 공간 아래쪽에 둡니다(정문 광장: 시작 위치 캐릭터 · 정문안내실 간판을 가리지 않게)
-  const tagY = s.tagAt === "bottom" ? Math.max(...poly.map((p) => p[1])) - 12 : c[1];
-  return { ...s, ...named(s.id), kind: "open", areaPolys: [poly], tag: { x: c[0], y: tagY }, mapLabel: offset(c, s.mapLabelOffset) };
+  // tagM(미터)이 있으면 맵 위 이름표를 그 자리에, 없으면 공간 가운데(정문 광장: 현수막 · 시작 캐릭터 · 정문안내실 간판을 피한 자리)
+  const tag = s.tagM ? toWorld(s.tagM) : c;
+  return { ...s, ...named(s.id), kind: "open", areaPolys: [poly], tag: { x: tag[0], y: tag[1] }, mapLabel: offset(c, s.mapLabelOffset) };
 });
 
 // ── 재질 격자(텍스처 해상도) ──────────────────────────────
@@ -196,10 +196,11 @@ export const feetOverlap = (x, y, ox, oy) => Math.abs(x - ox) < FEET.right - FEE
 
 // ── 정문 기둥 · 현수막(그림은 src/gfx/campusGate.js) ─────────────
 // 받침: 판정 칸(1m) 가운데 점이 받침 다각형 안이면 막습니다(4×2칸). 그림 사각형은 그 칸들의 바깥 테두리에 맞춥니다.
-// 크기(11/27 승인): 기둥 16×54px(+바닥 그림자 2px), 현수막 116×22px — 받침 바닥에서 26~48px 위, 양 끝 2px는 기둥 안쪽에 물림.
+// 크기(11/27 승인 · 같은 날 기둥 폭 16 → 24px): 기둥 24×54px(+바닥 그림자 2px), 현수막은 두 기둥 안쪽 면 사이(108×22px)
+// — 받침 바닥에서 26~48px 위, 양 끝 2px는 기둥 안쪽(가장 높은 판) 면에 물림.
 // 깊이: 캐릭터 · 안내원 · 퀴즈 상자는 깊이 = 스프라이트 가운데 y이고 발바닥은 가운데 + 8px(FEET.bottom)입니다.
 //       같은 기준으로 비교하도록 정문 깊이 = 받침 바닥 y − 8. 받침 바로 아래(바깥)에 선 캐릭터는 앞에, 안쪽은 뒤에 그려집니다.
-export const GATE_ART = { pillarW: 16, pillarH: 54, shadow: 2, bannerTop: 48, bannerH: 22, bannerOverlap: 2 };
+export const GATE_ART = { pillarW: 24, pillarH: 54, shadow: 2, bannerTop: 48, bannerH: 22, bannerOverlap: 2 };
 export const GATE = (() => {
   const pillars = GATE_PILLARS_M.map((poly) => {
     const px = poly.map(toWorld);
