@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { activeQuests, getLang, isGuest, onLangChange, session, t } from "../state.js";
+import { activeQuests, applyProgress, getLang, isGuest, onLangChange, session, t } from "../state.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
 import { WORLD } from "../data/world.js";
 import { overviewInfo, overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
@@ -7,6 +7,10 @@ import { isTouchDevice, onTouchDetected } from "../device.js";
 import { onDeadlinesChange, urgentCount } from "../data/deadlinesApi.js";
 import { eventBadgeCount, onEventsChange } from "../data/eventsApi.js";
 import { COLOR, addButton, addLabel, addLangButtons, drawPanel } from "../ui/widgets.js";
+import { NOTICE_SHOW_MS, demoNoticeKind, mergeNotices, rewardNoticeText, startRewardNoticeWatch } from "../data/rewardNotices.js";
+import { PROGRESS_MODE, getProgress } from "../data/progressApi.js";
+import { addNoticeToast } from "../ui/noticeToast.js";
+import { EVENT_REPORT_REWARD_EXP } from "../../shared/progressRules.js";
 
 // 미니맵 가로(px, 세로는 맵 비율대로). PC는 왼쪽 아래 1.5배, 휴대폰은 이동 패드를 피해 상태창 아래 1.25배(기존 176px 기준).
 const MINIMAP = { pc: { width: 264, dot: 1.5 }, touch: { width: 220, dot: 1.25 } };
@@ -50,6 +54,19 @@ export class HudScene extends Phaser.Scene {
       this.dirty = true;
     });
     this.events.once("shutdown", offEvents);
+    // 행사 제보 보상 알림(팀 확인 → 경험치): 재학생이면 캠퍼스에 들어오자마자 한 번(접속 안 했을 때 확인된 것),
+    // 그 뒤에는 접속 중 주기적으로 확인합니다(src/data/rewardNotices.js). 로그아웃하면 멈춥니다.
+    this.notice = null;
+    if (session.mode === "student") {
+      const stopNotices = startRewardNoticeWatch((notice) => this.queueEventNotice(notice));
+      this.events.once("shutdown", stopNotices);
+    }
+    // 화면 확인용 예시 알림(?demoNotice=1 행사 · ?demoNotice=map 지도, 서버 안 부름)
+    const demoKind = demoNoticeKind();
+    if (demoKind) {
+      const kinds = { event: demoKind === "event" ? 1 : 0, map: demoKind === "map" ? 1 : 0 };
+      this.time.delayedCall(1200, () => this.queueEventNotice({ count: 1, exp: EVENT_REPORT_REWARD_EXP, kinds }, { demo: true }));
+    }
     // 화면이 회전하거나 크기가 바뀌면 터치 버튼 크기를 다시 계산합니다.
     this.scale.on("resize", () => {
       this.dirty = true;
@@ -197,6 +214,45 @@ export class HudScene extends Phaser.Scene {
     });
   }
 
+  // 행사 제보 보상 알림을 받습니다. 이미 떠 있는 알림이 있으면 건수 · 경험치를 합쳐 다시 2초 띄웁니다.
+  // 진짜 진행 저장이면 서버의 새 경험치를 받아 상태창을 고칩니다(레벨이 오르면 기존 "레벨 업!" 알림도 뜸).
+  queueEventNotice(notice, { demo = false } = {}) {
+    const active = this.notice && this.notice.until > this.time.now ? this.notice : null;
+    this.notice = { ...mergeNotices(active, notice), until: this.time.now + NOTICE_SHOW_MS };
+    this.drawEventNotice();
+    if (!demo && session.mode === "student" && PROGRESS_MODE === "real") {
+      getProgress()
+        .then(({ progress }) => {
+          applyProgress(progress);
+          this.dirty = true;
+        })
+        .catch(() => {});
+    }
+  }
+
+  // 화면 아래 가운데에 작은 알림("+20 EXP" 칩 + 문구, 시설 소개 말풍선과 같은 모양)을 그립니다. render 뒤에도 남은 시간만큼 다시 그립니다.
+  drawEventNotice() {
+    this.noticeToast?.destroy();
+    this.noticeToast = null;
+    if (!this.notice || this.notice.until <= this.time.now) return;
+    const { key, vars, chip } = rewardNoticeText(this.notice);
+    const toast = addNoticeToast(this, this.scale.width / 2, this.scale.height - 16, chip, t(key, vars)).setDepth(50);
+    // 왼쪽 아래 미니맵(PC) · 오른쪽 아래 버튼 줄과 겹치지 않게, 너무 길면 가운데 폭 안으로 줄입니다.
+    const maxWidth = this.scale.width - 2 * (MINIMAP.pc.width + MARGIN * 3);
+    if (toast.width > maxWidth) toast.setScale(maxWidth / toast.width);
+    this.noticeToast = toast;
+    this.tweens.add({
+      targets: toast,
+      alpha: 0,
+      delay: Math.max(0, this.notice.until - this.time.now),
+      duration: 400,
+      onComplete: () => {
+        toast.destroy();
+        if (this.noticeToast === toast) this.noticeToast = null;
+      },
+    });
+  }
+
   // render 뒤에 아직 남은 알림을 다시 띄웁니다.
   restoreToasts() {
     const now = this.time.now;
@@ -337,6 +393,7 @@ export class HudScene extends Phaser.Scene {
     this.renderPlannerButton();
     this.restoreToasts();
     this.showRewardToast();
+    this.drawEventNotice();
   }
 
   // 오른쪽 아래 아이콘 버튼 줄: [퀘스트 Q] [행사 V] [마감 공지 N]. 진행 중인 퀘스트가 없으면 퀘스트 버튼은 숨기고

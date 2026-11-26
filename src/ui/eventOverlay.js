@@ -1,15 +1,28 @@
 import { kstParts } from "../../shared/deadlineCalc.js";
-import { EVENT_WINDOW_DAYS } from "../../shared/eventCalc.js";
-import { EVENT_REPORT_URL, SCHOOL_NOTICE_URL, eventState, refreshEvents } from "../data/eventsApi.js";
+import { EVENT_CATEGORIES, EVENT_WINDOW_DAYS } from "../../shared/eventCalc.js";
+import { REPORT_LIMITS, validateEventReport } from "../../shared/eventReport.js";
+import { BUILDING_INFO } from "../data/buildingInfo.js";
+import { SCHOOL_NOTICE_URL, eventState, refreshEvents } from "../data/eventsApi.js";
+import {
+  buildReportPayload,
+  currentReportMode,
+  kstDateOf,
+  problemMessageKey,
+  reportResultMessage,
+  reportThreshold,
+  sendEventReport,
+} from "../data/eventReportApi.js";
 import { getLang, t } from "../state.js";
 import { createHudOverlay, el } from "./hudOverlay.js";
-import { reportLinkUrl, sourceBadgeKey } from "./eventView.js";
+import { footerKey, reportEntryKind, showOriginalNote, sourceBadgeText } from "./eventView.js";
 
 const WEEKDAYS = { ko: ["일", "월", "화", "수", "목", "금", "토"], en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_MS = 24 * 60 * 60 * 1000;
 const pad = (n) => String(n).padStart(2, "0");
 const CATEGORY_KEY = { festival: "eventCatFestival", briefing: "eventCatBriefing", lecture: "eventCatLecture", recruit: "eventCatRecruit", other: "eventCatOther" };
 const STATUS_KEY = { ongoing: "eventStatusOngoing", today: "eventStatusToday", upcoming: "eventStatusUpcoming" };
+const BUILDING_IDS = Object.keys(BUILDING_INFO);
 
 const day = (p, lang) => (lang === "en" ? `${WEEKDAYS.en[p.weekday]} ${MONTHS[p.m]} ${p.d}` : `${p.m + 1}.${pad(p.d)} (${WEEKDAYS.ko[p.weekday]})`);
 const clock = (p) => `${pad(p.hh)}:${pad(p.mm)}`;
@@ -44,29 +57,234 @@ const link = (href, text) => {
   return a;
 };
 
-// "행사 제보하기 ↗" + 작은 안내 글. 폼 주소(EVENT_REPORT_URL)가 https://로 시작할 때만 만들고, 아니면 null(아무것도 안 그림).
-function reportLink() {
-  const url = reportLinkUrl(EVENT_REPORT_URL);
-  if (!url) return null;
-  const wrap = el("span", "ho-report-event");
-  wrap.append(link(url, t("eventReportLink")), el("span", "ho-report-note", t("eventReportNote")));
-  return wrap;
-}
+const buildingName = (info, lang) => (lang === "en" && info.nameEn ? info.nameEn : info.name);
+
+const emptyForm = () => ({
+  title: "",
+  host: "",
+  date: kstDateOf(Date.now()),
+  startTime: "",
+  endDate: "", // 비어 있으면 시작 날짜와 같은 날
+  endTime: "",
+  place: "",
+  buildingId: "",
+  category: "other",
+  summary: "",
+  url: "",
+});
+
+// 검사 결과(칸 · 코드) → 칸별 문구 키. 시각 오류(startsAt · endsAt)는 날짜 · 시각 칸 아래에 보여 줍니다.
+const errorsFrom = (problems = []) => {
+  const errors = {};
+  for (const { field, code } of problems) if (!errors[field]) errors[field] = problemMessageKey(field, code);
+  return errors;
+};
 
 /*
- * 학교 행사 창(표 형식). 출처 칸 맨 앞에는 출처 종류 배지(학교 공지 · 학생회·동아리 SNS · 주최 측 제공)를 붙입니다. 오늘부터 14일 안에 시작하거나 진행 중인 행사만, 시작 순으로 보여 줍니다(shared/eventCalc.js).
+ * 학교 행사 창(표 형식). 출처 칸 맨 앞에는 출처 종류 배지(학교 공지 · 학생회·동아리 SNS · 주최 측 제공 · 학생 제보 R명)를 붙입니다.
+ * 오늘부터 14일 안에 시작하거나 진행 중인 행사만, 시작 순으로 보여 줍니다(shared/eventCalc.js).
  * "지도에서 보기"를 누르면 창을 닫고 onClose({ showOnMap: buildingId })로 알립니다.
+ *
+ * "행사 제보하기"
+ *   - 진짜 로그인(AUTH_MODE real) + 토큰 있음: 이 창 안에서 제보 폼을 엽니다(src/data/eventReportApi.js → POST /api/event-report).
+ *   - 그 밖(로그인 안 함 · 가짜 로그인): "로그인하고 제보하기" 버튼 → 창을 닫고 onClose({ login: true })로 알림
+ *     (CampusScene이 타이틀의 로그인 창을 엽니다). 11/26 PM 결정(이종헌)으로 구글 폼 링크(EVENT_REPORT_URL)는 쓰지 않습니다.
+ * 모든 글자는 textContent로만 넣습니다(제보 내용 · 서버 응답도 마찬가지).
+ * options.getReportMode · options.send는 화면 확인용으로 바꿔 끼울 수 있게 둔 것입니다(기본은 진짜 로그인 확인 · 서버 호출).
  */
-export function createEventOverlay(game, onClose) {
+export function createEventOverlay(game, onClose, { getReportMode = currentReportMode, send: sendReport = sendEventReport } = {}) {
   let overlay;
+  let mode = "link"; // "app" | "link" (창을 열 때마다 다시 확인)
+  let view = "list"; // "list" | "form"
+  let form = emptyForm();
+  let errors = {};
+  let message = null; // { key, vars, ok }
+  let sending = false;
+
+  const redraw = () => overlay?.redraw();
+
+  // "행사 제보하기" 자리. 진짜 로그인이면 폼 여는 버튼, 아니면 "로그인하고 제보하기"(창을 닫고 로그인 창으로).
+  function reportEntry() {
+    if (reportEntryKind(mode) === "form") {
+      const button = el("button", "ho-mapbtn ho-report-open", t("eventReportOpen"));
+      button.type = "button";
+      button.addEventListener("click", () => {
+        view = "form";
+        message = null;
+        redraw();
+      });
+      return button;
+    }
+    const button = el("button", "ho-mapbtn ho-report-open", t("eventReportLoginButton"));
+    button.type = "button";
+    button.addEventListener("click", () => overlay.hide({ login: true }));
+    return button;
+  }
+
+  function field(labelKey, control, { required = false, hintKey = null, errorField, wide = false } = {}) {
+    const error = errors[errorField];
+    const wrap = el("label", `ho-field${wide ? " wide" : ""}${error ? " invalid" : ""}`);
+    const label = el("span", "ho-field-label", `${t(labelKey)} `);
+    label.append(el("span", "ho-field-mark", t(required ? "eventFormRequired" : "eventFormOptional")));
+    wrap.append(label, control);
+    if (hintKey) wrap.append(el("span", "ho-field-hint", t(hintKey)));
+    if (error) {
+      wrap.append(el("span", "ho-field-err", t(error)));
+      control.setAttribute("aria-invalid", "true");
+    }
+    return wrap;
+  }
+
+  const input = (name, type, { max, placeholder } = {}) => {
+    const node = el("input", "ho-input");
+    node.type = type;
+    node.name = name;
+    node.value = form[name];
+    node.disabled = sending;
+    if (max) node.maxLength = max;
+    if (placeholder) node.placeholder = placeholder;
+    node.addEventListener("input", () => {
+      form[name] = node.value;
+    });
+    return node;
+  };
+
+  const select = (name, options) => {
+    const node = el("select", "ho-input");
+    node.name = name;
+    node.disabled = sending;
+    for (const [value, text] of options) {
+      const option = el("option", "", text);
+      option.value = value;
+      node.append(option);
+    }
+    node.value = form[name];
+    node.addEventListener("change", () => {
+      form[name] = node.value;
+    });
+    return node;
+  };
+
+  async function submit() {
+    if (sending) return;
+    const payload = buildReportPayload(form);
+    // 서버와 같은 규칙으로 먼저 검사(shared/eventReport.js)
+    const checked = validateEventReport(payload, { nowMs: Date.now(), buildingIds: BUILDING_IDS });
+    if (!checked.ok) {
+      errors = errorsFrom(checked.problems);
+      message = { key: "eventReportFix", vars: {}, ok: false };
+      redraw();
+      return;
+    }
+    errors = {};
+    message = null;
+    sending = true;
+    redraw();
+    const { status, body } = await sendReport(payload);
+    sending = false;
+    const result = reportResultMessage(status, body);
+    message = result;
+    errors = result.problems ? errorsFrom(result.problems) : {};
+    if (result.ok) form = emptyForm();
+    if (status === 401) mode = await getReportMode().catch(() => "link");
+    redraw();
+    if (result.published) {
+      await refreshEvents();
+      redraw();
+    }
+  }
+
+  function renderForm(body) {
+    const lang = getLang();
+    const wrap = el("div", "ho-form-wrap");
+    const back = el("button", "ho-mapbtn", t("eventFormBack"));
+    back.type = "button";
+    back.addEventListener("click", () => {
+      view = "list";
+      message = null;
+      redraw();
+    });
+    wrap.append(back, el("h3", "ho-form-title", t("eventFormTitle")), el("p", "ho-form-notice", t("eventFormNotice", { threshold: reportThreshold() })));
+
+    const formEl = el("form", "ho-form");
+    formEl.noValidate = true;
+    formEl.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submit();
+    });
+
+    const now = Date.now();
+    const dateInput = input("date", "date");
+    dateInput.min = kstDateOf(now - DAY_MS);
+    dateInput.max = kstDateOf(now + EVENT_WINDOW_DAYS * DAY_MS);
+    const endDateInput = el("input", "ho-input");
+    endDateInput.type = "date";
+    endDateInput.name = "endDate";
+    endDateInput.value = form.endDate || form.date;
+    endDateInput.min = dateInput.min;
+    endDateInput.disabled = sending;
+    endDateInput.addEventListener("input", () => {
+      form.endDate = endDateInput.value === form.date ? "" : endDateInput.value;
+    });
+    // 끝 날짜를 따로 바꾸지 않았으면 시작 날짜를 따라갑니다.
+    dateInput.addEventListener("input", () => {
+      if (!form.endDate) endDateInput.value = dateInput.value;
+    });
+
+    const summary = el("textarea", "ho-input");
+    summary.name = "summary";
+    summary.rows = 2;
+    summary.maxLength = REPORT_LIMITS.summary;
+    summary.value = form.summary;
+    summary.disabled = sending;
+    summary.addEventListener("input", () => {
+      form.summary = summary.value;
+    });
+
+    const buildings = [["", t("eventFormBuildingNone")], ...BUILDING_IDS.map((id) => [id, buildingName(BUILDING_INFO[id], lang)])];
+    const categories = EVENT_CATEGORIES.map((c) => [c, t(CATEGORY_KEY[c])]);
+
+    formEl.append(
+      field("eventFormName", input("title", "text", { max: REPORT_LIMITS.title }), { required: true, errorField: "title", wide: true }),
+      field("eventFormHost", input("host", "text", { max: REPORT_LIMITS.host }), { hintKey: "eventFormHostHint", errorField: "host" }),
+      field("eventFormCategory", select("category", categories), { required: true, errorField: "category" }),
+      field("eventFormDate", dateInput, { required: true, errorField: "startsAt" }),
+      field("eventFormStart", input("startTime", "time"), { required: true, errorField: "startsAt" }),
+      field("eventFormEndDate", endDateInput, { required: true, errorField: "endsAt" }),
+      field("eventFormEnd", input("endTime", "time"), { required: true, errorField: "endsAt" }),
+      field("eventFormPlace", input("place", "text", { max: REPORT_LIMITS.place }), { required: true, errorField: "place" }),
+      field("eventFormBuilding", select("buildingId", buildings), { errorField: "buildingId" }),
+      field("eventFormSummary", summary, { required: true, errorField: "summary", wide: true }),
+      field("eventFormUrl", input("url", "url", { max: REPORT_LIMITS.url, placeholder: "https://" }), { errorField: "url", wide: true }),
+    );
+
+    const actions = el("div", "ho-form-actions");
+    const send = el("button", "ho-submit", t(sending ? "eventFormSending" : "eventFormSubmit"));
+    send.type = "submit";
+    send.disabled = sending;
+    actions.append(send);
+    if (message) {
+      const msg = el("p", `ho-form-msg${message.ok ? " ok" : ""}`, t(message.key, message.vars));
+      msg.setAttribute("role", "status");
+      actions.append(msg);
+    }
+    formEl.append(actions);
+    wrap.append(formEl);
+    body.append(wrap);
+  }
+
   const render = ({ title, asOf, body, footer }) => {
     const data = eventState.data;
     const lang = getLang();
     title.textContent = t("eventTitle", { days: EVENT_WINDOW_DAYS });
-    footer.textContent = t("eventFooter");
+    footer.textContent = t(footerKey(data?.items));
     asOf.textContent = data ? asOfText(data) : t("deadlineLoading");
+    if (view === "form" && mode === "app") {
+      renderForm(body);
+      return;
+    }
     if (!data) return;
-    const report = reportLink();
+    const report = reportEntry();
     if (!data.items.length) {
       const empty = el("p", "ho-empty", `${t("eventEmpty")} `);
       empty.append(link(SCHOOL_NOTICE_URL, t("eventNoticeLink")));
@@ -94,6 +312,8 @@ export function createEventOverlay(game, onClose) {
 
       const titleCell = el("td");
       titleCell.append(el("span", "ho-name", item.title[lang]));
+      // 학생 제보는 원문(한국어) 그대로라 영어 화면에서 알려 줌
+      if (showOriginalNote(item, lang)) titleCell.append(el("span", "ho-sub ho-original", t("eventCrowdOriginal")));
       const summary = el("span", "ho-sub ho-clamp", item.summary[lang]);
       summary.title = item.summary[lang];
       titleCell.append(summary);
@@ -101,7 +321,7 @@ export function createEventOverlay(game, onClose) {
       if (item.signup) titleCell.append(el("span", "ho-sub", `${t("eventSignup")}: ${item.signup[lang]}`));
       tr.append(titleCell);
 
-      tr.append(el("td", "ho-muted", item.host[lang]));
+      tr.append(el("td", "ho-muted", item.host?.[lang] ?? ""));
       tr.append(el("td", "", whenText(item, lang)));
 
       const placeCell = el("td", "", item.place[lang]);
@@ -115,10 +335,10 @@ export function createEventOverlay(game, onClose) {
 
       // 출처: 종류 배지 → 원문 링크(있을 때) → 확인 날짜. 모르는 종류면 배지 없이
       const source = el("td");
-      const badgeKey = sourceBadgeKey(item.sourceType);
-      if (badgeKey) source.append(el("span", `ho-src ${item.sourceType}`, t(badgeKey)));
+      const badge = sourceBadgeText(item, t);
+      if (badge) source.append(el("span", `ho-src ${item.sourceType}${item.confirmed ? " confirmed" : ""}`, badge));
       if (item.url) {
-        if (badgeKey) source.append(el("br"));
+        if (badge) source.append(el("br"));
         source.append(link(item.url, t("eventSourceLink")));
       }
       source.append(el("span", "ho-sub", checkedText(item.checkedOn)));
@@ -133,7 +353,14 @@ export function createEventOverlay(game, onClose) {
     table.append(colgroup, head, rows);
     body.append(table);
   };
-  // 창을 열 때마다 최신 시간 기준으로 다시 계산합니다.
-  overlay = createHudOverlay(game, { closeKey: "deadlineClose", render, onShow: refreshEvents }, onClose);
+
+  // 창을 열 때마다 최신 시간 기준으로 다시 계산하고, 로그인 상태(앱 제보 · 구글 폼)도 다시 확인합니다. 쓰던 제보 내용은 남겨 둡니다.
+  const onShow = async () => {
+    view = "list";
+    message = null;
+    const [, nextMode] = await Promise.all([refreshEvents(), getReportMode().catch(() => "link")]);
+    mode = nextMode;
+  };
+  overlay = createHudOverlay(game, { closeKey: "deadlineClose", render, onShow }, onClose);
   return overlay;
 }
