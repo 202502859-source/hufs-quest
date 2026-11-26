@@ -4,6 +4,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import {
   ASK_LIMITS,
+  EVAL_MINUTE_LIMIT,
   EVAL_TOKEN_HEADER,
   checkAskLimit,
   clientIp,
@@ -31,8 +32,9 @@ const allowRow = { allowed: true, reason: null, retry_after: 0, minute_hits: 1, 
 
 beforeEach(() => resetMemoryLimit());
 
-test("한도 상수: 분당 10, 학생 하루 50, 게스트 IP 하루 150, 전체 하루 500", () => {
-  assert.deepEqual({ ...ASK_LIMITS }, { minute: 10, day: 50, guestDay: 150, globalDay: 500 });
+test("한도 상수: 분당 10, 학생 하루 50, 게스트 IP 하루 150, 전체 하루 2000(11/27 500 → 2000), eval 1분 120", () => {
+  assert.deepEqual({ ...ASK_LIMITS }, { minute: 10, day: 50, guestDay: 150, globalDay: 2000 });
+  assert.equal(EVAL_MINUTE_LIMIT, 120);
 });
 
 test("IP는 x-forwarded-for 첫 값, 없으면 unknown", () => {
@@ -58,7 +60,7 @@ test("게스트(토큰 없음) → Supabase로 보내는 값: IP 해시 · 게�
     p_ip_hash: ipHash("203.0.113.7", "test-salt", "2026-11-19"),
     p_minute_limit: 10,
     p_day_limit: 150,
-    p_global_day_limit: 500,
+    p_global_day_limit: 2000,
   });
   assert.equal(calls[0].headers.apikey, "test-service-key");
   assert.equal(JSON.stringify(calls[0]).includes("203.0.113.7"), false);
@@ -109,20 +111,49 @@ test("1차 메모리 제한에 걸리면 Supabase를 부르지 않음, 다른 IP
   assert.equal(later.allowed, true);
 });
 
-test("eval 토큰: 맞으면 IP 한도를 건너뛰고 전체 한도에는 셈, 'eval' 칸에 따로 셈", async () => {
+test("eval 토큰: 맞으면 Supabase ask_hit을 부르지 않음 → 사용자 · 전체 하루 한도에 더해지지 않음(11/27)", async () => {
   const headers = { [EVAL_TOKEN_HEADER]: "test-eval-token" };
   assert.equal(isEvalRequest(req("203.0.113.40", headers), ENV.ASK_EVAL_TOKEN), true);
   const { calls, fetchImpl } = fakeDb(allowRow);
-  // 메모리 1분 한도(10)를 넘겨도 eval은 막히지 않음
+  // 일반 1분 한도(10)를 넘겨도 eval은 막히지 않고, DB는 한 번도 부르지 않음
   for (let n = 0; n < 12; n++) {
     const r = await checkAskLimit(req("203.0.113.40", headers), { env: ENV, fetchImpl, now: NOW });
-    assert.equal(r.allowed, true);
-    assert.equal(r.eval, true);
+    assert.deepEqual(r, { allowed: true, reason: null, retryAfter: 0, source: "eval-bypass", eval: true, who: "eval" });
   }
-  const body = calls[0].body;
-  assert.equal(body.p_ip_hash, ipHash("eval", "test-salt", "2026-11-19"));
-  assert.ok(body.p_minute_limit > 1_000_000 && body.p_day_limit > 1_000_000);
-  assert.equal(body.p_global_day_limit, 500);
+  assert.equal(calls.length, 0);
+});
+
+test("eval 토큰: 인스턴스 메모리 1분 120회까지 통과, 121번째는 minute 거절, 1분 지나면 다시 통과", async () => {
+  const headers = { [EVAL_TOKEN_HEADER]: "test-eval-token" };
+  const { calls, fetchImpl } = fakeDb(allowRow);
+  for (let n = 1; n <= 120; n++) {
+    assert.equal((await checkAskLimit(req("203.0.113.43", headers), { env: ENV, fetchImpl, now: NOW })).allowed, true, `#${n}`);
+  }
+  // IP가 달라도 eval은 같은 칸으로 셈
+  const over = await checkAskLimit(req("203.0.113.44", headers), { env: ENV, fetchImpl, now: NOW });
+  assert.equal(over.allowed, false);
+  assert.equal(over.reason, "minute");
+  assert.equal(over.source, "eval-bypass");
+  assert.ok(over.retryAfter >= 1 && over.retryAfter <= 60);
+  const later = await checkAskLimit(req("203.0.113.43", headers), { env: ENV, fetchImpl, now: new Date(NOW.getTime() + 61_000) });
+  assert.equal(later.allowed, true);
+  assert.equal(calls.length, 0);
+  // eval이 1분 한도를 다 써도 일반 사용자는 영향 없음(DB로 판단)
+  const user = await checkAskLimit(req("203.0.113.45"), { env: ENV, fetchImpl, now: NOW });
+  assert.equal(user.allowed, true);
+  assert.equal(user.source, "db");
+});
+
+test("일반 요청은 지금과 똑같이 ask_hit을 부르고, 전체 하루 한도 2000을 넘김", async () => {
+  const { calls, fetchImpl } = fakeDb(allowRow);
+  const r = await checkAskLimit(req("203.0.113.46"), { env: ENV, fetchImpl, now: NOW });
+  assert.deepEqual(r, { allowed: true, reason: null, retryAfter: 0, source: "db", eval: false, who: "guest" });
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /\/rest\/v1\/rpc\/ask_hit$/);
+  assert.deepEqual(
+    { minute: calls[0].body.p_minute_limit, day: calls[0].body.p_day_limit, global: calls[0].body.p_global_day_limit },
+    { minute: 10, day: 150, global: 2000 },
+  );
 });
 
 test("eval 토큰이 틀리거나 서버에 토큰이 없으면 일반 요청", async () => {
@@ -134,11 +165,15 @@ test("eval 토큰이 틀리거나 서버에 토큰이 없으면 일반 요청", 
   assert.equal(calls[0].body.p_day_limit, 150); // 일반 게스트 한도
 });
 
-test("eval 요청도 Supabase가 실패하면 메모리 제한(1분 10회)을 받음", async () => {
+test("eval 요청은 Supabase 설정이 없거나 실패해도 같음: DB를 부르지 않고 메모리 1분 120회만", async () => {
   const headers = { [EVAL_TOKEN_HEADER]: "test-eval-token" };
-  const { fetchImpl } = fakeDb(new Error("fetch failed"));
-  for (let n = 0; n < 10; n++) assert.equal((await checkAskLimit(req("203.0.113.42", headers), { env: ENV, fetchImpl, now: NOW })).allowed, true);
-  assert.equal((await checkAskLimit(req("203.0.113.42", headers), { env: ENV, fetchImpl, now: NOW })).allowed, false);
+  const { calls, fetchImpl } = fakeDb(new Error("fetch failed"));
+  for (let n = 0; n < 11; n++) {
+    const r = await checkAskLimit(req("203.0.113.42", headers), { env: ENV, fetchImpl, now: NOW });
+    assert.equal(r.allowed, true);
+    assert.equal(r.source, "eval-bypass");
+  }
+  assert.equal(calls.length, 0);
 });
 
 // ── 학생(로그인 토큰)은 계정 기준으로 셈 ──
@@ -257,6 +292,39 @@ test("ask.js: 201자 질문은 자르지 않고 400, 한도에 걸리면 429 { e
 
     const joined = logs.join("\n");
     assert.equal(/203\.0\.113|졸업학점|[0-9a-f]{64}/.test(joined), false); // 로그에 IP · 질문 · 해시 없음
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.log = originalLog;
+  }
+});
+
+test("ask.js: eval 토큰 요청이 1분 120회를 넘으면 429 { reason: minute }, ask_hit · CLOVA를 부르지 않고 로그 limit은 eval-bypass", async () => {
+  Object.assign(process.env, { ...ENV, CLOVA_API_KEY: "test-clova-key" });
+  const headers = { [EVAL_TOKEN_HEADER]: "test-eval-token" };
+  // 같은 모듈의 메모리 칸을 120회 채움(ask.js도 같은 usageLimit.js 인스턴스를 씀)
+  for (let n = 0; n < EVAL_MINUTE_LIMIT; n++) {
+    assert.equal((await checkAskLimit(req("203.0.113.60", headers), { env: ENV, fetchImpl: async () => { throw new Error("no db"); } })).allowed, true);
+  }
+  const fetched = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    fetched.push(String(url));
+    throw new Error(`unexpected fetch ${url}`);
+  };
+  const logs = [];
+  const originalLog = console.log;
+  console.log = (...a) => logs.push(a.join(" "));
+  try {
+    const { default: handler } = await import("../api/ask.js");
+    const res = { headers: {}, setHeader(k, v) { this.headers[k] = v; }, status(c) { this.code = c; return this; }, json(b) { this.body = b; return this; } };
+    await handler({ method: "POST", headers: { "x-forwarded-for": "203.0.113.61", ...headers }, body: { question: "졸업학점 몇 학점이야?", lang: "ko" } }, res);
+    assert.equal(res.code, 429);
+    assert.equal(res.body.reason, "minute");
+    assert.ok(res.body.retryAfter >= 1 && res.body.retryAfter <= 60);
+    assert.deepEqual(fetched, []); // ask_hit · 캐시 · CLOVA 모두 부르지 않음
+    const line = logs.map((l) => { try { return JSON.parse(l); } catch { return null; } }).find((l) => l?.mode === "limited");
+    assert.equal(line.limit, "eval-bypass");
+    assert.equal(line.eval, true);
   } finally {
     globalThis.fetch = originalFetch;
     console.log = originalLog;

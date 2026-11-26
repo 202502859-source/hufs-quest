@@ -54,10 +54,10 @@
     - **영어 (`\b...\b` 단어 경계 매칭):** `today`, `yesterday`, `tomorrow`, `this week`, `next week`, `last week`, `now`, `currently`, `right now`, `recent`, `recently`, `this month`, `next month`, `last month`, `this semester`, `next semester`, `last semester`, `this year`, `next year`, `last year`, `still open`, `deadline passed`, `days left`, `ongoing`
 
 ### ⑤ 사용량 한도(`api/_lib/usageLimit.js`)와의 관계
-- **캐시 적중 시 1차 메모리 1분 한도(`memory-first`)만 적용:** DB의 `ask_hit` 함수는 1분 · 하루 · 전체 카운터를 한 번에 증가시키므로, 캐시 적중 시에는 `ask_hit`을 호출하지 않고 **1차 메모리 제한(인스턴스별 1분 10회)만** 확인해 연타를 막습니다. 따라서 하루 한도(`day: 50`, `guestDay: 150`)와 서비스 전체 하루 한도(`globalDay: 500`)는 차감되지 않습니다.
+- **캐시 적중 시 1차 메모리 1분 한도(`memory-first`)만 적용:** DB의 `ask_hit` 함수는 1분 · 하루 · 전체 카운터를 한 번에 증가시키므로, 캐시 적중 시에는 `ask_hit`을 호출하지 않고 **1차 메모리 제한(인스턴스별 1분 10회)만** 확인해 연타를 막습니다. 따라서 하루 한도(`day: 50`, `guestDay: 150`)와 서비스 전체 하루 한도(`globalDay`, 11/27부터 2000)는 차감되지 않습니다.
 - **처리 순서 (`api/ask.js`):**
   1. 질문 길이(200자) · 언어 판별 · `eval` 여부(`isEvalRequest`) 확인
-  2. `eval`이 아니면 **1차 메모리 1분 한도 확인** (초과 시 `429` 반환)
+  2. `eval`이 아니면 **1차 메모리 1분 한도 확인** (초과 시 `429` 반환). `eval`은 캐시를 쓰지 않고 `checkAskLimit`에서 메모리 1분 120회만 확인하며 `ask_hit`을 부르지 않음(11/27~, 로그 `eval-bypass`)
   3. `eval`이 아니고 날짜 의존 질문이 아니면 **캐시 조회 (`get_answer_cache`)**
      - **적중(`cacheHit: true`):** `ask_hit` 없이 즉시 `200 { mode: "ai", answer, sources }` 반환 (로그: `cacheHit: true`, `limit: "memory-first"`)
      - **미적중(`cacheHit: false`) 또는 건너뜀:** 기존 `checkAskLimit`으로 DB 공용 한도 확인 후 RAG + CLOVA 호출 → `eval`이 아니고 저장 조건 충족 시 `set_answer_cache`로 저장 (로그: `cacheHit: false`)
