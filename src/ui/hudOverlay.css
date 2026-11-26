@@ -22,6 +22,13 @@
 .ho-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .ho-tag { display: inline-block; max-width: 100%; box-sizing: border-box; margin-top: 0.25em; padding: 0.1em 0.4em; font-size: 0.82em; white-space: normal; color: #231a00; background: #f2c94c; border: 2px solid #10182a; }
 .ho-tag.demo { color: #ffffff; background: #8064a2; }
+/* 출처 종류 배지(행사 창 출처 칸 맨 앞). 색과 글자로 함께 구분: 학교 공지 남색 · 학생회·동아리 SNS 주황 · 주최 측 제공 회색 */
+.ho-src { display: inline-block; max-width: 100%; box-sizing: border-box; margin-bottom: 0.25em; padding: 0.1em 0.4em; font-size: 0.82em; white-space: normal; border: 2px solid #10182a; }
+.ho-src.school { color: #e6eeff; background: #35518a; }
+.ho-src.sns { color: #231a00; background: #ffa94d; }
+.ho-src.host { color: #ffffff; background: #5f6b80; }
+.ho-report-event { white-space: normal; }
+.ho-report-note { margin-left: 0.5em; font-size: 0.82em; color: #a9b6cf; }
 .ho-link { color: #9fd0ff; white-space: nowrap; }
 .ho-link:hover { color: #ffffff; }
 .ho-mapbtn { display: inline-block; margin-top: 0.35em; padding: 0.15em 0.5em; font: inherit; font-size: 0.85em; color: #f2c94c; background: #18233a; border: 2px solid #4a5f88; cursor: pointer; }

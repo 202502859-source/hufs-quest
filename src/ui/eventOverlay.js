@@ -1,8 +1,9 @@
 import { kstParts } from "../../shared/deadlineCalc.js";
 import { EVENT_WINDOW_DAYS } from "../../shared/eventCalc.js";
-import { SCHOOL_NOTICE_URL, eventState, refreshEvents } from "../data/eventsApi.js";
+import { EVENT_REPORT_URL, SCHOOL_NOTICE_URL, eventState, refreshEvents } from "../data/eventsApi.js";
 import { getLang, t } from "../state.js";
 import { createHudOverlay, el } from "./hudOverlay.js";
+import { reportLinkUrl, sourceBadgeKey } from "./eventView.js";
 
 const WEEKDAYS = { ko: ["일", "월", "화", "수", "목", "금", "토"], en: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] };
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -43,8 +44,17 @@ const link = (href, text) => {
   return a;
 };
 
+// "행사 제보하기 ↗" + 작은 안내 글. 폼 주소(EVENT_REPORT_URL)가 https://로 시작할 때만 만들고, 아니면 null(아무것도 안 그림).
+function reportLink() {
+  const url = reportLinkUrl(EVENT_REPORT_URL);
+  if (!url) return null;
+  const wrap = el("span", "ho-report-event");
+  wrap.append(link(url, t("eventReportLink")), el("span", "ho-report-note", t("eventReportNote")));
+  return wrap;
+}
+
 /*
- * 학교 행사 창(표 형식). 오늘부터 14일 안에 시작하거나 진행 중인 행사만, 시작 순으로 보여 줍니다(shared/eventCalc.js).
+ * 학교 행사 창(표 형식). 출처 칸 맨 앞에는 출처 종류 배지(학교 공지 · 학생회·동아리 SNS · 주최 측 제공)를 붙입니다. 오늘부터 14일 안에 시작하거나 진행 중인 행사만, 시작 순으로 보여 줍니다(shared/eventCalc.js).
  * "지도에서 보기"를 누르면 창을 닫고 onClose({ showOnMap: buildingId })로 알립니다.
  */
 export function createEventOverlay(game, onClose) {
@@ -56,12 +66,16 @@ export function createEventOverlay(game, onClose) {
     footer.textContent = t("eventFooter");
     asOf.textContent = data ? asOfText(data) : t("deadlineLoading");
     if (!data) return;
+    const report = reportLink();
     if (!data.items.length) {
       const empty = el("p", "ho-empty", `${t("eventEmpty")} `);
       empty.append(link(SCHOOL_NOTICE_URL, t("eventNoticeLink")));
+      if (report) empty.append(el("br"), report);
       body.append(empty);
       return;
     }
+    // 표 위 안내 줄(기준 시각 옆)
+    if (report) asOf.append(" ", report);
     const table = el("table", "ho-table");
     const colgroup = el("colgroup");
     ["status", "title", "host", "time", "place", "source", "note"].forEach((name) => colgroup.append(el("col", `col-${name}`)));
@@ -99,13 +113,15 @@ export function createEventOverlay(game, onClose) {
       }
       tr.append(placeCell);
 
+      // 출처: 종류 배지 → 원문 링크(있을 때) → 확인 날짜. 모르는 종류면 배지 없이
       const source = el("td");
-      if (item.sourceType === "host") {
-        source.append(el("span", "ho-muted", `${t("eventSourceHost")} · ${checkedText(item.checkedOn)}`));
-        if (item.url) source.append(el("br"), link(item.url, t("eventSourceLink")));
-      } else {
-        source.append(link(item.url, t("eventSourceLink")), el("span", "ho-sub", checkedText(item.checkedOn)));
+      const badgeKey = sourceBadgeKey(item.sourceType);
+      if (badgeKey) source.append(el("span", `ho-src ${item.sourceType}`, t(badgeKey)));
+      if (item.url) {
+        if (badgeKey) source.append(el("br"));
+        source.append(link(item.url, t("eventSourceLink")));
       }
+      source.append(el("span", "ho-sub", checkedText(item.checkedOn)));
       tr.append(source);
 
       const note = el("td");

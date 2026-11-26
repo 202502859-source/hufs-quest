@@ -116,3 +116,37 @@ test("예시 분리: [예시]는 ?demoEvents=1일 때 화면에서만, 서버 �
   assert.equal(res.headers["Cache-Control"], "no-store");
   assert.ok(body.items.every((e) => !e.demo), "서버 응답에 예시 없음");
 });
+
+test("출처 배지: school · sns · host는 문구 키(한/영 문구 있음), 모르는 값이면 배지 없음", async () => {
+  const { sourceBadgeKey } = await import("../src/ui/eventView.js");
+  const { setLang, t } = await import("../src/state.js");
+  assert.equal(sourceBadgeKey("school"), "eventSourceSchool");
+  assert.equal(sourceBadgeKey("sns"), "eventSourceSns");
+  assert.equal(sourceBadgeKey("host"), "eventSourceHost");
+  for (const unknown of ["blog", "", undefined, null, "toString", "constructor"]) assert.equal(sourceBadgeKey(unknown), null, String(unknown));
+  setLang("ko");
+  assert.deepEqual(["school", "sns", "host"].map((s) => t(sourceBadgeKey(s))), ["학교 공지", "학생회·동아리 SNS", "주최 측 제공"]);
+  setLang("en");
+  assert.deepEqual(["school", "sns", "host"].map((s) => t(sourceBadgeKey(s))), ["School notice", "Student org SNS", "Provided by host"]);
+  setLang("ko");
+});
+
+test("행사 제보하기 링크: 주소가 https://로 시작할 때만, 빈 값이면 만들지 않음(지금 EVENT_REPORT_URL은 비어 있음)", async () => {
+  const { reportLinkUrl } = await import("../src/ui/eventView.js");
+  const { EVENT_REPORT_URL } = await import("../src/data/eventsApi.js");
+  assert.equal(reportLinkUrl(""), null);
+  assert.equal(reportLinkUrl(undefined), null);
+  assert.equal(reportLinkUrl("http://forms.gle/abc"), null, "http는 안 됨");
+  assert.equal(reportLinkUrl("javascript:alert(1)"), null);
+  assert.equal(reportLinkUrl("https://forms.gle/abc"), "https://forms.gle/abc");
+  assert.equal(EVENT_REPORT_URL, "");
+  assert.equal(reportLinkUrl(EVENT_REPORT_URL), null);
+});
+
+test("예시(?demoEvents=1)에 sns 예시 1개: 제목 [예시] 학생회 SNS 행사, 실제 계정 주소 아님", () => {
+  const sns = demoEvents(NOW).filter((e) => e.sourceType === "sns");
+  assert.equal(sns.length, 1);
+  assert.equal(sns[0].title.ko, "[예시] 학생회 SNS 행사");
+  assert.equal(sns[0].url, "https://www.instagram.com/");
+  assert.ok(sns[0].demo);
+});
