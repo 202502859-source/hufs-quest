@@ -50,6 +50,16 @@ function semesterEnd(id) {
   return s.part === "1" || s.part === "summer" ? `${s.year}-08-31` : `${s.year + 1}-02-31`;
 }
 
+// 학기가 걸치는 달(YYYY-MM) 범위: 1학기 3~8월, 2학기 9월~다음 해 2월, 여름 계절학기 6~8월, 겨울 계절학기 12월~다음 해 2월
+function semesterMonths(id) {
+  const s = parseSemester(id);
+  if (!s) return ["9999-99", "0000-00"];
+  if (s.part === "1") return [`${s.year}-03`, `${s.year}-08`];
+  if (s.part === "2") return [`${s.year}-09`, `${s.year + 1}-02`];
+  if (s.part === "summer") return [`${s.year}-06`, `${s.year}-08`];
+  return [`${s.year}-12`, `${s.year + 1}-02`];
+}
+
 // 오늘이 속한 정규 학기(방학은 바로 앞 학기로 봄: 7~8월 → 1학기, 1~2월 → 전년도 2학기)
 function currentSemester(today) {
   const y = Number(today.slice(0, 4));
@@ -71,12 +81,25 @@ const TERM_PATTERNS = [
   { re: /(\d{4})\s*(?:학년도|년)\s*(여름|하계|겨울|동계)\s*계절\s*학기/, read: (m) => ({ semester: `${m[1]}-${/여름|하계/.test(m[2]) ? "summer" : "winter"}`, explicitYear: true }) },
   { re: /(\d{4})\s*(summer|winter)\s*session|\b(summer|winter)\s*session\s*(?:of\s*)?(\d{4})/i, read: (m) => ({ semester: `${m[1] || m[4]}-${/summer/i.test(m[2] || m[3]) ? "summer" : "winter"}`, explicitYear: true }) },
   { re: /(\d{4})\s*(spring|fall|autumn)\b|\b(spring|fall|autumn)\s*(?:semester|term)?\s*(?:of\s*)?(\d{4})/i, read: (m) => ({ semester: `${m[1] || m[4]}-${/spring/i.test(m[2] || m[3]) ? 1 : 2}`, explicitYear: true }) },
-  // 학기 없이 연도만("2027학년도 개강일", "2027년 수강신청"): 그 학년도의 학기 중에서 방식 B로 고릅니다.
-  { re: /(\d{4})\s*(?:학년도|년)(?!\s*(?:제\s*)?[12]\s*학기)(?!\s*(?:여름|하계|겨울|동계))/, read: (m) => ({ year: Number(m[1]) }) },
+  // 학년도 vs 달력 연도(11/27 PM 확정): 일정표는 학년도(3월~다음 해 2월) 단위지만 일정 이름 · 날짜는 달력 연도를 씁니다.
+  // "YYYY년 M월"은 달력 날짜: 1~2월이면 (YYYY-1)학년도, 3~12월이면 YYYY학년도 안에서 실제 날짜가 그 달에 걸치는 일정만.
+  { re: /(\d{4})\s*년\s*(\d{1,2})\s*월/, read: (m) => ({ calMonth: { year: Number(m[1]), month: Number(m[2]) } }) },
+  // "YYYY학년도"(학기 없음): 그 학년도의 학기 중에서 방식 B로 고릅니다(지금과 같음).
+  { re: /(\d{4})\s*학년도(?!\s*(?:제\s*)?[12]\s*학기)(?!\s*(?:여름|하계|겨울|동계))/, read: (m) => ({ year: Number(m[1]) }) },
+  // "YYYY년"(월 · 학기 없음): 실제 날짜(시작일 또는 종료일)가 YYYY년인 일정만 후보로 봅니다.
+  { re: /(\d{4})\s*년(?!\s*(?:제\s*)?[12]\s*학기)(?!\s*(?:여름|하계|겨울|동계))(?!\s*\d{1,2}\s*월)/, read: (m) => ({ calYear: Number(m[1]) }) },
   { re: /(이번|다음|지난|저번)\s*학기|\b(this|next|last)\s+semester/i, read: (m) => ({ relative: { 이번: 0, this: 0, 다음: 1, next: 1, 지난: -1, 저번: -1, last: -1 }[(m[1] || m[2]).toLowerCase()] }) },
   { re: /(여름|하계|겨울|동계)\s*계절\s*학기|\b(summer|winter)\s*session/i, read: (m) => ({ part: /여름|하계|summer/i.test(m[1] || m[2]) ? "summer" : "winter" }) },
   { re: /(?:제\s*)?([12])\s*학기|\b(1st|first|2nd|second)\s+semester|\b(spring|fall|autumn)\s+(?:semester|term)\b/i, read: (m) => ({ part: m[1] || (/1st|first|spring/i.test(m[2] || m[3]) ? "1" : "2") }) },
 ];
+
+// 질문 안의 학기 종류 말(여름/겨울 계절학기, 1학기/2학기)만 따로 읽습니다(달력 연도와 함께 쓰인 경우용).
+function partOf(question) {
+  const season = question.match(/(여름|하계|겨울|동계)\s*계절\s*학기|\b(summer|winter)\s*session/i);
+  if (season) return /여름|하계|summer/i.test(season[1] || season[2]) ? "summer" : "winter";
+  const sem = question.match(/(?:제\s*)?([12])\s*학기/);
+  return sem ? sem[1] : null;
+}
 
 export function findTerm(question, today) {
   for (const { re, read } of TERM_PATTERNS) {
@@ -86,6 +109,10 @@ export function findTerm(question, today) {
     // explicit: 학기가 분명한 질문(연도+학기, 이번 · 다음 · 지난 학기). 이때는 termBasis · alternatives를 붙이지 않습니다(11/27 PM 확정).
     if (found.semester) return { semester: found.semester, part: parseSemester(found.semester).part, explicit: true, text: m[0] };
     if (found.year) return { semester: null, part: null, year: found.year, explicit: false, text: m[0] };
+    // 달력 연도로 물은 질문도 연도가 분명하므로 termBasis · 버튼을 붙이지 않습니다(D9처럼). 같은 질문에 학기 종류 말이 있으면 함께 씁니다.
+    if (found.calMonth || found.calYear) {
+      return { semester: null, part: partOf(question), calMonth: found.calMonth, calYear: found.calYear, explicit: true, text: m[0] };
+    }
     if (found.relative !== undefined) {
       return { semester: shiftSemester(currentSemester(today), found.relative), part: null, explicit: true, text: m[0] };
     }
@@ -189,9 +216,29 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
   if (!items.length) return null;
 
   const term = findTerm(q, today);
+  // 달력 연도 · 달로 물었으면 후보 일정을 실제 날짜로 좁힙니다(학년도 vs 달력 연도, 11/27 PM 확정).
+  let pool = items;
+  if (term?.calMonth) {
+    const { year, month } = term.calMonth;
+    const academicYear = month <= 2 ? year - 1 : year;
+    const ym = `${year}-${String(month).padStart(2, "0")}`;
+    const inYear = items.filter((i) => i.academicYear === academicYear);
+    pool = inYear.filter((i) => i.startDate.slice(0, 7) <= ym && itemDate(i).slice(0, 7) >= ym);
+    // 그 달에 실제 날짜가 없으면(예: 1월에 진행 중인 겨울 계절학기의 개강일은 12월) 그 달을 포함하는 학기의 일정으로 봅니다.
+    if (!pool.length) {
+      pool = inYear.filter((i) => {
+        const [from, to] = semesterMonths(i.targetSemester);
+        return from <= ym && ym <= to;
+      });
+    }
+  } else if (term?.calYear) {
+    const y = String(term.calYear);
+    pool = items.filter((i) => i.startDate.startsWith(y) || (i.endDate || "").startsWith(y));
+  }
+  if (!pool.length) return null; // 그 연도 · 달에 그 일정이 없으면 지금처럼 검색
   // 학기 말과 종류가 맞는 후보 학기(계절학기 말이면 계절학기만, "1학기"면 1학기만)
   const bySemester = new Map();
-  for (const item of items) {
+  for (const item of pool) {
     const list = bySemester.get(item.targetSemester) || [];
     list.push(item);
     bySemester.set(item.targetSemester, list);
@@ -210,20 +257,25 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
   if (term?.semester) {
     chosen = term.semester;
     if (!bySemester.has(chosen)) return null; // 그 학기에 그 일정이 없으면 지금처럼 검색
-  } else if (!term || term.year) {
+  } else if (!term || term.year || term.calMonth || term.calYear) {
     // 방식 B: 일정이 오늘 이후에 끝나는 가장 가까운 학기. 못 정하면 방식 A(clarify)
     // 연도만 있으면 그 학년도의 학기만 후보로 보고, 그 학년도에 그 일정이 없으면 지금처럼 검색합니다.
     if (!candidates.length) return null;
     const upcoming = candidates.filter((c) => c.next).sort((a, b) => a.next.localeCompare(b.next));
     const tie = upcoming.length > 1 && upcoming[0].next === upcoming[1].next;
-    if (!upcoming.length || tie) {
+    // 달력 연도 · 달로 물었는데 후보가 모두 지난 일정이면: 달은 그 달 일정(가장 늦은 것), 연도는 후보 학기가 하나일 때만 그대로 답합니다.
+    const past = [...candidates].sort((a, b) => b.date.localeCompare(a.date));
+    if (!upcoming.length && (term?.calMonth || (term?.calYear && candidates.length === 1))) {
+      chosen = past[0].id;
+    } else if (!upcoming.length || tie) {
       return {
         clarify: true,
         topic: topic.key,
         alternatives: alternativesFor(q, null, candidates, null, today),
       };
+    } else {
+      chosen = upcoming[0].id;
     }
-    chosen = upcoming[0].id;
   } else {
     // "1학기"처럼 학기만 있는데 끝나지 않은 그 학기를 못 찾음
     return { clarify: true, topic: topic.key, alternatives: alternativesFor(q, term.text, candidates, null, today) };
