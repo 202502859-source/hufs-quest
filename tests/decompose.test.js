@@ -336,6 +336,80 @@ test("unsupportedNumbers: 근거에 없던 숫자 · 시기 표현만 중복 없
   assert.deepEqual(unsupportedNumbers("2026.03.02 개강\n2025. 신청", docs), { numbers: ["2026.03", "02", "2025"], timeWords: [] });
 });
 
+
+// 질문에서 주어진 숫자는 허용하되 새로운 숫자는 허용하지 않습니다.
+const questionNumberDocs = [{
+  title: "이중전공",
+  text: "34학점 이상 취득한 경우 우선 선발. 25학번 이후는 32학점 이상 우선 선발."
+}];
+
+const cohortQuestion = "24학번과 25학번의 일반 이중전공 우선 선발 기준 학점은 각각 몇 학점이야?";
+const cohortAnswer = "24학번은 34학점, 25학번은 32학점 이상 취득 시 우선 선발됩니다. [1]";
+
+test("unsupportedNumbers: C09 기존 방식은 24를 차단", async () => {
+  const { unsupportedNumbers } = await import("../api/ask.js");
+  assert.deepEqual(
+    unsupportedNumbers(cohortAnswer, questionNumberDocs),
+    { numbers: ["24"], timeWords: [] }
+  );
+});
+
+test("unsupportedNumbers: C09 질문 숫자를 허용", async () => {
+  const { unsupportedNumbers } = await import("../api/ask.js");
+  assert.deepEqual(
+    unsupportedNumbers(cohortAnswer, questionNumberDocs, cohortQuestion),
+    { numbers: [], timeWords: [] }
+  );
+});
+
+test("unsupportedNumbers: 질문과 근거에 모두 없는 숫자는 차단", async () => {
+  const { unsupportedNumbers } = await import("../api/ask.js");
+  assert.deepEqual(
+    unsupportedNumbers(
+      "24학번은 36학점, 25학번은 99학점입니다. [1]",
+      questionNumberDocs,
+      cohortQuestion
+    ),
+    { numbers: ["36", "99"], timeWords: [] }
+  );
+});
+
+test("unsupportedNumbers: 질문 숫자의 부분 문자열은 새로 허용하지 않음", async () => {
+  const { unsupportedNumbers } = await import("../api/ask.js");
+  assert.deepEqual(
+    unsupportedNumbers(
+      "7학점과 72학점입니다.",
+      [],
+      "172학점인가요?"
+    ),
+    { numbers: ["7", "72"], timeWords: [] }
+  );
+});
+
+test("unsupportedNumbers: 소수점 숫자는 같은 토큰만 허용", async () => {
+  const { unsupportedNumbers } = await import("../api/ask.js");
+  assert.deepEqual(
+    unsupportedNumbers(
+      "3.75와 3.7입니다.",
+      [],
+      "평점 3.75인가요?"
+    ),
+    { numbers: ["3.7"], timeWords: [] }
+  );
+});
+
+test("unsupportedNumbers: 질문 속 시기 표현으로 기존 검사를 우회하지 않음", async () => {
+  const { unsupportedNumbers } = await import("../api/ask.js");
+  assert.deepEqual(
+    unsupportedNumbers(
+      "Apply in March. [1]",
+      questionNumberDocs,
+      "March에 신청하나요?"
+    ),
+    { numbers: [], timeWords: ["march"] }
+  );
+});
+
 test("ask.js: 숫자 근거 검사에 걸리면 evidence 로그에 근거에 없던 숫자만(최대 5개), 문장은 남기지 않음", async () => {
   const ENV = { ASK_IP_SALT: "test-salt", SUPABASE_URL: "https://db.example.test", SUPABASE_SERVICE_KEY: "test-service-key", CLOVA_API_KEY: "test-clova-key" };
   const saved = Object.fromEntries(Object.keys(ENV).map((k) => [k, process.env[k]]));
@@ -377,6 +451,30 @@ test("ask.js: 숫자 근거 검사에 걸리면 evidence 로그에 근거에 없
     assert.match(systemPrompt, /'25학번'이면 '2025학번'으로 바꾸지 않는다/);
     assert.match(systemPrompt, /이름이 다른 제도의 규칙을 질문한 제도의 규칙처럼 말하지 않는다/);
     assert.match(systemPrompt, /번호를 붙이지 말고 문장으로 이어 쓴다/);
+
+    // 원본 질문의 학번이 실제 API 숫자 검증에도 전달되는지 확인합니다.
+    reply = "24학번은 32학점 이상입니다. [1]";
+    await handler({
+      method: "POST",
+      headers: { "x-forwarded-for": "203.0.113.91" },
+      body: { question: "24학번의 기준은 뭐야?", lang: "ko" }
+    }, res);
+    assert.equal(res.body.mode, "ai");
+    assert.match(res.body.answer, /24학번/);
+
+    // 질문에 나온 숫자를 허용해도 새로운 숫자는 차단해야 합니다.
+    reply = "24학번은 99학점 이상입니다. [1]";
+    await handler({
+      method: "POST",
+      headers: { "x-forwarded-for": "203.0.113.92" },
+      body: { question: "24학번의 기준은 무엇인가요?", lang: "ko" }
+    }, res);
+    assert.equal(res.body.mode, "evidence");
+    assert.deepEqual(
+      JSON.parse(logs.at(-1)).unsupportedNumbers,
+      ["99"]
+    );
+
   } finally {
     globalThis.fetch = originalFetch;
     console.log = originalLog;
