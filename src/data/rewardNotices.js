@@ -13,16 +13,35 @@ const TIMEOUT_MS = 8_000;
 export const NOTICE_POLL_MS = 15_000;
 export const NOTICE_SHOW_MS = 2_000; // 알림이 떠 있는 시간(그 뒤 0.4초 동안 사라짐)
 
-// 알림 문구: 1건이면 "제보한 행사가 확인되어 경험치가 올랐어요", 여러 건이면 "제보한 행사 N건이 확인되어 …". chip은 "+20 EXP".
-export function rewardNoticeText({ count, exp }) {
-  const n = Math.max(1, Number(count) || 1);
-  return { key: n > 1 ? "eventRewardNoticeMany" : "eventRewardNotice", vars: { count: n }, chip: `+${Math.max(0, Number(exp) || 0)} EXP` };
+// 종류별 건수({ event, map }). 서버가 kinds를 주지 않으면(010 실행 전) 모두 행사 제보로 봅니다.
+const kindsOf = (notice) => {
+  const event = Math.max(0, Number(notice?.kinds?.event) || 0);
+  const map = Math.max(0, Number(notice?.kinds?.map) || 0);
+  return event + map > 0 ? { event, map } : { event: Math.max(0, Number(notice?.count) || 0), map: 0 };
+};
+
+// 알림 문구. chip은 "+20 EXP".
+//   행사 제보만: "제보한 행사가 확인되어 경험치가 올랐어요" / 여러 건이면 "제보한 행사 N건이 …"
+//   지도 신고만: "신고한 지도 정보가 고쳐져서 경험치가 올랐어요" / 여러 건이면 "신고한 지도 정보 N건이 …"
+//   둘 다: "제보·신고 N건이 반영되어 경험치가 올랐어요"
+export function rewardNoticeText(notice) {
+  const n = Math.max(1, Number(notice?.count) || 1);
+  const kinds = kindsOf(notice);
+  const chip = `+${Math.max(0, Number(notice?.exp) || 0)} EXP`;
+  if (kinds.event > 0 && kinds.map > 0) return { key: "rewardNoticeMixed", vars: { count: n }, chip };
+  if (kinds.map > 0) return { key: n > 1 ? "mapRewardNoticeMany" : "mapRewardNotice", vars: { count: n }, chip };
+  return { key: n > 1 ? "eventRewardNoticeMany" : "eventRewardNotice", vars: { count: n }, chip };
 }
 
-// 쌓인 알림을 하나로 합칩니다(HUD가 그리기 전에 여러 번 와도 한 번에).
-export const mergeNotices = (a, b) => (a ? { count: a.count + b.count, exp: a.exp + b.exp } : { count: b.count, exp: b.exp });
+// 쌓인 알림을 하나로 합칩니다(HUD가 그리기 전에 여러 번 와도 한 번에). 종류별 건수도 더합니다.
+export const mergeNotices = (a, b) => {
+  const kb = kindsOf(b);
+  if (!a) return { count: b.count, exp: b.exp, kinds: kb };
+  const ka = kindsOf(a);
+  return { count: a.count + b.count, exp: a.exp + b.exp, kinds: { event: ka.event + kb.event, map: ka.map + kb.map } };
+};
 
-// 아직 안 본 알림을 가져갑니다(가져가면 서버에서 본 것으로 바뀜). → { count, exp } · 토큰 없음 · 실패면 null
+// 아직 안 본 알림을 가져갑니다(가져가면 서버에서 본 것으로 바뀜). → { count, exp, kinds } · 토큰 없음 · 실패면 null
 export async function takeRewardNotices({ fetchImpl = fetch, token } = {}) {
   const accessToken = token === undefined ? await getAccessToken().catch(() => null) : token;
   if (!accessToken) return null;
@@ -36,7 +55,7 @@ export async function takeRewardNotices({ fetchImpl = fetch, token } = {}) {
     const body = await response.json();
     const count = Number(body?.count);
     const exp = Number(body?.exp);
-    return Number.isInteger(count) && count >= 0 && Number.isFinite(exp) ? { count, exp } : null;
+    return Number.isInteger(count) && count >= 0 && Number.isFinite(exp) ? { count, exp, kinds: kindsOf({ count, kinds: body?.kinds }) } : null;
   } catch {
     return null;
   }
@@ -94,4 +113,9 @@ export function startRewardNoticeWatch(onNotice, { authMode = AUTH_MODE } = {}) 
   };
 }
 
-export const demoNoticeEnabled = (search = typeof location === "undefined" ? "" : location.search) => new URLSearchParams(search).get("demoNotice") === "1";
+export const demoNoticeEnabled = (search = typeof location === "undefined" ? "" : location.search) => demoNoticeKind(search) !== null;
+// ?demoNotice=1 → 행사 제보 예시, ?demoNotice=map → 지도 신고 예시, 그 밖 → null
+export function demoNoticeKind(search = typeof location === "undefined" ? "" : location.search) {
+  const value = new URLSearchParams(search).get("demoNotice");
+  return value === "1" ? "event" : value === "map" ? "map" : null;
+}

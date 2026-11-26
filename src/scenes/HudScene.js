@@ -7,7 +7,7 @@ import { isTouchDevice, onTouchDetected } from "../device.js";
 import { onDeadlinesChange, urgentCount } from "../data/deadlinesApi.js";
 import { eventBadgeCount, onEventsChange } from "../data/eventsApi.js";
 import { COLOR, addButton, addLabel, addLangButtons, drawPanel } from "../ui/widgets.js";
-import { NOTICE_SHOW_MS, demoNoticeEnabled, mergeNotices, rewardNoticeText, startRewardNoticeWatch } from "../data/rewardNotices.js";
+import { NOTICE_SHOW_MS, demoNoticeKind, mergeNotices, rewardNoticeText, startRewardNoticeWatch } from "../data/rewardNotices.js";
 import { PROGRESS_MODE, getProgress } from "../data/progressApi.js";
 import { addNoticeToast } from "../ui/noticeToast.js";
 import { EVENT_REPORT_REWARD_EXP } from "../../shared/progressRules.js";
@@ -61,8 +61,12 @@ export class HudScene extends Phaser.Scene {
       const stopNotices = startRewardNoticeWatch((notice) => this.queueEventNotice(notice));
       this.events.once("shutdown", stopNotices);
     }
-    // 화면 확인용 예시 알림(?demoNotice=1, 서버 안 부름)
-    if (demoNoticeEnabled()) this.time.delayedCall(1200, () => this.queueEventNotice({ count: 1, exp: EVENT_REPORT_REWARD_EXP }, { demo: true }));
+    // 화면 확인용 예시 알림(?demoNotice=1 행사 · ?demoNotice=map 지도, 서버 안 부름)
+    const demoKind = demoNoticeKind();
+    if (demoKind) {
+      const kinds = { event: demoKind === "event" ? 1 : 0, map: demoKind === "map" ? 1 : 0 };
+      this.time.delayedCall(1200, () => this.queueEventNotice({ count: 1, exp: EVENT_REPORT_REWARD_EXP, kinds }, { demo: true }));
+    }
     // 화면이 회전하거나 크기가 바뀌면 터치 버튼 크기를 다시 계산합니다.
     this.scale.on("resize", () => {
       this.dirty = true;
@@ -234,7 +238,7 @@ export class HudScene extends Phaser.Scene {
     const { key, vars, chip } = rewardNoticeText(this.notice);
     const toast = addNoticeToast(this, this.scale.width / 2, this.scale.height - 16, chip, t(key, vars)).setDepth(50);
     // 왼쪽 아래 미니맵(PC) · 오른쪽 아래 버튼 줄과 겹치지 않게, 너무 길면 가운데 폭 안으로 줄입니다.
-    const maxWidth = this.scale.width - 2 * (MINIMAP.pc.width + MARGIN * 2);
+    const maxWidth = this.scale.width - 2 * (MINIMAP.pc.width + MARGIN * 3);
     if (toast.width > maxWidth) toast.setScale(maxWidth / toast.width);
     this.noticeToast = toast;
     this.tweens.add({

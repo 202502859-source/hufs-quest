@@ -23,6 +23,7 @@ import { createEventOverlay } from "../ui/eventOverlay.js";
 import { createQuestOverlay } from "../ui/questOverlay.js";
 import { createSearchBar } from "../ui/searchBar.js";
 import { createOfficeOverlay } from "../ui/officeOverlay.js";
+import { createMapReportOverlay } from "../ui/mapReportOverlay.js";
 import { nearestOfficePlace } from "../ui/officeView.js";
 
 const CAMERA_ZOOM = 3;
@@ -238,8 +239,22 @@ export class CampusScene extends Phaser.Scene {
   openOffice(placeId) {
     if (this.anyOverlayOpen()) return;
     this.pauseForOverlay();
-    this.officeOverlay ??= createOfficeOverlay(this.game, () => this.closeOverlay());
+    this.officeOverlay ??= createOfficeOverlay(this.game, (result) => {
+      this.closeOverlay();
+      if (result?.report) this.openMapReport(result.report);
+    });
     this.officeOverlay.show(placeId);
+  }
+
+  // 건물 상세 · 전체 지도의 "실제와 달라요 (신고)": 게임 안 신고 창(진짜 로그인이면 폼, 아니면 로그인 버튼).
+  openMapReport(placeId) {
+    if (this.anyOverlayOpen()) return;
+    this.pauseForOverlay();
+    this.mapReportOverlay ??= createMapReportOverlay(this.game, (result) => {
+      this.closeOverlay();
+      if (result?.login) this.goToLogin();
+    });
+    this.mapReportOverlay.show(placeId);
   }
 
   // 가장 가까운 건물 소개 안내원 머리 위에 문구를 띄웁니다(맵 v1 · v2 모두 place.guide). 정문 쪽 문구는 없습니다.
@@ -267,7 +282,8 @@ export class CampusScene extends Phaser.Scene {
         this.plannerOverlay?.isOpen() ||
         this.eventOverlay?.isOpen() ||
         this.questOverlay?.isOpen() ||
-        this.officeOverlay?.isOpen(),
+        this.officeOverlay?.isOpen() ||
+        this.mapReportOverlay?.isOpen(),
     );
   }
 
@@ -344,6 +360,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.questOverlay?.isOpen()) this.questOverlay.hide();
     if (this.plannerOverlay?.isOpen()) this.plannerOverlay.hide();
     if (this.officeOverlay?.isOpen()) this.officeOverlay.hide();
+    if (this.mapReportOverlay?.isOpen()) this.mapReportOverlay.hide();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
     ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));

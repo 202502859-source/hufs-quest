@@ -1,5 +1,5 @@
 import Phaser from "phaser";
-import { MAP_BASE_DATE, OFFICIAL_MAP_URL, REPORT_FORM_URL, reportFormUrl } from "../data/buildingInfo.js";
+import { MAP_BASE_DATE, OFFICIAL_MAP_URL } from "../data/buildingInfo.js";
 import { WORLD, findPlace } from "../data/world.js";
 import { getLang, t } from "../state.js";
 import { nearestPlace, overviewInfo, overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
@@ -165,16 +165,23 @@ export class MapScene extends Phaser.Scene {
     addLabel(this, INFO.x, 92, `${placeName(near)} ${t("mapNear")}`, { size: 16, wordWrap: { width: INFO.width, useAdvancedWrap: true } });
   }
 
-  // 맵 기준일, 공식 캠퍼스 지도 링크, "실제와 달라요" 신고 버튼입니다. 신고는 외부 폼으로만 받고 개인정보는 받지 않습니다.
+  // 맵 기준일, 공식 캠퍼스 지도 링크, "실제와 달라요" 신고 버튼입니다.
+  // 신고는 11/26부터 게임 안 창(src/ui/mapReportOverlay.js, 구글 폼 REPORT_FORM_URL 대신)으로 받습니다. 지도를 닫고 캠퍼스가 엽니다.
   drawMapBasis() {
     const [year, month] = MAP_BASE_DATE.split("-");
     addLabel(this, INFO.x, 272, t("mapBaseDate", { year, month: Number(month) }), { size: 14, color: "#a9b6cf" });
     const openLink = (url) => window.open(url, "_blank", "noopener,noreferrer");
     addButton(this, INFO.x, 298, INFO.width, 34, t("mapOfficial"), () => openLink(OFFICIAL_MAP_URL), { size: 14 });
-    if (REPORT_FORM_URL) {
-      // 지금 플레이어 근처 장소(drawPlayerMarker에서 정함)를 폼 1번 문항에 미리 채웁니다. 못 찾으면 폼 주소만 엽니다.
-      addButton(this, INFO.x, 342, INFO.width, 34, t("mapReport"), () => openLink(reportFormUrl(this.currentPlace)), { size: 14, color: "#ff8f92" });
-    }
+    // 지금 플레이어 근처 장소(drawPlayerMarker에서 정함)를 신고 창의 건물 칸에 미리 고릅니다.
+    addButton(this, INFO.x, 342, INFO.width, 34, t("mapReport"), () => this.openMapReport(), { size: 14, color: "#ff8f92" });
+  }
+
+  openMapReport() {
+    const place = this.currentPlace;
+    const campus = this.scene.get("Campus");
+    this.closeMap();
+    // 지도 장면이 멈춘 다음 프레임에 캠퍼스가 신고 창을 엽니다.
+    campus.time.delayedCall(0, () => campus.openMapReport(place));
   }
 
   closeMap() {

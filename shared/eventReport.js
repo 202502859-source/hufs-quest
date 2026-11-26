@@ -53,7 +53,8 @@ export function contactProblem(text) {
   return null;
 }
 
-function checkUrl(raw) {
+// 원문 · 근거 주소 검사(https://만, 계정 정보 · 카카오 금지). 문제 코드 또는 null. 지도 신고(shared/mapReport.js)도 씁니다.
+export function urlProblem(raw) {
   if (length(raw) > REPORT_LIMITS.url) return "too_long";
   let url;
   try {
@@ -133,7 +134,7 @@ export function validateEventReport(input, { nowMs = Date.now(), buildingIds = n
   if (url === undefined || url === null || url === "") value.url = null;
   else if (typeof url !== "string") add("url", "type");
   else {
-    const urlCode = checkUrl(url) ?? contactProblem(url);
+    const urlCode = urlProblem(url) ?? contactProblem(url);
     if (urlCode) add("url", urlCode);
     else value.url = url;
   }

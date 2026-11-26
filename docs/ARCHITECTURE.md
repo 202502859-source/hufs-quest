@@ -28,7 +28,8 @@ flowchart LR
         deadlines["deadlines.js<br/>공지 D-day 계산"]
         eventsApi["events.js<br/>행사 14일 계산 · 학생 제보 묶음 합치기"]
         eventReport["event-report.js<br/>행사 제보 · 같은 행사 판단 · 5명 공개"]
-        rewardNotice["reward-notices.js<br/>제보 확인 보상 알림 가져가기"]
+        rewardNotice["reward-notices.js<br/>제보 · 신고 반영 보상 알림 가져가기"]
+        mapReport["map-report.js<br/>게임 안 지도 신고 · 하루 5건"]
         newApi["진행 저장 서버 함수<br/>progress · quiz · quest · check-in"]
         limiter["사용량 제한 · 답변 캐시<br/>학생 계정 · 게스트 IP 해시 · 하루 상한"]
     end
@@ -56,6 +57,8 @@ flowchart LR
     eventReport -->|"저장 · 제보자 수 · 공개"| userDb
     progress -.->|"재학생 접속 중 15초마다 · 접속 때 바로"| rewardNotice
     rewardNotice -->|"팀 confirmed → 트리거가 경험치 20 · 알림"| userDb
+    mapInfo -->|"실제와 달라요(로그인 학생)"| mapReport
+    mapReport -->|"저장 · 팀 accepted → 트리거가 경험치 20 · 알림"| userDb
     quiz --> progress
     progress -.->|"서버 완성 후 real 모드"| newApi
     rules --> progress
@@ -77,7 +80,7 @@ flowchart LR
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect,supaAuth done
-    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice partial
+    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice,mapReport partial
 ```
 
 | 색 | 상태 |
@@ -94,7 +97,7 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect,supaAuth done      ← 동작 중
-class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice partial    ← 일부 구현(행사는 화면 · 서버 완료, 데이터 입력 전. 행사 제보는 서버 · 화면 완료, SQL 11/26 실행, Preview 시험 전. 제보 확인 보상은 SQL 009 11/26 실행, Preview 시험 전)
+class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice,mapReport partial    ← 일부 구현(행사는 화면 · 서버 완료, 데이터 입력 전. 행사 제보는 서버 · 화면 완료, SQL 11/26 실행, Preview 시험 전. 제보 확인 보상은 SQL 009 11/26 실행, Preview 시험 전)
 (만들 것 todo: 11/19 기준 없음. 새로 만들 기능이 생기면 `class 이름 todo` 줄을 다시 추가)
 ```
 
@@ -118,7 +121,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 | 학교 행사 | `src/ui/eventOverlay.js`(표 창, 공통 틀 `src/ui/hudOverlay.js` · `hudOverlay.css`, 출처 칸 맨 앞 출처 종류 배지 · "행사 제보하기" 링크 — 순수 함수 `src/ui/eventView.js`, 폼 주소 `eventsApi.js` `EVENT_REPORT_URL`이 폼 연결 완료(11/26)) ← `src/data/eventsApi.js`(서버 없으면 기기 계산, `?demoEvents=1`일 때만 [예시]) → `api/events.js`(GET, no-store, `checked.by` 제외) ← `shared/events.js`(팀이 원문을 보고 손 입력, 지금 빈 배열) · `shared/eventCalc.js`(오늘~14일 · 진행 중 계산, 출처 규칙 `eventProblems`). "지도에서 보기" → `MapScene` 건물 강조. 테스트 `tests/events.test.js`. 정적 데이터에는 `sourceType: "crowd"` 금지(`eventProblems`) | 이종헌(화면) · 팀(데이터) |
 | 행사 제보(앱 안, 1단계: DB · 서버) | `api/event-report.js`(POST, 로그인 필수 `authenticateStudent`, 계정당 하루 3회 · env 전체 하루 300회 `event_report_hit`, 후보 묶음 최대 10개 → HCX-007 + Structured Outputs `matchCluster`, 기준 `EVENT_REPORT_THRESHOLD` 기본 5) ← `shared/eventReport.js`(입력 검사 · 전화번호 · 이메일 · 카카오 거절, 칸 · 코드만 돌려줌) → `supabase/008_event_reports.sql`(`event_clusters` · `event_reports` · `event_report_usage`, RLS 정책 없음, `submit_event_report` · `event_report_hit` service_role 전용, **실행 전**). `api/events.js`가 같은 env의 published · confirmed 묶음을 `crowd-<id>`로 합침(Supabase 실패 시 팀 입력 행사만). 테스트 `tests/eventReport.test.js`. **2단계 화면(11/26)**: 행사 창 "행사 제보하기"가 진짜 로그인(`AUTH_MODE` real + 토큰)이면 창 안 제보 폼(`src/ui/eventOverlay.js`, 보내기 전 같은 `validateEventReport` 검사 · 칸 옆 이유, 시각은 `YYYY-MM-DDTHH:MM:00+09:00`), 아니면(게스트 · 가짜 로그인) "로그인하고 제보하기" 버튼 → 캠퍼스를 닫고 타이틀의 로그인 창(`CampusScene.goToLogin` → `TitleScene` `openLogin`). 11/26 게스트 제보 닫음(PM 결정: 이종헌)으로 구글 폼 링크(`EVENT_REPORT_URL`)는 화면에서 안 씀(상수 · 테스트는 남김). 로그인 분기 · 시각 문자열 · 서버 호출 · 응답 문구는 `src/data/eventReportApi.js`, 출처 배지 "학생 제보 R명 · 미확인 / 팀 확인"과 영어 화면 "Original text (Korean)"은 `src/ui/eventView.js`(`sourceBadgeText` · `showOriginalNote`), `?demoEvents=1`에 학생 제보 예시 1개. 테스트 `tests/eventReportUi.test.js`. SQL `008`은 11/26 실행 · 확인(이종헌) | 임현규(DB · 서버) · 이종헌(화면) |
 | HUD | `src/scenes/HudScene.js`: 오른쪽 아래 아이콘 버튼 줄(퀘스트 Q — 진행 중 퀘스트가 있을 때만, 행사 V, 마감 공지 N), 미니맵(PC 왼쪽 아래 264px · 휴대폰 상태창 아래 220px, 건물명은 한 줄 `name`, 가장자리 이름표는 안쪽으로 당기고 겹치면 비켜 놓음). 퀘스트 창 `src/ui/questOverlay.js`. 테스트 `tests/quests.test.js` | 이종헌 |
-| 건물 정보 · 맵 기준일 | `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태, `MAP_BASE_DATE` · `OFFICIAL_MAP_URL` · `REPORT_FORM_URL` · `REPORT_FORM_PLACE_ENTRY` · `reportFormUrl()`) → `src/data/campus.js`(ID·위치만, 이름은 여기서 붙여 내보냄. `onMap: false`인 장소는 맵에 그리지 않음) · `src/data/npcs.js`(대사 없는 건물은 확인된 용도 표시) · `src/scenes/MapScene.js` `drawMapBasis`(기준일 · 공식 지도 · 신고 버튼, 폼 주소가 비면 신고 버튼 숨김) · `scripts/report-form/`(구글 폼 생성 Apps Script, 건물 이름 목록은 `buildPlaceList.mjs`가 `buildingInfo.js`에서 만듦) · `tests/reportFormUrl.test.js`. **형식·화면 완료, 신고 폼 연결 완료, 근처 건물 미리 채움**(폼에는 건물 이름 하나만 보냄). 사무실 안내 창: `src/ui/officeOverlay.js` · `src/ui/officeView.js`(층별 묶음 지하 → 라운지층 → 지상 → 건물 밖, 호실이 있으면 호실만, 묶음 항목 `children`: 층 → 동아리방 · 단과대학 → 하위 목록 → 상세, 위쪽 위치 한 줄 · 뒤로) · `tests/officeView.test.js` · `tests/buildingInfo.test.js`(호수 → 층 `floorFromRoom`, 동아리 66 · 학과 42, AED 없음, 010 없음, 외부 참고 출처). 11/25 길라잡이 76~77p 동아리방 · 80p 학과사무실 · 88p 편의시설 전화 반영 | 이종헌(형식·화면) · 임현규(내용) |
+| 건물 정보 · 맵 기준일 | `src/data/buildingInfo.js`(건물 ID 기준: 이름·용도·층별 사무실·출처·확인일·상태, `MAP_BASE_DATE` · `OFFICIAL_MAP_URL` · `REPORT_FORM_URL` · `REPORT_FORM_PLACE_ENTRY` · `reportFormUrl()`) → `src/data/campus.js`(ID·위치만, 이름은 여기서 붙여 내보냄. `onMap: false`인 장소는 맵에 그리지 않음) · `src/data/npcs.js`(대사 없는 건물은 확인된 용도 표시) · `src/scenes/MapScene.js` `drawMapBasis`(기준일 · 공식 지도 · 신고 버튼, 폼 주소가 비면 신고 버튼 숨김) · `scripts/report-form/`(구글 폼 생성 Apps Script, 건물 이름 목록은 `buildPlaceList.mjs`가 `buildingInfo.js`에서 만듦) · `tests/reportFormUrl.test.js`. **형식·화면 완료, 신고 폼 연결 완료, 근처 건물 미리 채움**(폼에는 건물 이름 하나만 보냄). **11/26 게임 안 신고로 교체(PM 결정: 이종헌)**: 건물 상세 · 전체 지도의 "실제와 달라요 (신고)"는 `src/ui/mapReportOverlay.js`(진짜 로그인이면 폼 — 건물 · 무엇이 다른지 · 설명 200자 · 근거 주소, 게스트 · mock이면 "로그인하고 제보하기") → `api/map-report.js`(로그인 필수, `shared/mapReport.js` 검사 · 연락처는 `contactProblem` 재사용, 하루 5건) → `supabase/010_map_reports.sql`(`map_reports`, 팀이 open → accepted · rejected, accepted면 트리거가 경험치 20 + 009 알림 표 `kind='map'`). `REPORT_FORM_URL` · `reportFormUrl` · `tests/reportFormUrl.test.js`는 화면에서 안 쓰고 남김. 테스트 `tests/mapReport.test.js`. 사무실 안내 창: `src/ui/officeOverlay.js` · `src/ui/officeView.js`(층별 묶음 지하 → 라운지층 → 지상 → 건물 밖, 호실이 있으면 호실만, 묶음 항목 `children`: 층 → 동아리방 · 단과대학 → 하위 목록 → 상세, 위쪽 위치 한 줄 · 뒤로) · `tests/officeView.test.js` · `tests/buildingInfo.test.js`(호수 → 층 `floorFromRoom`, 동아리 66 · 학과 42, AED 없음, 010 없음, 외부 참고 출처). 11/25 길라잡이 76~77p 동아리방 · 80p 학과사무실 · 88p 편의시설 전화 반영 | 이종헌(형식·화면) · 임현규(내용) |
 | 행사 제보 보상 (11/26 PM 결정: 이종헌) | 팀이 Supabase에서 묶음을 `confirmed`로 바꾸면 `supabase/009_event_report_rewards.sql` 트리거 `reward_event_reporters`가 **공개(published_at) 전에 제보한 학생**마다 경험치 20(`shared/progressRules.js` `EVENT_REPORT_REWARD_EXP`, 행사마다 1번 · 하루 상한 없음, `reward_log` source `event-report`)을 주고 `event_reward_notices`에 알림을 남김. 게임은 `src/data/rewardNotices.js`가 재학생(진짜 로그인)일 때 캠퍼스에 들어오자마자 한 번 · 접속 중 15초마다(탭이 보일 때만) `POST /api/reward-notices`(`api/reward-notices.js`, `take_event_reward_notices`로 가져가면 본 것으로 표시, 응답은 건수 · 경험치 합계만)를 불러, `HudScene`이 화면 아래 가운데에 2초 작은 알림(`src/ui/noticeToast.js`, 시설 소개 말풍선과 같은 모양, "+20 EXP" 칩)을 띄우고 진짜 진행 저장이면 경험치를 다시 받아 옴. 화면 확인 `?demoNotice=1`. 테스트 `tests/eventReward.test.js`. **009 11/26 실행 · 확인(이종헌)** | 임현규(DB · 서버) · 이종헌(화면) |
 | 사용량 제한 · 답변 캐시 | `api/_lib/usageLimit.js` (한도 상수 분당 10 · 학생 하루 50 · 게스트 IP 하루 150 · 전체 하루 500. **11/19~ 로그인 학생은 계정 기준**: 요청의 로그인 토큰을 Supabase `/auth/v1/user`로 확인해 `@hufs.ac.kr`이면 "user:<id>" 해시로, 아니면(게스트 · 토큰 오류 · 확인 실패) IP 해시로 셈. 해시 = SHA-256(`ASK_IP_SALT` + 한국 날짜 + 계정 또는 IP), 화면 `src/data/askApi.js`가 로그인 토큰을 붙여 보냄, 1차 메모리 제한 → 2차 `ask_hit`, Supabase 실패 시 메모리 제한으로 대체, eval 토큰은 IP 한도만 건너뜀) ← `api/ask.js`가 첫 AI 호출 전에 호출(429 `{ error, reason, retryAfter }`, 200자 초과 400). DB는 `supabase/003_usage_limits.sql`(11/18 실행). 화면 안내 `src/data/askApi.js`(`busy` · `limit`), 테스트 `tests/usageLimit.test.js`. **사용량 제한은 Preview 확인 전, 답변 캐시는 아직** | 임현규 · 신중혁 |
 | 진행 저장 연결 | `src/data/progressApi.js` (화면은 이 파일로만 진행 상태를 주고받음), `src/data/progressMock.js` (가짜 서버), `src/state.js` `applyProgress`, `src/quizProgress.js`, 테스트 `tests/progressMock.test.js` | 이종헌 (`state.js`·`quizProgress.js`는 임현규와 공동) |
@@ -201,3 +204,4 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 | 2026-11-26 | 행사 제보 2단계(화면): 행사 창 안 제보 폼(로그인 학생) · 비로그인 구글 폼 안내, 학생 제보 배지(미확인 · 팀 확인) · 영어 원문 안내, `src/data/eventReportApi.js` 추가, 행사 표 → event-report.js 연결선 | 행사 제보 2단계 PR |
 | 2026-11-26 | 행사 제보 보상: 팀 확인(confirmed) 시 공개 전 제보자에게 경험치 20 · 게임 안 알림(접속 중 15초마다, 오프라인이면 다음 접속 때). `supabase/009_event_report_rewards.sql`(11/26 실행 · 확인) · `api/reward-notices.js` · `src/data/rewardNotices.js` · `src/ui/noticeToast.js` 상자 · 연결선 · 파일 표 | 행사 제보 보상 PR |
 | 2026-11-26 | 게스트 제보 닫음(PM 결정: 이종헌): 행사창의 구글 폼 링크 · 안내 대신 "로그인하고 제보하기" → 타이틀 로그인 창, 로그인하면 앱 제보 폼 | 게스트 제보 닫음 PR |
+| 2026-11-26 | 게임 안 지도 신고: "실제와 달라요"를 구글 폼 대신 게임 안 창으로(`mapReportOverlay.js` · `api/map-report.js` · `shared/mapReport.js` · `supabase/010_map_reports.sql` 실행 전), 반영되면 경험치 20 · 알림(009 알림 표에 kind 추가) | 게임 안 지도 신고 PR |
