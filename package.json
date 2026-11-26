@@ -8,10 +8,13 @@
     "build": "vite build",
     "preview": "vite preview",
     "collect": "node scripts/collect.mjs",
+    "calendar": "node scripts/generate-calendar.mjs",
     "ingest": "node scripts/ingest.mjs",
     "eval": "node scripts/eval.mjs",
     "test": "node --test \"scripts/lib/*.test.mjs\" \"tests/*.test.js\"",
-    "extract-notice": "node --env-file=.env scripts/extract-notice.mjs"
+    "extract-notice": "node --env-file=.env scripts/extract-notice.mjs",
+    "notice:watch": "node scripts/notice-watch.mjs --dry-run",
+    "notice:draft": "node scripts/notice-draft.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

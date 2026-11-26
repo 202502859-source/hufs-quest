@@ -97,3 +97,161 @@ export function calendarChunks({ pageId, title, url, lines, minItems = 20 }) {
     .filter(Boolean)
     .map((chunk, i) => ({ id: `${pageId}-${String(i + 1).padStart(2, "0")}`, title: pageTitle, url, ...chunk }));
 }
+
+// 수집된 학사일정 조각을 구조화 데이터로 변환합니다.
+// 기존 parseCalendar 및 calendarChunks의 동작은 유지합니다.
+
+const CALENDAR_SOURCE =
+  "https://www.hufs.ac.kr/hufs/11360/subview.do";
+
+const CALENDAR_ROW =
+  /^(\d{4}\.\d{2}\.\d{2})(?: ~ (\d{4}\.\d{2}\.\d{2}))?: (.+)$/;
+
+function toISODate(value) {
+  const iso = value.replaceAll(".", "-");
+  const date = new Date(iso + "T00:00:00Z");
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.toISOString().slice(0, 10) !== iso
+  ) {
+    throw new Error("유효하지 않은 학사일정 날짜: " + value);
+  }
+
+  return iso;
+}
+
+export function structureCalendar(chunks) {
+  const calendar = chunks.filter(
+    c => /^11360-\d{2}$/.test(c.id)
+  );
+
+  const periods = ["spring", "summer", "fall", "winter"];
+
+  if (calendar.length !== periods.length) {
+    throw new Error("학사일정 조각은 4개여야 합니다.");
+  }
+
+  const items = [];
+  let academicYear = null;
+
+  for (const [index, period] of periods.entries()) {
+    const sourceId =
+      `11360-${String(index + 1).padStart(2, "0")}`;
+
+    const matches = calendar.filter(
+      c => c.id === sourceId
+    );
+
+    if (matches.length !== 1) {
+      throw new Error("학사일정 조각 중복 또는 누락: " + sourceId);
+    }
+
+    const chunk = matches[0];
+
+    if (chunk.url !== CALENDAR_SOURCE) {
+      throw new Error("학사일정 출처 불일치: " + sourceId);
+    }
+
+    const yearMatch = chunk.section.match(/^(\d{4})학년도/);
+
+    if (!yearMatch) {
+      throw new Error("학년도 확인 불가: " + sourceId);
+    }
+
+    const year = Number(yearMatch[1]);
+
+    if (academicYear === null) {
+      academicYear = year;
+    }
+
+    if (academicYear !== year) {
+      throw new Error("서로 다른 학년도의 일정이 섞여 있습니다.");
+    }
+
+    const group = GROUPS[index];
+
+    if (chunk.section !== group.label(year)) {
+      throw new Error("학사일정 구역 불일치: " + sourceId);
+    }
+
+    const lines = chunk.text.split("\n");
+
+    const expectedHeader =
+      `[${chunk.title} > ${chunk.section}]`;
+
+    const expectedNotes = calendarNotes(year, period);
+
+    if (
+      lines[0] !== expectedHeader ||
+      expectedNotes.some(
+        (note, i) => lines[i + 1] !== note
+      )
+    ) {
+      throw new Error("학사일정 머리글 불일치: " + sourceId);
+    }
+
+    const rows = lines.slice(
+      1 + expectedNotes.length
+    );
+
+    if (!rows.length) {
+      throw new Error("학사일정 내용 없음: " + sourceId);
+    }
+
+    for (const [i, row] of rows.entries()) {
+      const match = row.match(CALENDAR_ROW);
+
+      if (!match) {
+        throw new Error("학사일정 형식 불일치: " + row);
+      }
+
+      const startDate = toISODate(match[1]);
+      const endDate = match[2]
+        ? toISODate(match[2])
+        : null;
+
+      const month = Number(startDate.slice(5, 7));
+
+      if (!group.months.includes(month)) {
+        throw new Error("학사일정 월과 구역 불일치: " + row);
+      }
+
+      const firstDate = `${year}-03-01`;
+      const nextAcademicYear = `${year + 1}-03-01`;
+
+      for (const date of [startDate, endDate]) {
+        if (
+          date !== null &&
+          (
+            date < firstDate ||
+            date >= nextAcademicYear
+          )
+        ) {
+          throw new Error("학년도 범위 초과: " + row);
+        }
+      }
+
+      if (endDate && endDate < startDate) {
+        throw new Error("일정 시작일과 종료일 역전: " + row);
+      }
+
+      items.push({
+        id: `${sourceId}-${String(i + 1).padStart(2, "0")}`,
+        academicYear: year,
+        period,
+        name: match[3],
+        startDate,
+        endDate,
+        sourceId,
+        sourceUrl: chunk.url,
+        collectedAt: chunk.collected_at ?? null
+      });
+    }
+  }
+
+  return {
+    academicYear,
+    items
+  };
+}
