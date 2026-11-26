@@ -185,7 +185,7 @@ test("폼 위 안내 문구: N은 서버가 알려 준 기준(모르면 5), 비�
   assert.equal(DEFAULT_THRESHOLD, 5);
   assert.equal(
     t("eventFormNotice", { threshold: 5 }),
-    "전화번호·이메일·카카오 링크는 넣을 수 없어요. 로그인한 학생 5명이 같은 행사를 제보하면 '미확인' 표시와 함께 올라가요.",
+    "전화번호·이메일·카카오 링크는 넣을 수 없어요. 로그인한 학생 5명이 같은 행사를 제보하면 '미확인' 표시와 함께 올라가요. 팀이 확인하면 공개 전에 제보한 사람 모두 경험치 +20을 받아요.",
   );
   assert.equal(t("eventReportNote"), "제보는 팀이 출처를 확인한 뒤 올라가요");
   assert.equal(t("eventReportLoginHint"), "로그인하면 앱에서 바로 제보할 수 있어요");
@@ -231,8 +231,8 @@ test("게스트 제보 닫음(11/26): 게스트 · mock 로그인이면 '로그�
   assert.equal(reportEntryKind(reportMode({ authMode: "real", token: null })), "login", "게스트(로그인 안 함)");
   assert.equal(reportEntryKind(reportMode({ authMode: "mock", token: "mock-access-token" })), "login", "가짜 로그인");
   assert.equal(reportEntryKind(reportMode({ authMode: "real", token: "jwt" })), "form", "진짜 로그인");
-  assert.equal(t("eventReportLoginButton"), "로그인하고 제보하기");
-  withLang("en", () => assert.equal(t("eventReportLoginButton"), "Log in to report"));
+  assert.equal(t("eventReportLoginButton"), "로그인하고 제보하기 (경험치 제공)");
+  withLang("en", () => assert.equal(t("eventReportLoginButton"), "Log in to report (earn EXP)"));
 });
 
 test("게스트 제보 닫음(11/26): 행사창은 구글 폼 링크를 쓰지 않음, 상수는 주석과 함께 남김, 로그인 버튼은 타이틀 로그인 창으로", () => {
@@ -252,4 +252,13 @@ test("게스트 제보 닫음(11/26): 행사창은 구글 폼 링크를 쓰지 �
 test("행사창 제보 버튼 문구(11/26): '제보하고 경험치 쌓기'", () => {
   assert.equal(t("eventReportOpen"), "제보하고 경험치 쌓기");
   withLang("en", () => assert.equal(t("eventReportOpen"), "Report & earn EXP"));
+});
+
+test("폼 위 안내 영어 · 로그인 버튼 문구(11/26): 공개 전 제보자 +20 EXP 안내, '(경험치 제공)'", () => {
+  withLang("en", () => {
+    assert.equal(
+      t("eventFormNotice", { threshold: 5 }),
+      "Phone numbers, emails and Kakao links are not allowed. When 5 logged-in students report the same event, it is posted with an 'Unverified' label. When the team confirms it, everyone who reported before it was posted gets +20 EXP.",
+    );
+  });
 });
