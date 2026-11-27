@@ -2,8 +2,9 @@ import * as v1 from "./campus.js";
 import * as v2 from "./campusV2.js";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { hasOfficeInfo } from "../ui/officeView.js";
-import { awayFromGuides, guideSpotOf } from "./guides.js";
-import { awayFromRally, rallySpotsOf } from "./stampRallySpots.js";
+import { awayFromGuides, guideSpotOf, guideTextRect } from "./guides.js";
+import { awayFromRally, boothArtRect, boothRect, rallySpotsOf, signArtRect } from "./stampRallySpots.js";
+import { buildingTagRect, estimateLabelSize } from "./buildingLabels.js";
 
 /*
  * 화면 코드가 쓰는 캠퍼스 맵 하나를 고릅니다.
@@ -80,6 +81,36 @@ function makeV2() {
   const byId = new Map();
   const buildings = v2.BUILDINGS.map((b) => byId.set(b.id, wrap(b)).get(b.id));
   const openSpaces = v2.OPEN_SPACES.map((s) => byId.set(s.id, wrap(s)).get(s.id));
+  // 퀴즈 상자가 피할 칸(11/27): 건물 · 열린 공간 이름표(한/영), 안내원 발밑 이름표, 스탬프 랠리 팻말 · 부스 바닥.
+  // 이름표 자리는 CampusScene.layoutNameTag와 같은 피하기 목록(안내원 글자 · 정문 그림 · 팻말 · 부스 그림)으로 어림합니다.
+  let labelRects = null;
+  const quizBlockRects = () => {
+    if (labelRects) return labelRects;
+    const guideRects = buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide));
+    const gate = v2.gateRects().map((r) => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }));
+    const signs = buildings.filter((b) => b.sign).map((b) => signArtRect(b.sign));
+    const booths = buildings.filter((b) => b.booth).map((b) => boothRect(b.booth));
+    const avoid = [...guideRects, ...gate, ...signs, ...buildings.filter((b) => b.booth).map((b) => boothArtRect(b.booth))];
+    const tags = buildings.flatMap((b) => ["ko", "en"].map((lang) => ({ name: `${b.id} 이름표(${lang})`, ...buildingTagRect(b, lang, avoid, gate) })));
+    const openTags = openSpaces.flatMap((s) =>
+      ["ko", "en"].map((lang) => {
+        const { w, h } = estimateLabelSize((lang === "en" ? s.nameEn : null) ?? s.name, 1, 1);
+        return { name: `${s.id} 이름표(${lang})`, x0: s.tag.x - w / 2, x1: s.tag.x + w / 2, y0: s.tag.y - h / 2, y1: s.tag.y + h / 2 };
+      }),
+    );
+    labelRects = [
+      ...tags,
+      ...openTags,
+      ...guideRects.map((r) => ({ name: "안내원 이름표", ...r })),
+      ...signs.map((r) => ({ name: "팻말", ...r })),
+      ...booths.map((r) => ({ name: "부스", ...r })),
+    ];
+    return labelRects;
+  };
+  const clearOfBlocks = (s) => {
+    const q = v2.quizBoxRect(s.x, s.y, v2.QUIZ_LABEL_CLEAR);
+    return quizBlockRects().every((r) => q.x1 <= r.x0 || r.x1 <= q.x0 || q.y1 <= r.y0 || r.y1 <= q.y0);
+  };
   return {
     version: "v2",
     width: v2.WORLD_W,
@@ -88,12 +119,14 @@ function makeV2() {
     spawn: { ...v2.SPAWN },
     buildings,
     openSpaces,
-    // 퀴즈 상자는 건물 소개 안내원 · 안내원 아래 글자 · 스탬프 랠리 부스 · 팻말과 겹치지 않는 자리만
-    quizSpots: () => {
+    // 퀴즈 상자는 건물 소개 안내원 · 안내원 아래 글자 · 스탬프 랠리 부스 · 팻말과 겹치지 않는 자리만.
+    // 11/27: 건물 · 열린 공간 이름표 칸도(상자 16×16 + 흔들림 2px, 여유 4px). skipLabels: 빠진 개수 확인용(테스트)
+    quizSpots: ({ skipLabels = false } = {}) => {
       const guides = buildings.filter((b) => b.guide).map((b) => b.guide);
       const rally = buildings.filter((b) => b.booth);
-      return v2.quizSpots().filter((s) => awayFromGuides(s, guides) && awayFromRally(s, rally));
+      return v2.quizSpots().filter((s) => awayFromGuides(s, guides) && awayFromRally(s, rally) && (skipLabels || clearOfBlocks(s)));
     },
+    quizBlockRects,
     nearestPlace: (x, y) => byId.get(v2.nearestPlace(x, y).id),
     moveFeet: v2.moveFeet,
   };

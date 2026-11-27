@@ -28,6 +28,11 @@ export const BOOTH_TALK = { dy: 14, range: 30 };
 export const boothTalkPoint = (s) => ({ x: s.x, y: s.y + BOOTH_TALK.dy });
 // 팻말에서 이 거리 안이면 "[Enter] 시설 소개"(예전 안내원과 같은 거리, officeView.js GUIDE_RANGE)
 
+// 그림이 덮는 칸(월드 px, x0 · y0 · x1 · y1): 건물 이름표 · 퀴즈 상자가 피합니다(CampusScene · world.js).
+// 팻말 칸: 판 · 기둥(가로 56px, 판 위 끝까지). 부스 그림 칸: 캐노피 · 테이블 · "[스탬프 랠리 부스]" 이름표까지.
+export const signArtRect = (s) => ({ x0: s.x - 28, x1: s.x + 28, y0: s.y - 24, y1: s.y + 8 });
+export const boothArtRect = (s) => ({ x0: s.x - 34, x1: s.x + 34, y0: s.y - 52, y1: s.y + 8 });
+
 // 캐릭터 발 상자(가운데 x, y)가 부스 바닥 사각형과 겹치는지
 export function feetHitBooth(x, y, booth) {
   const r = boothRect(booth);

@@ -1,9 +1,11 @@
 // 스탬프 랠리 부스 · "시설 안내문" 팻말 자리(src/data/stampRallySpots.js)와 [Enter] 시설 소개 위치를 확인합니다. 실행: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BUILDINGS, BUILDING_BASE, CELL_PX, GRID_W, MAT, PASSAGES, SPAWN, WORLD_H, WORLD_W, doorFrontOf, doorOf, feetOverlap, fits, gateRects, quizSpots, isReachable, matAt, moveFeet, reachable } from "../src/data/campusV2.js";
+import { BUILDINGS, BUILDING_BASE, CELL_PX, GRID_W, MAT, PASSAGES, SPAWN, WORLD_H, WORLD_W, doorFrontOf, doorOf, feetOverlap, fits, gateRects, quizSpots, quizBoxRect, QUIZ_LABEL_CLEAR, isReachable, matAt, moveFeet, reachable } from "../src/data/campusV2.js";
 import { WORLD } from "../src/data/world.js";
-import { BOOTH_TALK, boothRect, boothTalkPoint, feetHitBooth, feetHitSign, rallySpotsOf, rallyStops } from "../src/data/stampRallySpots.js";
+import { BOOTH_TALK, boothArtRect, boothRect, boothTalkPoint, feetHitBooth, feetHitSign, rallySpotsOf, rallyStops, signArtRect } from "../src/data/stampRallySpots.js";
+import { guideTextRect } from "../src/data/guides.js";
+import { buildingTagRect, estimateLabelSize } from "../src/data/buildingLabels.js";
 import { GUIDE_RANGE, nearestOfficePlace, officeSpot } from "../src/ui/officeView.js";
 import { STAMP_RALLY_IDS } from "../shared/stampRally.js";
 import { BOOTH_SIZE } from "../src/gfx/rallyTextures.js";
@@ -178,4 +180,37 @@ test("정문 기둥 · 현수막(#114)과 겹치지 않음: 부스 그림 · 팻
     assert.ok(v2Spots.has(`${q.x},${q.y}`), `(${q.x}, ${q.y})는 정문 제외 목록에 없는 후보`);
     for (const r of gate) assert.ok(!hit({ x: q.x - 8, y: q.y - 10, w: 16, h: 18 }, r), `(${q.x}, ${q.y}) 정문 그림과 겹침`);
   }
+});
+
+test("퀴즈 상자 후보(11/27): 상자 16×16 + 흔들림 2px + 여유 4px가 건물 · 열린 공간 이름표, 안내원 발밑 이름표, 스탬프 랠리 팻말 · 부스 칸과 안 겹침", () => {
+  const gate = gateRects().map((r) => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }));
+  const guides = WORLD.buildings.filter((b) => b.guide);
+  const rally = WORLD.buildings.filter((b) => b.sign);
+  // 화면(CampusScene.layoutNameTag)과 같은 피하기 목록으로 이름표 자리를 따로 다시 계산
+  const avoid = [...guides.map((b) => guideTextRect(b.guide)), ...gate, ...rally.map((b) => signArtRect(b.sign)), ...rally.map((b) => boothArtRect(b.booth))];
+  const blocks = [
+    ...WORLD.buildings.flatMap((b) => ["ko", "en"].map((lang) => ({ name: `${b.id} 이름표(${lang})`, ...buildingTagRect(b, lang, avoid, gate) }))),
+    ...WORLD.openSpaces.flatMap((s) =>
+      ["ko", "en"].map((lang) => {
+        const { w, h } = estimateLabelSize((lang === "en" ? s.nameEn : null) ?? s.name, 1, 1);
+        return { name: `${s.id} 이름표(${lang})`, x0: s.tag.x - w / 2, x1: s.tag.x + w / 2, y0: s.tag.y - h / 2, y1: s.tag.y + h / 2 };
+      }),
+    ),
+    ...guides.map((b) => ({ name: `${b.id} 안내원 이름표`, ...guideTextRect(b.guide) })),
+    ...rally.map((b) => ({ name: `${b.id} 팻말`, ...signArtRect(b.sign) })),
+    ...rally.map((b) => ({ name: `${b.id} 부스`, ...boothRect(b.booth) })),
+  ];
+  // 상자 16×16 + 위로 흔들림 2px, 여유 4px(PM 결정 값)
+  assert.equal(QUIZ_LABEL_CLEAR, 4);
+  assert.deepEqual(quizBoxRect(0, 0, QUIZ_LABEL_CLEAR), { x0: -12, x1: 12, y0: -14, y1: 12 });
+  const spots = WORLD.quizSpots();
+  for (const s of spots) {
+    const q = quizBoxRect(s.x, s.y, QUIZ_LABEL_CLEAR);
+    for (const r of blocks) assert.ok(q.x1 <= r.x0 || r.x1 <= q.x0 || q.y1 <= r.y0 || r.y1 <= q.y0, `(${s.x}, ${s.y}) 퀴즈 상자가 ${r.name}과(와) 겹침`);
+  }
+  // 빠진 후보 수(전 → 후)와 캡처에서 보였던 '정문 안내실' 이름표 자리
+  const before = WORLD.quizSpots({ skipLabels: true }).length;
+  assert.ok(before - spots.length > 0 && before - spots.length < 200, `빠진 후보 ${before - spots.length}개 (${before} → ${spots.length})`);
+  const gatehouseTag = blocks.find((r) => r.name === "gatehouse 이름표(ko)");
+  assert.ok(!spots.some((s) => { const q = quizBoxRect(s.x, s.y); return q.x0 < gatehouseTag.x1 && gatehouseTag.x0 < q.x1 && q.y0 < gatehouseTag.y1 && gatehouseTag.y0 < q.y1; }), "'정문 안내실' 이름표 위 후보가 남음");
 });

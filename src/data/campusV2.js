@@ -229,9 +229,20 @@ export const GATE = (() => {
 })();
 // 정문 그림(기둥 · 그림자 · 현수막)이 덮는 사각형들
 export const gateRects = () => [...GATE.pillars.map((p) => p.rect), GATE.banner];
-const QUIZ_BOX_HALF = 8; // 퀴즈 상자 16×16px(위아래로 2px 흔들림)
-const overlapsGate = (x, y) =>
-  gateRects().some((r) => x - QUIZ_BOX_HALF < r.x + r.w && r.x < x + QUIZ_BOX_HALF && y - QUIZ_BOX_HALF - 2 < r.y + r.h && r.y < y + QUIZ_BOX_HALF);
+export const QUIZ_BOX_HALF = 8; // 퀴즈 상자 16×16px
+export const QUIZ_BOX_BOB = 2; // 위로 2px 흔들림(src/quizBoxes.js 트윈)
+export const QUIZ_LABEL_CLEAR = 4; // 이름표 · 안내원 글자 · 팻말 · 부스와 둘 여유(11/27)
+// 퀴즈 상자(가운데 x, y)가 흔들리며 덮는 사각형, margin만큼 넓혀서(x0, y0, x1, y1)
+export const quizBoxRect = (x, y, margin = 0) => ({
+  x0: x - QUIZ_BOX_HALF - margin,
+  x1: x + QUIZ_BOX_HALF + margin,
+  y0: y - QUIZ_BOX_HALF - QUIZ_BOX_BOB - margin,
+  y1: y + QUIZ_BOX_HALF + margin,
+});
+const overlapsGate = (x, y) => {
+  const q = quizBoxRect(x, y);
+  return gateRects().some((r) => q.x0 < r.x + r.w && r.x < q.x1 && q.y0 < r.y + r.h && r.y < q.y1);
+};
 
 // ── 시작 위치 · 도달 가능 칸(4px 격자점 BFS) ─────────────────
 const snap = (v) => Math.floor(v / CELL_PX) * CELL_PX + CELL_PX / 2;

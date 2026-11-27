@@ -16,7 +16,7 @@ import { signOut } from "../data/auth.js";
 import { resetProgressCache } from "../data/progressApi.js";
 import { getLang, onLangChange, resetSession, t } from "../state.js";
 import { BOOTH_SIZE, BOOTH_TEXTURE, registerRallyTextures, signTexture } from "../gfx/rallyTextures.js";
-import { BOOTH_TALK, boothTalkPoint, feetHitBooth, feetHitSign } from "../data/stampRallySpots.js";
+import { BOOTH_TALK, boothArtRect, boothTalkPoint, feetHitBooth, feetHitSign, signArtRect } from "../data/stampRallySpots.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
@@ -589,8 +589,8 @@ export class CampusScene extends Phaser.Scene {
     const avoid = [
       ...WORLD.buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide)),
       ...gate,
-      ...WORLD.buildings.filter((b) => b.sign).map((b) => ({ x0: b.sign.x - 28, x1: b.sign.x + 28, y0: b.sign.y - 24, y1: b.sign.y + 8 })),
-      ...WORLD.buildings.filter((b) => b.booth).map((b) => ({ x0: b.booth.x - 34, x1: b.booth.x + 34, y0: b.booth.y - 52, y1: b.booth.y + 8 })),
+      ...WORLD.buildings.filter((b) => b.sign).map((b) => signArtRect(b.sign)),
+      ...WORLD.buildings.filter((b) => b.booth).map((b) => boothArtRect(b.booth)),
     ];
     const spot = placeBuildingLabel(place, measure, avoid);
     const { w, h } = measure(spot.scale, spot.lines);
