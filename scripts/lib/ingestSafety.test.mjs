@@ -59,7 +59,7 @@ const originals = Array.from(
 );
 
 const advanced = Array.from(
-  { length: 536 },
+  { length: 537 },
   (_, i) => ({
     id: `advanced-${i}`,
     title: "테스트",
@@ -137,7 +137,7 @@ test("개선 데이터 시험용 dry-run", () => {
 
   assert.equal(r.status, 0);
   assert.ok(r.output.includes("chunks-next-full.json"));
-  assert.ok(r.output.includes("조각 536개"));
+  assert.ok(r.output.includes("조각 537개"));
 });
 
 test("개선 데이터 실서비스 사용 차단", () => {
@@ -164,7 +164,7 @@ test("등호 형식의 시험용 대상 옵션 지원", () => {
   ]);
 
   assert.equal(r.status, 0);
-  assert.ok(r.output.includes("조각 536개"));
+  assert.ok(r.output.includes("조각 537개"));
 });
 
 test("확인 옵션이 있어도 실서비스 저장 차단", () => {

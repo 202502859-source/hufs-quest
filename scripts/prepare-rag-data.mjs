@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
 import { buildMetadata } from "./lib/ragMetadata.mjs";
-import { splitDoubleMajor } from "./lib/ragSplit.mjs";
+import { splitRagChunk } from "./lib/ragSplit.mjs";
 
 const source = new URL("../data/chunks.json", import.meta.url);
 const target = new URL(
@@ -71,13 +71,14 @@ assert.equal(
 
 // 원문 세분화 및 메타데이터 연결
 const next = combined
-  .flatMap(splitDoubleMajor)
+  .flatMap(splitRagChunk)
   .map(chunk => ({
     ...chunk,
     ...buildMetadata(chunk)
   }));
 
-assert.equal(next.length, 536);
+  // 2027 calendar +4, 11377-02 split +1
+assert.equal(next.length, 537);
 
 assert.equal(
   new Set(next.map(c => c.id)).size,
