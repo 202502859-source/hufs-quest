@@ -3,7 +3,8 @@
 // 학기가 분명한 질문(연도+학기, 이번 · 다음 · 지난 학기)은 termBasis · alternatives 없음.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { routeCalendar, answerHasRouteDate } from "../shared/calendarRoute.js";
+import { routeCalendar, answerHasRouteDate, isUnavailableCalendarTerm } from "../shared/calendarRoute.js";
+import { ACADEMIC_CALENDAR } from "../shared/academicCalendar.js";
 
 const TODAY = "2026-11-27";
 const rows = (r) => r.lines.map((l) => l.replace(/^.* > /, "").replace(" (오늘 기준 지난 일정)", ""));
@@ -343,4 +344,91 @@ test("R04 compact range regression: 축약 날짜 기간 검증", () => {
       answer
     );
   }
+});
+
+
+// ── 미수집 학년도 개강·종강 환각 방지 ──
+
+const scopeCases = [
+  ["G01", "2028학년도 1학기 개강일이 언제야?", true],
+  ["G02", "2028년 1학기 개강일이 언제야?", true],
+  ["G03", "2028학년도 개강일 알려줘", true],
+  ["G04", "2028학년도 2학기 종강일이 언제야?", true],
+  ["G05", "2029학년도 1학기 개강 언제야?", true],
+  ["G06", "When do classes begin in Spring 2028?", true],
+  ["G07", "2027년 1학기 개강일이 언제야?", false],
+  ["G08", "2026학년도 2학기 개강 언제야?", false],
+  ["G09", "2028년 2월 학위수여식 언제야?", false],
+  ["G10", "2028년 2월 졸업식 며칠이야?", false],
+  ["G11", "2028학년도 1학기 수강신청 언제야?", false],
+  ["G12", "2028학년도 1학기 휴학 신청 언제야?", false],
+  ["G13", "계절학기 수강신청 언제야?", false],
+  ["G14", "2027년 1월 겨울 계절학기 시작 언제야?", false],
+  ["G15", "이중전공은 몇 학년부터 시작해?", false],
+  ["G16", "2028학년도 졸업학점은 몇이야?", false],
+  ["G17", "2028학년도 개강일과 수강신청 방법 알려줘", false],
+  ["G18", "개강 언제야?", false],
+  ["G19", "다음 학기 개강일 언제야?", false],
+  ["G20", "When do classes begin in Spring 2027?", false],
+];
+
+for (const [id, question, expected] of scopeCases) {
+  test(`${id} calendar scope: ${question}`, () => {
+    const route = routeCalendar(question, { today: TODAY });
+    const blocked = !route &&
+      isUnavailableCalendarTerm(question, { today: TODAY });
+
+    assert.equal(blocked, expected);
+
+    if (expected) assert.equal(route, null);
+  });
+}
+
+test("calendar scope: 2028년 정상 일정의 날짜를 유지", () => {
+  const options = { today: TODAY };
+
+  assert.deepEqual(
+    routeCalendar("2028년 2월 학위수여식 언제야?", options).dates,
+    ["2028-02-18"]
+  );
+
+  assert.deepEqual(
+    routeCalendar("2028학년도 1학기 수강신청 언제야?", options).dates,
+    ["2028-02-07", "2028-02-09", "2028-02-24", "2028-02-25"]
+  );
+
+  assert.deepEqual(
+    routeCalendar("2028학년도 1학기 휴학 신청 언제야?", options).dates,
+    ["2028-01-31", "2028-02-04"]
+  );
+});
+
+test("calendar scope: 미래 학년도 수집 후 정상 탐색", () => {
+  const calendar = {
+    ...ACADEMIC_CALENDAR,
+    items: [
+      ...ACADEMIC_CALENDAR.items,
+      {
+        academicYear: 2028,
+        targetSemester: "2028-1",
+        id: "test-future-opening",
+        name: "2028학년도 제1학기 개강",
+        startDate: "2028-03-02",
+        sourceUrl: "https://example.test/calendar",
+      },
+    ],
+  };
+
+  const question = "2028학년도 1학기 개강일이 언제야?";
+  const options = { today: TODAY, calendar };
+
+  assert.equal(
+    isUnavailableCalendarTerm(question, options),
+    false
+  );
+
+  assert.deepEqual(
+    routeCalendar(question, options).dates,
+    ["2028-03-02"]
+  );
 });

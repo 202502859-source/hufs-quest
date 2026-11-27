@@ -257,3 +257,117 @@ test("ask.js: 바로 찾기 날짜와 다르게 답하면 원문 보여 주기(�
     }
   }
 });
+
+
+test("ask.js: calendar_unavailable regression", async () => {
+  const ENV = {
+    ASK_IP_SALT: "test-salt",
+    SUPABASE_URL: "https://db.example.test",
+    SUPABASE_SERVICE_KEY: "test-service-key",
+    CLOVA_API_KEY: "test-clova-key",
+  };
+
+  const saved = Object.fromEntries(
+    Object.keys(ENV).map(k => [k, process.env[k]])
+  );
+
+  Object.assign(process.env, ENV);
+
+  const calls = [];
+  const logs = [];
+
+  let allowed = true;
+
+  const originalFetch = globalThis.fetch;
+  const originalLog = console.log;
+  const originalError = console.error;
+
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    calls.push(u);
+
+    if (u.includes("/rpc/ask_hit")) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => [{
+          allowed,
+          reason: allowed ? null : "minute",
+          retry_after: allowed ? 0 : 60,
+          minute_hits: 1,
+          day_hits: 1,
+          global_hits: 1,
+        }],
+      };
+    }
+
+    throw new Error("Unexpected network request");
+  };
+
+  console.log = (...args) => logs.push(args.join(" "));
+  console.error = () => {};
+
+  try {
+    const { default: handler } = await import("../api/ask.js");
+
+    const call = async (question, ip) => {
+      const res = {
+        headers: {},
+        setHeader(k, v) { this.headers[k] = v; },
+        status(c) { this.code = c; return this; },
+        json(b) { this.body = b; return this; },
+      };
+
+      await handler({
+        method: "POST",
+        headers: { "x-forwarded-for": ip },
+        body: { question, lang: "ko" },
+      }, res);
+
+      return res;
+    };
+
+    const question = "2028학년도 1학기 개강일이 언제야?";
+
+    const blocked = await call(question, "203.0.113.83");
+
+    assert.equal(blocked.code, 200);
+
+    assert.deepEqual(blocked.body, {
+      mode: "none",
+      answer: null,
+      sources: [],
+    });
+
+    const log = JSON.parse(logs.at(-1));
+
+    assert.equal(log.reason, "calendar_unavailable");
+    assert.equal(log.cacheHit, false);
+    assert.equal(log.mode, "none");
+
+    assert.equal(logs.join("\\n").includes(question), false);
+
+    // 제한 확인 이외의 검색·AI·캐시 호출이 없어야 합니다.
+    assert.ok(calls.length > 0);
+    assert.ok(calls.every(u => u.includes("/rpc/ask_hit")));
+
+    allowed = false;
+
+    const limited = await call(question, "203.0.113.84");
+
+    assert.equal(limited.code, 429);
+    assert.equal(JSON.parse(logs.at(-1)).mode, "limited");
+
+    assert.ok(calls.every(u => u.includes("/rpc/ask_hit")));
+
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.log = originalLog;
+    console.error = originalError;
+
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+});
