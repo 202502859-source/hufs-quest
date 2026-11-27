@@ -1,12 +1,9 @@
 import { isTouchDevice } from "../device.js";
 import { getLang, onLangChange, t } from "../state.js";
+import { SEARCH_BAR } from "./searchBarLayout.js";
 
-// HUD 기준(게임 좌표) 검색창 위치입니다. 왼쪽 상태창(12~260)과 오른쪽 KO/EN 버튼 사이를 채웁니다.
-const LEFT = 272;
-const TOP = 12;
-const HEIGHT = 36;
-const RIGHT_GAP = 116;
-const MIN_TOUCH_PX = 44;
+// HUD 기준(게임 좌표) 검색창 위치입니다. 숫자는 src/ui/searchBarLayout.js(HUD 배치 계산과 같이 씀)
+const { left: LEFT, top: TOP, height: HEIGHT, rightGap: RIGHT_GAP, minTouchPx: MIN_TOUCH_PX } = SEARCH_BAR;
 
 /*
  * 화면 맨 위에 항상 떠 있는 학사 정보 검색창입니다.

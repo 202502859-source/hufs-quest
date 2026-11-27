@@ -33,11 +33,10 @@ import { PALETTE } from "../src/gfx/campusV2Paint.js";
 import { estimateLabelSize, liftClear, placeBuildingLabel } from "../src/data/buildingLabels.js";
 import { guideTextRects } from "../src/data/guides.js";
 import { WORLD } from "../src/data/world.js";
-import { QUEST_LIST } from "../src/state.js";
+import { MARGIN, STATUS_PANEL, hudButtonRowRect, langButtonsRect, statusCenterX, statusRect } from "../src/ui/hudLayout.js";
+import { CAMERA_OFFSET_MAX, PAD_LIFT, cameraOffsetX, firstCamera, gateThings, padLayout, signThings, rectGap, sideHudRects, toScreen } from "../src/ui/firstScreen.js";
 
-const CAMERA_ZOOM = 3; // src/scenes/CampusScene.js
-const SCREEN = { w: 960, h: 540 }; // 게임 화면(휴대폰 가로 844×390도 이 화면을 줄여 보여 줌 — Phaser Scale.FIT)
-const VIEW = { w: SCREEN.w / CAMERA_ZOOM, h: SCREEN.h / CAMERA_ZOOM };
+import { CAMERA_ZOOM } from "../src/ui/firstScreen.js"; // src/scenes/CampusScene.js와 같은 값
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const inside = (r, v) => r.x >= v.x && r.y >= v.y && r.x + r.w <= v.x + v.w && r.y + r.h <= v.y + v.h;
 const gap = (a, b) => Math.max(b.x - (a.x + a.w), a.x - (b.x + b.w), b.y - (a.y + a.h), a.y - (b.y + b.h));
@@ -86,51 +85,127 @@ test("정문 자리: 진입로 가운데 선 기준 거울 대칭, 차도 · 양
   assert.deepEqual([GATE.banner.w, GATE.banner.h, GATE.banner.y], [108, 22, GATE.baseY - 48]);
 });
 
-// HUD가 덮는 화면 사각형(게임 화면 px). src/scenes/HudScene.js 기준이고 11/27 개발 서버에서 실제 HUD 오브젝트 범위를 재서 맞춤:
-// PC(960×540) 미니맵 x 12~292 · y 241~528, 버튼 x 804~949 · y 437~529 / 터치 가로(폭 = 540 × 화면비, src/viewport.js) 미니맵 x 12~248 · y 82~328,
-// 이동 패드 누르는 범위 x 0~219 · y 340~540, 버튼은 오른쪽 끝 기준. 버튼 64px · 간격 12 · 오른쪽 여백 16, 배지가 위 · 오른쪽으로 10~12px 나옴.
-// 퀘스트 버튼(Q)은 진행 중 퀘스트가 있을 때만 생김(지금 QUEST_LIST가 비어 있어 없음 — 생기면 이 테스트가 다시 확인).
-function hudRects(mode, W) {
-  const buttons = QUEST_LIST.length ? 3 : 2;
-  const rowLeft = W - 16 - 64 * buttons - 12 * (buttons - 1);
+// HUD가 덮는 화면 사각형(게임 화면 px). 11/27 PM 결정(이종헌): 미니맵(PC 232 · 휴대폰 194px) + 일일 퀘스트 창을 오른쪽 위로,
+// 첫 화면에서 정문이 가리면 카메라를 가로로 옮김(src/ui/firstScreen.js cameraOffsetX), 휴대폰 방향키는 왼쪽 위 상태창의 가로 정중앙 x에(11/28).
+// 모든 자리는 실제 HUD가 쓰는 함수(hudLayout.js · firstScreen.js)로 계산하므로, 크기 · 자리를 바꿔 가리게 되면 이 테스트가 실패합니다.
+// 학생 · 게스트 × 펼침 · 접힘 네 경우를 모두 봅니다. displayScale = 실제 화면 css 폭 / 게임 폭(휴대폰 검색창 · 터치 버튼 크기 계산).
+const HUD_CASES = [
+  { guest: false, collapsed: false },
+  { guest: false, collapsed: true },
+  { guest: true, collapsed: false },
+  { guest: true, collapsed: true },
+];
+const SCREENS = [
+  { name: "PC 960×540", W: 960, H: 540, touch: false, displayScale: 1 },
+  { name: "미리보기 700×657(PC, 게임 960×540을 줄여 보임)", W: 960, H: 540, touch: false, displayScale: 700 / 960 },
+  { name: "휴대폰 가로 844×390(게임 1169×540)", W: Math.round(540 * (844 / 390)), H: 540, touch: true, displayScale: 844 / 1169 },
+  { name: "휴대폰 16:9", W: 960, H: 540, touch: true, displayScale: 0.75 },
+  { name: "미리보기 700×657(터치)", W: 960, H: 540, touch: true, displayScale: 700 / 960 },
+  { name: "휴대폰 21:9", W: Math.round(540 * (21 / 9)), H: 540, touch: true, displayScale: 0.65 },
+];
+const offsetOf = (sc) => cameraOffsetX(sc);
+const firstCam = (sc = SCREENS[0]) => firstCamera({ W: sc.W, H: sc.H, offset: offsetOf(sc) });
+function hudRects(sc, { guest, collapsed }) {
   const rects = [
-    { name: "상태창", x: 0, y: 0, w: 270, h: 76 },
-    { name: "언어 버튼", x: W - 104, y: 12, w: 92, h: 32 },
-    { name: "오른쪽 아래 버튼 줄", x: rowLeft, y: mode === "pc" ? 437 : 451, w: W - rowLeft, h: 540 - (mode === "pc" ? 437 : 451) },
+    { name: "상태창", ...statusRect(guest) },
+    { name: "언어 버튼", ...langButtonsRect(sc.W) },
+    { name: "오른쪽 아래 버튼 줄", ...hudButtonRowRect(sc) },
+    ...sideHudRects({ ...sc, guest, collapsed }),
   ];
-  if (mode === "pc") rects.push({ name: "미니맵", x: 12, y: 241, w: 280, h: 287 });
-  else rects.push({ name: "미니맵", x: 12, y: 82, w: 236, h: 272 }, { name: "이동 패드", x: 0, y: 330, w: 230, h: 210 });
+  const pad = padLayout(sc);
+  if (pad) rects.push({ name: "방향키", ...pad.pad }, { name: "방향키 누르는 범위", ...pad.zone });
   return rects;
 }
-const SCREENS = [
-  { mode: "pc", W: 960 },
-  { mode: "touch", W: 960 }, // 16:9 휴대폰
-  { mode: "touch", W: Math.round(540 * (844 / 390)) }, // 844×390 휴대폰 가로
-  { mode: "touch", W: Math.round(540 * (21 / 9)) }, // 가장 긴 화면비(21:9)
-];
-const firstCamera = (W = SCREEN.w) => {
-  const view = { w: W / CAMERA_ZOOM, h: VIEW.h };
-  return {
-    x: Math.min(Math.max(SPAWN.x - view.w / 2, 0), WORLD_W - view.w),
-    y: Math.min(Math.max(SPAWN.y - view.h / 2, 0), WORLD_H - view.h),
-    ...view,
-  };
+const gateScreenThings = (sc) => {
+  const gh = { x: gatehouse.box.x0, y: gatehouse.box.y0, w: gatehouse.box.x1 - gatehouse.box.x0, h: gatehouse.box.y1 - gatehouse.box.y0, name: "정문안내실" };
+  return [...gateThings(), gh];
 };
-const toScreen = (r, cam) => ({ x: (r.x - cam.x) * CAMERA_ZOOM, y: (r.y - cam.y) * CAMERA_ZOOM, w: r.w * CAMERA_ZOOM, h: r.h * CAMERA_ZOOM });
 
-test("첫 화면(SPAWN, 카메라 3배): 두 기둥 · 현수막 · 정문안내실이 화면 안이고 PC · 휴대폰 가로 HUD 어디에도 가리지 않음", () => {
-  const gh = { x: gatehouse.box.x0, y: gatehouse.box.y0, w: gatehouse.box.x1 - gatehouse.box.x0, h: gatehouse.box.y1 - gatehouse.box.y0 };
-  const things = [...gateRects().map((r, i) => ({ ...r, name: ["서쪽 기둥", "동쪽 기둥", "현수막"][i] })), { ...gh, name: "정문안내실" }];
-  for (const { mode, W } of SCREENS) {
-    const cam = firstCamera(W);
-    for (const t of things) {
-      assert.ok(inside(t, cam), `${mode} ${W}: ${t.name}이(가) 첫 화면 밖`);
+test("첫 화면(SPAWN, 카메라 3배 + 가로 오프셋): 두 기둥 · 현수막 · 정문안내실 · '정문 안내실' · '정문 & 진입광장' 이름표가 화면 안이고 어떤 HUD(상태창 · 오른쪽 위 미니맵 · 일일 퀘스트 창 · 버튼 · 방향키)에도 안 가림(8px 여유)", () => {
+  for (const sc of SCREENS) {
+    const cam = firstCam(sc);
+    for (const t of gateScreenThings(sc)) {
+      assert.ok(inside(t, cam), `${sc.name}: ${t.name}이(가) 첫 화면 밖`);
       const s = toScreen(t, cam);
-      for (const h of hudRects(mode, W)) assert.ok(gap(s, h) >= 8, `${mode} ${W}: ${t.name}이(가) ${h.name}에 가림 또는 8px 안으로 붙음`);
+      for (const c of HUD_CASES) {
+        const who = `${sc.name} ${c.guest ? "게스트" : "학생"} ${c.collapsed ? "접힘" : "펼침"}`;
+        for (const h of hudRects(sc, c)) assert.ok(rectGap(s, h) >= 8, `${who}: ${t.name}이(가) ${h.name}에 가림 또는 8px 안으로 붙음 (${rectGap(s, h).toFixed(1)}px)`);
+      }
     }
   }
   const player = { x: SPAWN.x - 8, y: SPAWN.y - 8, w: 16, h: 16 };
   for (const r of gateRects()) assert.ok(!overlap(player, r), "시작 위치 캐릭터가 정문 그림과 겹침");
+});
+
+test("첫 화면: 사이버관 '시설 안내문' 팻말(11/27 오후: 안내원 NPC 대신)이 화면 안이고 어떤 HUD(상태창 · 오른쪽 위 HUD · 방향키)에도 안 가림(8px 여유)", () => {
+  const { art } = signThings();
+  for (const sc of SCREENS) {
+    const cam = firstCam(sc);
+    assert.ok(inside(art, cam), `${sc.name}: ${art.name}이(가) 첫 화면 밖`);
+    const s = toScreen(art, cam);
+    for (const c of HUD_CASES) {
+      const who = `${sc.name} ${c.guest ? "게스트" : "학생"} ${c.collapsed ? "접힘" : "펼침"}`;
+      for (const h of hudRects(sc, c)) assert.ok(rectGap(s, h) >= 8, `${who}: ${art.name}이(가) ${h.name}에 가림 또는 8px 안으로 붙음 (${rectGap(s, h).toFixed(1)}px)`);
+    }
+  }
+});
+
+test("카메라 가로 오프셋: '가리는 만큼 + 8px'(1px 덜 옮기면 가림), 120px 이하, 안 가리는 화면(휴대폰 844×390 · 21:9)은 0", () => {
+  const byName = Object.fromEntries(SCREENS.map((sc) => [sc.name, offsetOf(sc)]));
+  for (const sc of SCREENS) {
+    const off = offsetOf(sc);
+    assert.ok(Number.isInteger(off) && off >= 0 && off <= CAMERA_OFFSET_MAX, `${sc.name}: 오프셋 ${off}px`);
+    if (off === 0) continue;
+    // 한 칸(1px) 덜 옮기면 정문 쪽 무엇인가가 펼친 일일 퀘스트 창 · 미니맵과 8px 안으로 붙어야 함(필요한 만큼만 옮김)
+    const less = firstCamera({ W: sc.W, H: sc.H, offset: off - 1 });
+    const huds = sideHudRects({ ...sc, guest: true, collapsed: false });
+    const tight = gateThings().some((t) => huds.some((h) => rectGap(toScreen(t, less), h) < 8));
+    assert.ok(tight, `${sc.name}: 오프셋 ${off}px가 필요보다 큼`);
+  }
+  assert.ok(byName["PC 960×540"] > 0, "PC는 오른쪽 위 HUD가 정문 동쪽을 가려 오프셋이 필요");
+  assert.equal(byName["휴대폰 가로 844×390(게임 1169×540)"], 0);
+  assert.equal(byName["휴대폰 21:9"], 0);
+});
+
+test("방향키: 휴대폰(터치)만 있고 PC에는 없음, 정중앙 x = 왼쪽 위 상태창 본체의 가로 정중앙 x(±1px, 게스트 · 재학생 같은 자리), 아래에서 MARGIN + PAD_LIFT 위", () => {
+  const { art } = signThings();
+  // 상태창 중앙: MARGIN + STATUS_PANEL.w / 2(그림자 4px 제외). 게스트 · 재학생 창은 폭이 같아 같은 값
+  const statusX = MARGIN + STATUS_PANEL.w / 2;
+  assert.equal(statusCenterX(), statusX);
+  for (const guest of [true, false]) assert.equal(statusRect(guest).w - STATUS_PANEL.shadow, MARGIN + STATUS_PANEL.w, "상태창 폭이 게스트 · 재학생 같음");
+  const touchScreens = SCREENS.filter((sc) => sc.touch).map((sc) => sc.name);
+  for (const name of ["휴대폰 가로 844×390(게임 1169×540)", "휴대폰 16:9", "미리보기 700×657(터치)"]) assert.ok(touchScreens.includes(name), `${name} 화면이 빠짐`);
+  for (const sc of SCREENS) {
+    const pad = padLayout(sc);
+    if (!sc.touch) {
+      assert.equal(pad, null, `${sc.name}: PC에 방향키가 생김`);
+      continue;
+    }
+    const cam = firstCam(sc);
+    assert.ok(Math.abs(pad.center.x - statusX) <= 1, `${sc.name}: 방향키 중앙 ${pad.center.x} · 상태창 중앙 ${statusX}`);
+    assert.ok(Math.abs(pad.pad.x + pad.pad.w / 2 - statusX) <= 1, `${sc.name}: 패드 그림 중앙이 상태창 중앙과 다름`);
+    assert.ok(!("shift" in pad) && !("signX" in pad), "팻말 기준 · 기둥 비킴 계산이 남아 있음");
+    assert.equal(pad.pad.y + pad.pad.h, sc.H - MARGIN - PAD_LIFT);
+    assert.equal(PAD_LIFT, 16);
+    assert.ok(pad.pad.x >= MARGIN && pad.pad.x + pad.pad.w <= sc.W - MARGIN, `${sc.name}: 방향키가 화면 밖`);
+    // 누르는 범위는 패드를 품고, 패드 가운데 기준 reach 정사각형을 화면 안으로 자른 것(왼쪽 끝은 0에서 자름)
+    const z = pad.zone;
+    assert.ok(z.x <= pad.pad.x && z.x + z.w >= pad.pad.x + pad.pad.w && z.y <= pad.pad.y && z.y + z.h >= pad.pad.y + pad.pad.h, `${sc.name}: 누르는 범위가 패드를 다 품지 않음`);
+    const reach = pad.fullCell * 3;
+    assert.equal(z.x, Math.max(0, pad.center.x - reach / 2), `${sc.name}: 누르는 범위 왼쪽 끝`);
+    assert.ok(z.x >= 0 && z.x + z.w <= pad.center.x + reach / 2 + 0.01 && z.y + z.h <= sc.H, `${sc.name}: 누르는 범위가 화면 · reach 밖`);
+    // 방향키 · 누르는 범위가 상태창 · 정문 기둥 · 현수막 · 사이버관 팻말 · 버튼 줄 · 일일 퀘스트 창과 8px 안 겹침
+    const avoid = [
+      ...[true, false].map((guest) => ({ name: guest ? "상태창(게스트)" : "상태창(재학생)", ...statusRect(guest) })),
+      ...gateRects().map((r, i) => ({ name: ["정문 서쪽 기둥", "정문 동쪽 기둥", "현수막"][i], ...toScreen(r, cam) })),
+      { name: "사이버관 팻말", ...toScreen(art, cam) },
+      { name: "버튼 줄", ...hudButtonRowRect(sc) },
+      ...HUD_CASES.flatMap((c) => sideHudRects({ ...sc, ...c })),
+    ];
+    for (const r of [{ name: "방향키", ...pad.pad }, { name: "누르는 범위", ...z }]) {
+      for (const o of avoid) assert.ok(rectGap(r, o) >= 8, `${sc.name}: ${r.name}이(가) ${o.name}과(와) 8px 안으로 붙음 (${rectGap(r, o).toFixed(1)}px)`);
+    }
+  }
 });
 
 test("깊이: 캐릭터 · 안내원 · 퀴즈 상자(깊이 = 가운데 y)와 같은 기준 — 받침 바로 아래는 앞, 바로 위는 뒤", () => {
@@ -236,6 +311,7 @@ test("정문안내실: 입구(문 그림 자리 · 아래쪽 면)가 그대로�
   // 문 자리 · 입구 앞 자리는 정문을 세우기 전 값(2026-11-27 main)과 같음
   assert.deepEqual([door.x, door.y, front.x, front.y], [1070, 1408, 1070, 1410]);
   assert.equal(WORLD.buildings.find((b) => b.id === "gatehouse").guide, null, "정문안내실에 안내원이 생김");
+  assert.equal(WORLD.buildings.find((b) => b.id === "gatehouse").sign, null, "정문안내실에 팻말이 생김");
   let pos = { ...SPAWN };
   for (const wp of pathTo(front.x, front.y)) {
     for (let n = 0; n < 200 && Math.hypot(wp.x - pos.x, wp.y - pos.y) > 0.01; n++) {
@@ -278,7 +354,7 @@ test("'정문 & 진입광장' 이름표: 광장 안, 현수막에서 16px 넘게
   }
   assert.ok(!overlap(tag, { x: SPAWN.x - 8, y: SPAWN.y - 8, w: 16, h: 16 }), "시작 캐릭터를 가림");
   for (const lang of ["ko", "en"]) assert.ok(!overlap(tag, gatehouseTag(lang)), `${lang}: 정문안내실 이름표와 겹침`);
-  assert.ok(inside(tag, firstCamera()), "첫 화면 밖");
+  assert.ok(inside(tag, firstCam()), "첫 화면 밖");
 });
 
 test("퀴즈 상자 후보: 정문 그림과 겹치는 자리는 빠지고(개수 확인), 나머지는 그대로", () => {

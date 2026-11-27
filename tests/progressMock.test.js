@@ -24,7 +24,8 @@ test("새 계정은 Lv.1 · 경험치 0 · 포인트 0, 응답 모양이 문서�
     expMax: 10, // 레벨 n → n+1에 10·n
     points: 0,
     completedQuests: [],
-    quiz: { rewarded: [], answered: [], todayExp: 0, dailyCap: 50 },
+    quiz: { rewarded: [], answered: [], todayExp: 0, dailyCap: 100 },
+    daily: { date: progress.daily.date, quizCorrect: 0, quizGoal: 5, quizBonusDone: false, stamps: [], rallyDone: false },
   });
 });
 
@@ -80,7 +81,7 @@ test("없는 문제 ID나 O/X가 아닌 답은 400", () => {
   assert.throws(() => server.answerQuiz({ questionId: QUIZ[0].id, choice: "O" }), (e) => e.status === 400);
 });
 
-test("하루 50을 넘기면 cap, 한국 시간 날짜가 바뀌면 다시 받는다", () => {
+test("하루 100(10문제)을 넘기면 cap, 한국 시간 날짜가 바뀌면 다시 받는다", () => {
   const { server, setTime } = setup(null, "2026-11-19T14:00:00Z"); // 한국 시간 23:00
   const perDay = QUIZ_DAILY_CAP / 10;
   QUIZ.slice(0, perDay).forEach((q) => assert.equal(server.answerQuiz({ questionId: q.id, choice: right(q) }).result, "ok"));
@@ -88,9 +89,10 @@ test("하루 50을 넘기면 cap, 한국 시간 날짜가 바뀌면 다시 받�
   const sixth = QUIZ[perDay];
   const capped = server.answerQuiz({ questionId: sixth.id, choice: right(sixth) });
   assert.equal(capped.result, "cap");
-  assert.equal(capped.progress.quiz.todayExp, 50);
-  assert.equal(capped.progress.level, 3); // 누적 50 = Lv.3(30) + 20
-  assert.equal(capped.progress.exp, 20);
+  assert.equal(capped.progress.quiz.todayExp, 100);
+  assert.equal(capped.progress.daily.quizCorrect, 10);
+  assert.equal(capped.progress.level, 5); // 누적 100 = Lv.5 0/50
+  assert.equal(capped.progress.exp, 0);
 
   setTime("2026-11-19T14:59:59Z"); // 한국 시간 23:59:59 — 아직 같은 날
   assert.equal(server.answerQuiz({ questionId: sixth.id, choice: right(sixth) }).result, "cap");
@@ -99,8 +101,9 @@ test("하루 50을 넘기면 cap, 한국 시간 날짜가 바뀌면 다시 받�
   const nextDay = server.answerQuiz({ questionId: sixth.id, choice: right(sixth) });
   assert.equal(nextDay.result, "ok");
   assert.equal(nextDay.progress.quiz.todayExp, 10);
-  assert.equal(nextDay.progress.level, 4); // 누적 60 = Lv.4 0/40
-  assert.equal(nextDay.progress.exp, 0);
+  assert.equal(nextDay.progress.daily.quizCorrect, 1, "날짜가 바뀌면 일일 퀴즈 정답 수도 새로 셈");
+  assert.equal(nextDay.progress.level, 5); // 누적 110 = Lv.5 10/50
+  assert.equal(nextDay.progress.exp, 10);
 });
 
 test("출석은 하루 한 번 ok, 두 번째는 already, 다음 날 다시 ok", () => {
@@ -153,13 +156,13 @@ test("레벨 계산: 레벨 n → n+1에 10·n, 도달하면 레벨업 · 이월
   assert.equal(results[9].progress.exp, 0);
 });
 
-test("?mock=cap 계정: 오늘 이미 50을 받아 새 문제를 맞혀도 cap", () => {
+test("?mock=cap 계정: 오늘 이미 100을 받아 새 문제를 맞혀도 cap", () => {
   const { server } = setup("cap");
   const { progress } = server.getProgress();
-  assert.equal(progress.quiz.todayExp, 50);
-  assert.equal(progress.level, 3); // 누적 50
-  assert.equal(progress.exp, 20);
-  const fresh = QUIZ[10];
+  assert.equal(progress.quiz.todayExp, 100);
+  assert.equal(progress.level, 5); // 누적 100
+  assert.equal(progress.exp, 0);
+  const fresh = QUIZ[12];
   assert.equal(server.answerQuiz({ questionId: fresh.id, choice: right(fresh) }).result, "cap");
 });
 
@@ -168,14 +171,17 @@ test("?mock=already 계정: 퀴즈·퀘스트·출석 모두 already, 숫자가 
   const { progress } = server.getProgress();
   assert.equal(progress.quiz.rewarded.length, QUIZ.length);
   assert.equal(progress.quiz.todayExp, 0);
-  assert.equal(progress.level, 11); // 60문제 600 + 퀘스트 2개 20 = 620 → Lv.11 시작 누적 550
-  assert.equal(progress.exp, 70);
-  assert.equal(progress.expMax, 110);
+  assert.equal(progress.level, 14); // 100문제 1000 + 퀘스트 2개 20 = 1020 → Lv.14 시작 누적 910
+  assert.equal(progress.exp, 110);
+  assert.equal(progress.expMax, 140);
   assert.equal(progress.points, 25); // 퀘스트 2개 20 + 출석 5
   const q = QUIZ[0];
   assert.equal(server.answerQuiz({ questionId: q.id, choice: right(q) }).result, "already");
   assert.equal(server.completeQuest({ questId: "doubleMajor" }).result, "already");
   assert.equal(server.checkIn().result, "already");
+  // 11/24 이전의 날짜 없는 "stampRally" 완료 기록이 있는 계정: 응답 completedQuests에는 싣지 않고, 오늘 일일 랠리는 새로 시작
+  assert.deepEqual(progress.completedQuests, ["doubleMajor"]);
+  assert.equal(progress.daily.rallyDone, false);
 });
 
 test("kstToday는 한국 시간 자정을 기준으로 날짜를 바꾼다", () => {

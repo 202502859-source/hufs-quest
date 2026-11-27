@@ -8,9 +8,18 @@ export const expToNextLevel = (level) => EXP_STEP * level;
 // Lv.L에 처음 닿는 누적 경험치 = 10 × (1 + 2 + … + (L − 1)) = 5 · L · (L − 1)
 export const totalExpForLevel = (level) => (EXP_STEP * level * (level - 1)) / 2;
 
-// 퀴즈: 처음 맞힌 문제마다 경험치 10, 한국 시간 하루 50까지.
+// 퀴즈: 처음 맞힌 문제마다 경험치 10, 한국 시간 하루 100까지(하루 10문제 × 10). 2026-11-27 변경(이전: 50).
 export const QUIZ_REWARD_EXP = 10;
-export const QUIZ_DAILY_CAP = 50;
+export const QUIZ_DAILY_CAP = 100;
+
+// 일일 퀴즈(일일 퀘스트): 오늘(한국 날짜) 경험치를 받은 정답이 DAILY_QUIZ_GOAL개가 되면 하루 한 번 보너스 경험치.
+// 11/27 서버 리뷰(임현규): 퀴즈는 문제당 평생 1회만 경험치를 줘서 목표가 10이면 60문항으로 보너스가 1인당 6일뿐 → 5개로 낮춤(문항은 #120에서 100개로 늘어 목표 5개면 20일).
+export const DAILY_QUIZ_GOAL = 5;
+export const DAILY_QUIZ_BONUS_EXP = 50;
+
+// 캠퍼스 스탬프 랠리(일일 퀘스트): 오늘 부스 4곳(shared/stampRally.js) 스탬프를 다 모으면 하루 한 번 완주 보상.
+// 스탬프 자체는 경험치가 없습니다(reward_log source 'stamp', exp 0).
+export const STAMP_RALLY_REWARD = { exp: 50, points: 10 };
 
 // 퀘스트 완료: 퀘스트마다 한 번, 경험치 10 · 포인트 10.
 export const QUEST_REWARD = { exp: 10, points: 10 };
@@ -26,8 +35,19 @@ export const EVENT_REPORT_REWARD_EXP = 20;
 // 지급은 DB 트리거(supabase/010_map_reports.sql)가 하므로 값을 바꾸면 그 파일의 v_exp도 같이 바꿉니다(tests/mapReport.test.js가 확인).
 export const MAP_REPORT_REWARD_EXP = 20;
 
-// 완료 보상을 주는 퀘스트. mockReg(모의 수강신청)는 범위 밖이라 넣지 않습니다.
-export const REWARD_QUESTS = ["doubleMajor", "stampRally"];
+// 한 번만 완료하는(영구) 보상 퀘스트. mockReg(모의 수강신청)는 범위 밖이라 넣지 않습니다.
+// 11/27: stampRally는 일일 퀘스트(DAILY_QUESTS)로 옮겼습니다. 11/24 이전에 저장된 날짜 없는 "stampRally" 완료 기록은
+// DB에 그대로 두고, 서버 응답 completedQuests에서는 뺍니다(api/_lib/progressServer.js).
+export const REWARD_QUESTS = ["doubleMajor"];
+
+// 일일 퀘스트: 완료 기록 id에 한국 날짜를 붙여(예: "stampRally:2026-11-27") 하루 한 번, 다음 날 다시 받습니다.
+// 조건(스탬프 4곳 · 정답 DAILY_QUIZ_GOAL개)은 서버가 직접 확인합니다(api/quest-complete.js).
+export const DAILY_QUESTS = ["stampRally", "dailyQuiz"];
+export const dailyQuestKey = (questId, kstDate) => `${questId}:${kstDate}`;
+// 일일 퀘스트의 완료 기록인지(날짜가 붙은 것 + 11/24 이전의 날짜 없는 옛 기록)
+export const isDailyQuestRecord = (recordId) => DAILY_QUESTS.includes(String(recordId).split(":")[0]);
+export const dailyQuestReward = (questId) =>
+  questId === "stampRally" ? { ...STAMP_RALLY_REWARD } : questId === "dailyQuiz" ? { exp: DAILY_QUIZ_BONUS_EXP, points: 0 } : null;
 
 // 누적 경험치(total_exp)로 레벨을 계산합니다. 필요량에 "도달하면" 레벨업하고 남은 경험치는 이월합니다.
 // level = 5·L·(L − 1) ≤ total인 가장 큰 L, exp = total − 5·L·(L − 1), expMax = 10·L

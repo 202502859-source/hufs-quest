@@ -28,12 +28,12 @@ const LINES = {
     academic: true,
     ko: [
       "여기는 사이버관이에요.\n수강신청 준비는 잘 되어 가나요?",
-      "예비수강신청함에는 15강좌까지 담을 수 있어요.\n담기만 해서는 신청이 끝나지 않아요!",
+      "관심강좌(구 예비수강신청함)에는 15과목까지 등록할 수 있어요.\n담기만 해서는 신청이 끝나지 않아요!",
       "수강신청 기간에 꼭 다시 신청하세요.\n세부 일정은 매 학기 공지를 확인하세요.",
     ],
     en: [
       "This is Cyber Hall.\nHow is your course registration going?",
-      "The pre-registration basket holds up to 15 courses.\nAdding them doesn't complete registration!",
+      "Courses of Interest (the old pre-registration basket) holds up to 15 courses.\nAdding them doesn't complete registration!",
       "Register again during the registration period.\nCheck each semester's notice for exact dates.",
     ],
   },

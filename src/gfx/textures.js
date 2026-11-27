@@ -185,7 +185,7 @@ function createTileCanvas() {
 }
 
 // 한 줄에 아래, 위, 왼쪽, 오른쪽 순서로 2프레임씩 그립니다.
-function createCharacterCanvas({ hair, skin, top, bottom }) {
+export function createCharacterCanvas({ hair, skin, top, bottom }) {
   const canvas = document.createElement("canvas");
   canvas.width = TILE_SIZE * 8;
   canvas.height = TILE_SIZE;

@@ -48,6 +48,9 @@ title: 원문에 표시된 공지 제목 전체를 그대로 복사한다.
 제목을 요약하거나 번역하거나 일부 단어를 제거하지 않는다.
 제목이 명확하면 title.value와 title.evidence에 동일한 제목 원문을 넣는다.
 dept: 담당 부서
+dept.evidence는 담당 부서명이 포함된 짧은 원문 구절을 그대로 복사한다.
+부서 확인에 불필요한 날짜, 서명 전체, 다른 문장은 포함하지 않는다.
+근거의 중간 문자나 숫자를 생략하지 않는다.
 category: academic, scholarship, campus, external 중 하나
 startsAt: 신청 시작 일시
 deadline: 신청 마감 일시

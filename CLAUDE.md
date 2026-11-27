@@ -28,7 +28,7 @@ Phaser 3 + Vite, JavaScript. 서버 함수는 Vercel(`api/`), DB는 Supabase, AI
 | `src/state.js`, `src/quizProgress.js`, `src/data/progressApi.js` | 게임 상태(경험치·포인트·퀴즈 기록). 재학생은 `progressApi.js`로만 서버와 주고받음(지금은 가짜 모드), 게스트는 메모리 | 이종헌 · 임현규 |
 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` | 빠른 검색창. 벡터 검색(Supabase + CLOVA 임베딩 v2) → 없으면 `shared/kb.js` 키워드 검색 → HCX-005 답변 + 출처 링크 | 신중혁 |
 | `scripts/`, `data/chunks.json` | 학사 페이지 수집·임베딩·정확도 테스트 | 신중혁 |
-| `src/data/quiz.js` | O/X 퀴즈 60문항 (문항마다 출처 URL) | 신중혁 |
+| `src/data/quiz.js` | O/X 퀴즈 100문항 (문항마다 출처 URL) | 신중혁 |
 | `shared/deadlines.js`, `shared/deadlineCalc.js`, `api/deadlines.js` | 마감 임박 공지. 데이터는 손으로 입력 (게시판 크롤링 금지) | 임현규 |
 | `supabase/`, 새 `api/*` | DB 스키마, 로그인, 진행 저장, 검색창 사용량 제한·답변 캐시 | 임현규 |
 | `src/data/buildingInfo.js` (새로 만듦) | 건물 이름·용도·층별 사무실·출처·확인일. 맵 그림에는 건물 ID와 위치만 둔다 | 이종헌(형식) · 임현규(내용) |
