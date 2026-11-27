@@ -152,6 +152,34 @@ function topicOf(question) {
   return matched.length === 1 ? matched[0] : null;
 }
 
+// 수집하지 않은 학년도의 정규학기 개강·종강 날짜를 추측하지 않도록 합니다.
+// 달력 연도와 다른 일정(수강신청·학위수여식 등)은 기존 검색을 유지합니다.
+export function isUnavailableCalendarTerm(question, {
+  today,
+  calendar = ACADEMIC_CALENDAR,
+} = {}) {
+  const q = String(question ?? "");
+
+  if (!today || !DATE_QUESTION.test(q) || OTHER_INTENT.test(q)) return false;
+
+  const topic = topicOf(q);
+  if (!topic || !["semesterStart", "semesterEnd"].includes(topic.key)) return false;
+
+  const term = findTerm(q, today);
+  if (!term) return false;
+
+  const year = term.semester && term.explicit
+    ? parseSemester(term.semester)?.year
+    : term.year;
+
+  if (!year) return false;
+
+  const items = calendar.items || [];
+  if (!items.length) return false;
+
+  return !items.some(item => item.academicYear === year);
+}
+
 function matchingItems(topic, question, items) {
   return items.filter((item) => {
     if (!item.targetSemester || !topic.item.test(item.name)) return false;

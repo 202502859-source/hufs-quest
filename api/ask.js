@@ -45,7 +45,7 @@ import { todayContext, ungroundedDates } from "../shared/academicDate.js";
 import { unsupportedContacts } from "./_lib/contactGuard.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
 import { stripListNumbers, dropInvalidCitations, trimTruncated, isRefusalAnswer } from "./_lib/answerFormat.js";
-import { routeCalendar, calendarNote, answerHasRouteDate } from "../shared/calendarRoute.js";
+import { routeCalendar, calendarNote, answerHasRouteDate, isUnavailableCalendarTerm } from "../shared/calendarRoute.js";
 import { kstToday } from "../shared/progressRules.js";
 
 const CLOVA_BASE = "https://clovastudio.stream.ntruss.com";
@@ -360,9 +360,13 @@ export default async function handler(req, res) {
   const started = Date.now();
   const evalMode = isEvalRequest(req, process.env.ASK_EVAL_TOKEN);
   // 학사일정 바로 찾기(C03, 11/27): 날짜 질문이면 맞는 학기의 일정 줄을 찾아 둡니다(오늘 한국 날짜 기준, 네트워크 없음).
-  // 해당 없으면 null이고 아래 흐름은 예전과 완전히 같습니다. 오늘 날짜에 따라 답이 달라지므로 캐시를 쓰지 않습니다.
-  const calendarRoute = routeCalendar(question, { today: kstToday() });
-  const useCache = !calendarRoute && canUseAnswerCache({ evalMode, question });
+  // 일반 질문은 기존 검색을 유지하고, 미수집 학년도의 정규학기 개강·종강 질문은 별도 차단합니다.
+  const today = kstToday();
+  const calendarRoute = routeCalendar(question, { today });
+  const unavailableCalendarTerm = !calendarRoute &&
+    isUnavailableCalendarTerm(question, { today });
+  const useCache = !calendarRoute && !unavailableCalendarTerm &&
+    canUseAnswerCache({ evalMode, question });
   const cacheKey = useCache ? buildCacheKey(question, lang) : null;
 
   // 캐시를 쓸 수 있는 일반 질문은 1차 메모리 1분 제한만 먼저 확인하고 캐시를 조회합니다.
@@ -392,7 +396,19 @@ export default async function handler(req, res) {
     res.setHeader("Retry-After", String(limit.retryAfter));
     return res.status(429).json({ error: "too many requests", reason: limit.reason, retryAfter: limit.retryAfter });
   }
-  // 학사일정 바로 찾기: 어느 학기인지 규칙으로 하나를 못 정하면(방식 A) AI를 부르지 않고 학기 버튼만 돌려줍니다.
+  // 미수집 학년도의 개강·종강 질문은 사용량 제한 확인 후 AI 호출 없이 처리합니다.
+  if (unavailableCalendarTerm) {
+    console.log(JSON.stringify({
+      mode: "none",
+      reason: "calendar_unavailable",
+      cacheHit: false,
+      lang,
+      ...limitLog,
+      ms: Date.now() - started,
+    }));
+    return res.status(200).json({ mode: "none", answer: null, sources: [] });
+  }
+  // 어느 학기인지 하나를 못 정하면(방식 A) 학기 버튼만 돌려줍니다.
   if (calendarRoute?.clarify) {
     console.log(JSON.stringify({ mode: "clarify", cacheHit: false, calendar: "clarify", calendarTopic: calendarRoute.topic, lang, ...limitLog, ms: Date.now() - started }));
     return res.status(200).json({ mode: "clarify", clarify: true, answer: null, sources: [], alternatives: calendarRoute.alternatives });
