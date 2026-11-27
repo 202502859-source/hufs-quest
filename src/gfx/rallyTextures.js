@@ -2,7 +2,7 @@
 import { NPC_LOOKS, createCharacterCanvas } from "./textures.js";
 
 export const BOOTH_TEXTURE = "rally-booth";
-// 부스 그림 크기와 바닥 기준점(부스 자리 = 테이블 · 다리가 놓인 바닥 가운데). 캐릭터(16px)의 약 2.9배 크기입니다.
+// 부스 그림 크기와 바닥 기준점(부스 자리 = 테이블 · 다리가 놓인 바닥 가운데). 화면에는 BOOTH_SCALE(0.8)로 줄여 놓습니다(캐릭터 16px의 약 2.3배).
 export const BOOTH_SIZE = { w: 46, h: 46, originX: 23, originY: 39 };
 const BOOTH_NPC_LOOK = 3; // 부스 안 사람(기존 NPC와 같은 그림 · 크기)
 
@@ -104,11 +104,11 @@ export function registerRallyTextures(scene) {
  *   mirror가 true면 반대쪽(왼쪽)을 보는 모양.
  * 반환: { key, scale, originX, originY } — 기준점은 기둥 밑동(팻말 자리의 발밑).
  */
-export const SIGN_SCALE = 3;
+export const SIGN_RES = 3; // 그림 해상도 배율(크기 배율 SIGN_SCALE은 src/data/stampRallySpots.js)
 export const SIGN_FONT_PX = 6; // 판 글자 크기(월드 px). 안내원 발밑 이름표(6px)와 같게
 export function signTexture(scene, text, { angled = false, mirror = false } = {}) {
   const key = `rally-sign:${angled ? (mirror ? "L" : "R") : "F"}:${text}`;
-  const S = SIGN_SCALE;
+  const S = SIGN_RES;
   const font = `${SIGN_FONT_PX * S}px Galmuri9, sans-serif`;
   const probe = document.createElement("canvas").getContext("2d");
   probe.font = font;

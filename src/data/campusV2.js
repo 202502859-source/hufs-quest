@@ -349,6 +349,30 @@ function fixedDoor(b) {
   return null;
 }
 export const doorOf = (building) => computeDoors().get(building.id)?.door ?? null;
+
+// ── 문 그림 칸(그리기는 src/gfx/campusV2Paint.js) ─────────────────
+// 문 자리(doorOf) 기준 px. 아래쪽 면은 7×8, 위쪽 면은 아래로, 옆면은 건물 안쪽으로 6×8. 자동 계산 입구는 아래쪽 면 모양.
+// DOOR_ART_SCALE: 그림만 키우는 배율(문 앞 칸 · 충돌 · 맵 다각형은 그대로). 문 자리에서 바깥쪽으로 같은 비율로 늘립니다.
+export const DOOR_ART_BASE = {
+  down: { x0: -3, x1: 3, y0: -7, y1: 0 },
+  up: { x0: -3, x1: 3, y0: 0, y1: 7 },
+  right: { x0: -5, x1: 0, y0: -5, y1: 2 },
+  left: { x0: 0, x1: 5, y0: -5, y1: 2 },
+};
+export const DOOR_ART_SCALE = 1;
+const scaleOut = (v) => Math.sign(v) * Math.round(Math.abs(v) * DOOR_ART_SCALE);
+// 문 그림 범위(문 자리 기준, 양 끝 포함)
+export const doorArtOffsets = (face, fixed = true) => {
+  const base = DOOR_ART_BASE[fixed ? face : "down"];
+  return { x0: scaleOut(base.x0), x1: scaleOut(base.x1), y0: scaleOut(base.y0), y1: scaleOut(base.y1) };
+};
+// 문 그림이 덮는 월드 사각형(x0 · y0 · x1 · y1, 끝 픽셀 다음까지). 팻말 · 부스 자리가 피합니다.
+export function doorArtRect(building) {
+  const d = doorOf(building);
+  if (!d) return null;
+  const o = doorArtOffsets(d.face, Boolean(d.fixed));
+  return { x0: d.x + o.x0, x1: d.x + o.x1 + 1, y0: d.y + o.y0, y1: d.y + o.y1 + 1 };
+}
 export const doorFrontOf = (building) => computeDoors().get(building.id)?.front ?? null;
 
 // 안내원 자리: 문 앞 칸의 옆(문을 바라보고 섰을 때 옆쪽). 아래 · 위쪽 면의 문은 좌우로, 왼쪽 · 오른쪽 면의 문은 위아래로 비켜 섭니다.

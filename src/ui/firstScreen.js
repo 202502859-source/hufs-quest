@@ -3,11 +3,11 @@
  * (tests/campusGate.test.js · tests/hudLayout.test.js).
  * - 카메라 가로 오프셋: 오른쪽 위 HUD(미니맵 + 펼친 일일 퀘스트 창)가 정문 기둥 · 현수막 · "정문 안내실" 이름표 ·
  *   "정문 & 진입광장" 이름표를 가리면, 가리는 만큼 + 8px만큼 화면을 옮깁니다(안 가리면 0). 11/27 PM 결정: 이종헌.
- * - 방향키(휴대폰 · 터치만): 정중앙 x = 첫 화면에서 사이버관 "건물 소개 안내원"의 화면 x. 한 번 정하면 고정.
+ * - 방향키(휴대폰 · 터치만): 정중앙 x = 첫 화면에서 사이버관 "시설 안내문" 팻말의 화면 x. 한 번 정하면 고정.
  * 맵 v2 기준입니다(옛 맵 ?map=v1에는 정문이 없어 오프셋 0).
  */
 import { BUILDINGS, OPEN_SPACES, SPAWN, WORLD_H, WORLD_W, gateRects } from "../data/campusV2.js";
-import { guideSpotOf, guideTextRect } from "../data/guides.js";
+import { signArtRect, signSpotOf } from "../data/stampRallySpots.js";
 import { estimateLabelSize, liftClear, placeBuildingLabel } from "../data/buildingLabels.js";
 import { MARGIN, MIN_TOUCH_PX, PANEL_SHADOW, hudButtonRowRect, hudSideLayout, statusRect } from "./hudLayout.js";
 
@@ -15,7 +15,7 @@ export const CAMERA_ZOOM = 3; // 캠퍼스 카메라 배율(CampusScene)
 export const CLEAR_GAP = 8; // 첫 화면에서 HUD와 지켜야 할 여유(px)
 export const CAMERA_OFFSET_MAX = 120; // 이보다 큰 오프셋이 필요하면 배치를 다시 정합니다(테스트가 확인)
 export const PAD_LIFT = 16; // 방향키를 화면 아래 끝(MARGIN)보다 이만큼 위에
-export const PAD_GUIDE_ID = "cyber"; // 방향키 가로 자리를 맞출 안내원(사이버관 건물 소개 안내원)
+export const PAD_SIGN_ID = "cyber"; // 방향키 가로 자리를 맞출 팻말(사이버관 시설 안내문 팻말)
 
 const mapAspect = WORLD_H / WORLD_W;
 const box = (r) => ({ x: r.x0, y: r.y0, w: r.x1 - r.x0, h: r.y1 - r.y0 });
@@ -42,10 +42,10 @@ export function gateThings() {
   return things;
 }
 
-// 사이버관 안내원 NPC(16×16)와 발밑 이름표 칸(월드 px)
-export function guideThings() {
-  const g = guideSpotOf(BUILDINGS.find((b) => b.id === PAD_GUIDE_ID));
-  return { spot: g, npc: { name: "사이버관 안내원", x: g.x - 8, y: g.y - 8, w: 16, h: 16 }, label: { name: "사이버관 안내원 이름표", ...box(guideTextRect(g)) } };
+// 사이버관 "시설 안내문" 팻말 자리와 그림 칸(월드 px). 11/27 오후: 안내원 NPC 대신 팻말 기준.
+export function signThings() {
+  const s = signSpotOf(BUILDINGS.find((b) => b.id === PAD_SIGN_ID));
+  return { spot: s, art: { name: "사이버관 팻말", ...box(signArtRect(s)) } };
 }
 
 // 첫 화면 카메라가 보는 월드 범위. offset: 화면 px(+면 화면 속 물체가 왼쪽으로 옮겨짐)
@@ -94,9 +94,9 @@ export function cameraOffsetX({ W, H, touch, displayScale = 1 }) {
 export const touchSize = (minimum, displayScale = 1) => Math.ceil(Math.max(minimum, MIN_TOUCH_PX / (displayScale || 1)));
 
 /*
- * 방향키 자리(터치만, PC는 null). 정중앙 x = 첫 화면에서 사이버관 안내원의 화면 x(카메라 오프셋 포함), 화면 밖이면 MARGIN 안쪽으로.
- * 세로는 아래 끝에서 MARGIN + PAD_LIFT 위. 누르는 범위(zone)는 패드 가운데 기준 reach(= 큰 칸 × 3) 정사각형에서
- * 첫 화면의 안내원 NPC · 이름표, 정문 그림, 버튼 줄, 일일 퀘스트 창, 상태창과 8px 안 겹치게 잘라 냅니다.
+ * 방향키 자리(터치만, PC는 null). 정중앙 x = 첫 화면에서 사이버관 팻말의 화면 x(카메라 오프셋 포함), 화면 밖이면 MARGIN 안쪽으로.
+ * 그 자리가 정문 그림을 가리면 가리는 만큼 + 8px 왼쪽으로(shift). 세로는 아래 끝에서 MARGIN + PAD_LIFT 위. 누르는 범위(zone)는 패드 가운데 기준 reach(= 큰 칸 × 3) 정사각형에서
+ * 첫 화면의 사이버관 팻말, 정문 그림, 버튼 줄, 일일 퀘스트 창, 상태창과 8px 안 겹치게 잘라 냅니다.
  */
 export function padLayout({ W, H, touch, displayScale = 1, offset = cameraOffsetX({ W, H, touch, displayScale }) }) {
   if (!touch) return null;
@@ -104,17 +104,23 @@ export function padLayout({ W, H, touch, displayScale = 1, offset = cameraOffset
   const cell = Math.ceil(fullCell / 2);
   const size = cell * 3;
   const cam = firstCamera({ W, H, offset });
-  const guide = guideThings();
-  const guideX = (guide.spot.x - cam.x) * CAMERA_ZOOM;
-  const left = Math.min(Math.max(guideX - size / 2, MARGIN), W - MARGIN - size);
+  const sign = signThings();
+  const signX = (sign.spot.x - cam.x) * CAMERA_ZOOM;
   const top = H - MARGIN - size - PAD_LIFT;
+  let left = Math.min(Math.max(signX - size / 2, MARGIN), W - MARGIN - size);
+  // 팻말 x에 맞춘 방향키가 첫 화면의 정문 그림(기둥 · 현수막)을 가리면, 가리는 만큼 + 8px만 왼쪽으로 비킵니다(안 가리면 0).
+  let shift = 0;
+  for (const g of gateRects().map((r) => toScreen(r, cam))) {
+    const p = { x: left, y: top, w: size, h: size };
+    if (rectGap(p, g) < CLEAR_GAP && g.x + g.w / 2 > p.x + p.w / 2) shift = Math.max(shift, p.x + p.w + CLEAR_GAP - g.x);
+  }
+  left = Math.max(MARGIN, left - shift);
   const pad = { x: left, y: top, w: size, h: size };
   const center = { x: left + size / 2, y: top + size / 2 };
   const reach = fullCell * 3;
   const zone = { x0: Math.max(0, center.x - reach / 2), x1: Math.min(W, center.x + reach / 2), y0: Math.max(0, H - reach), y1: H };
   const obstacles = [
-    toScreen(guide.npc, cam),
-    toScreen(guide.label, cam),
+    toScreen(sign.art, cam),
     ...gateRects().map((r) => toScreen(r, cam)),
     hudButtonRowRect({ W, H, touch }),
     ...sideHudRects({ W, H, touch, displayScale }),
@@ -128,5 +134,5 @@ export function padLayout({ W, H, touch, displayScale = 1, offset = cameraOffset
     else if (o.x + o.w <= pad.x) zone.x0 = Math.max(zone.x0, o.x + o.w + CLEAR_GAP);
     else if (o.y + o.h <= pad.y) zone.y0 = Math.max(zone.y0, o.y + o.h + CLEAR_GAP);
   }
-  return { cell, fullCell, pad, center, guideX, zone: { x: zone.x0, y: zone.y0, w: zone.x1 - zone.x0, h: zone.y1 - zone.y0 } };
+  return { cell, fullCell, pad, center, signX, shift, zone: { x: zone.x0, y: zone.y0, w: zone.x1 - zone.x0, h: zone.y1 - zone.y0 } };
 }

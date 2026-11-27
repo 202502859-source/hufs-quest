@@ -2,9 +2,8 @@ import Phaser from "phaser";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { buildCampusLayers } from "../data/campus.js";
 import { WORLD, findPlace } from "../data/world.js";
-import { feetOverlap, gateRects } from "../data/campusV2.js";
+import { gateRects } from "../data/campusV2.js";
 import { addCampusGate } from "../gfx/campusGate.js";
-import { guideTextRect } from "../data/guides.js";
 import { GuidePrompt } from "../ui/guidePrompt.js";
 import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
 import { liftClear, placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
@@ -16,7 +15,7 @@ import { signOut } from "../data/auth.js";
 import { resetProgressCache } from "../data/progressApi.js";
 import { getLang, onLangChange, resetSession, t } from "../state.js";
 import { BOOTH_SIZE, BOOTH_TEXTURE, registerRallyTextures, signTexture } from "../gfx/rallyTextures.js";
-import { BOOTH_TALK, boothArtRect, boothTalkPoint, feetHitBooth, feetHitSign, signArtRect } from "../data/stampRallySpots.js";
+import { BOOTH_SCALE, BOOTH_TALK, SIGN_FOOT, SIGN_SCALE, boothArtRect, boothTalkPoint, feetHitBooth, feetHitSign, signArtRect } from "../data/stampRallySpots.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
@@ -34,12 +33,9 @@ const PLAYER_SPEED = 90;
 const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
 // 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
 // "건물 소개 안내원" 글자도 땅 위 글자라 이름표 바로 위(-4), 캐릭터가 지나가면 캐릭터가 위에 그려집니다.
-const DEPTH = { NAME_TAG: -5, GUIDE_LABEL: -4, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
+const DEPTH = { NAME_TAG: -5, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
 const BOOTH_LABEL_FONT = 6; // "[스탬프 랠리 부스]" 이름표(건물 이름표 10px와 같은 글꼴 · 색 · 배경, 크기는 안내원 이름표 · 팻말 글자와 같은 6px)
-const SIGN_PROMPT_ABOVE = 18; // 팻말 판 바로 위에 [Enter] 시설 소개 말풍선 꼬리 끝
-const OFFICE_PROMPT_ABOVE_GUIDE = 9; // [Enter] 시설 소개 말풍선 꼬리 끝을 안내원 가운데보다 이만큼 위(머리 바로 위)에 둡니다.
-const GUIDE_LOOK = "npc-1"; // 건물 소개 안내원 모양(src/gfx/textures.js NPC_LOOKS, 11명 모두 같음)
-const GUIDE_LABEL_FONT = 6; // 안내원 발밑 이름표(11/26: 8px → 6px, 건물 이름표 10px보다 확실히 작게)
+const SIGN_PROMPT_ABOVE = 18 * SIGN_SCALE; // 팻말 판 바로 위에 [Enter] 시설 소개 말풍선 꼬리 끝(그림을 그리기 전 기본값)
 const NAME_TAG_FONT = 10;
 const ARROW_ABOVE_DOOR = 26;
 const PLANNER_RANGE = 6 * TILE_SIZE;
@@ -70,7 +66,6 @@ export class CampusScene extends Phaser.Scene {
     // 언어를 바꾸면 이름 길이가 달라지므로 자리도 다시 계산합니다.
     const offLang = onLangChange(() => {
       this.nameTags.forEach(({ place, tag }) => this.layoutNameTag(place, tag));
-      this.guides.forEach(({ label }) => label.setText(t("guideLabel")));
       this.rally.forEach((stop) => this.drawRallyTexts(stop));
     });
     this.events.once("shutdown", offLang);
@@ -86,13 +81,11 @@ export class CampusScene extends Phaser.Scene {
     // v1은 타일 충돌, v2는 movePlayer에서 판정 격자(WORLD.moveFeet)로 직접 움직입니다.
     if (solidLayer) this.physics.add.collider(this.player, solidLayer);
 
-    // 건물 소개 안내원: 정문(DOOR_OVERRIDES 11곳) 옆에 서 있고, 가까이 가면 머리 위에 "[Enter] 시설 소개"가 뜹니다.
-    // 안내원 칸은 지나갈 수 없습니다(v2는 movePlayer의 blocked, v1은 고정 물리 몸통).
-    this.guides = WORLD.buildings.filter((place) => place.guide).map((place) => this.addGuide(place, solidLayer));
-    // 스탬프 랠리 대상 4곳: 안내원 대신 출입구 옆 "시설 안내문" 팻말, 반대쪽에 부스(맵 v2만, src/data/stampRallySpots.js).
-    // 팻말 · 부스 칸도 지나갈 수 없습니다(movePlayer의 blocked).
+    // "시설 안내문" 팻말(11/27 오후: 예전 건물 소개 안내원 NPC 대신): 시설 소개가 있는 건물의 출입구 옆 외벽에 붙어 있고,
+    // 가까이 가면 판 위에 "[Enter] 시설 소개"가 뜹니다. 스탬프 랠리 대상 4곳은 문 반대쪽에 부스도 있습니다
+    // (src/data/stampRallySpots.js). 팻말 · 부스 칸은 지나갈 수 없습니다(v2는 movePlayer의 blocked, v1은 고정 물리 몸통).
     registerRallyTextures(this);
-    this.rally = WORLD.buildings.filter((place) => place.sign && place.booth).map((place) => this.addRallyStop(place));
+    this.rally = WORLD.buildings.filter((place) => place.sign).map((place) => this.addRallyStop(place, solidLayer));
 
     this.destArrow = this.add.image(0, 0, "dest-arrow").setDepth(DEPTH.DEST_ARROW).setVisible(false);
 
@@ -328,7 +321,7 @@ export class CampusScene extends Phaser.Scene {
     // 키 이름은 괄호 없이 키 모양 안에: "[Enter]" → Enter, "[터치]" → 터치
     const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint").replace(/[[\]]/g, "");
     const spot = officeSpot(place);
-    const above = place.guide ? OFFICE_PROMPT_ABOVE_GUIDE : (place.signTop ?? SIGN_PROMPT_ABOVE);
+    const above = place.signTop ?? SIGN_PROMPT_ABOVE;
     this.officePrompt.setContent(hint, t("officePrompt")).setPosition(spot.x, spot.y - above);
     if (this.quizPrompt.visible) {
       const a = this.officePrompt.getBounds();
@@ -343,6 +336,7 @@ export class CampusScene extends Phaser.Scene {
     let best = null;
     let bestDistance = BOOTH_TALK.range;
     for (const stop of this.rally) {
+      if (!stop.place.booth) continue;
       const talk = boothTalkPoint(stop.place.booth);
       const distance = Math.hypot(talk.x - this.player.x, talk.y - this.player.y);
       if (distance < bestDistance) {
@@ -476,80 +470,63 @@ export class CampusScene extends Phaser.Scene {
     return map.createLayer(0, tileset, 0, 0);
   }
 
-  // 안내원 한 명과 바로 아래 "건물 소개 안내원" 글자. 안내원을 누르면(문구가 떠 있을 때) 시설 소개 창을 엽니다.
-  addGuide(place, solidLayer) {
-    const { x, y } = place.guide;
-    const sprite = this.add.sprite(x, y, GUIDE_LOOK, 0).setDepth(y).setInteractive({ useHandCursor: true });
-    sprite.on("pointerdown", () => {
-      if (this.officePlace === place && this.officePrompt.visible) this.openOffice(place.id);
-    });
-    const label = this.add
-      .text(x, y + 7, t("guideLabel"), {
-        fontFamily: "Galmuri9, sans-serif",
-        fontSize: `${GUIDE_LABEL_FONT}px`,
-        color: "#fff7cc",
-        backgroundColor: "rgba(16, 24, 42, 0.78)",
-        padding: { x: 2, y: 0.5 },
-        resolution: CAMERA_ZOOM,
-      })
-      .setOrigin(0.5, 0)
-      .setAlpha(0.92)
-      .setDepth(DEPTH.GUIDE_LABEL);
-    if (solidLayer) {
-      this.physics.add.existing(sprite, true);
-      sprite.body.setSize(10, 7).setOffset(3, 9);
-      this.physics.add.collider(this.player, sprite);
-    }
-    return { place, sprite, label };
-  }
+  // v2 이동에서 팻말 · 부스 칸을 막습니다(판정 격자에는 넣지 않음).
+  blockedByGuide = (x, y) => this.rally.some(({ place }) => feetHitSign(x, y, place.sign) || (place.booth && feetHitBooth(x, y, place.booth)));
 
-  // v2 이동에서 안내원 · 팻말 · 부스 칸을 막습니다(판정 격자에는 넣지 않음).
-  blockedByGuide = (x, y) =>
-    this.guides.some(({ place }) => feetOverlap(x, y, place.guide.x, place.guide.y)) ||
-    this.rally.some(({ place }) => feetHitSign(x, y, place.sign) || feetHitBooth(x, y, place.booth));
-
-  // 스탬프 랠리 한 곳: 출입구 옆 "시설 안내문" 팻말 + 반대쪽 부스(지붕 위 "[스탬프 랠리 부스]" 이름표).
-  // 팻말을 누르면(문구가 떠 있을 때) 시설 소개 창, 부스를 누르면(앞에 서 있을 때) 문제 창을 엽니다.
-  addRallyStop(place) {
+  // 건물 한 곳의 "시설 안내문" 팻말(출입구 옆 외벽에 붙음)과, 스탬프 랠리 대상이면 문 반대쪽 부스(지붕 위 "[스탬프 랠리 부스]" 이름표).
+  // 팻말을 누르면(문구가 떠 있을 때) 시설 소개 창, 부스를 누르면(앞에 서 있을 때) 문제 창을 엽니다. 그림은 예전의 80%(SIGN_SCALE · BOOTH_SCALE).
+  addRallyStop(place, solidLayer) {
     const { sign, booth } = place;
-    const signImage = this.add.image(sign.x, sign.y + 8, "__DEFAULT").setDepth(sign.y).setInteractive({ useHandCursor: true });
+    const signImage = this.add.image(sign.x, sign.y + SIGN_FOOT, "__DEFAULT").setDepth(sign.y).setInteractive({ useHandCursor: true });
     signImage.on("pointerdown", () => {
       if (this.officePlace === place && this.officePrompt.visible) this.openOffice(place.id);
     });
-    const boothImage = this.add
-      .image(booth.x, booth.y, BOOTH_TEXTURE)
-      .setOrigin(BOOTH_SIZE.originX / BOOTH_SIZE.w, BOOTH_SIZE.originY / BOOTH_SIZE.h)
-      .setDepth(booth.y)
-      .setInteractive({ useHandCursor: true });
-    boothImage.on("pointerdown", () => {
-      if (this.boothPlace === place) this.openBooth(place);
-    });
-    // 부스 이름표: 건물 이름표(addNameTag)와 같은 글꼴 · 색 · 배경, 지붕 바로 위
-    const label = this.add
-      .text(booth.x, booth.y - BOOTH_SIZE.originY - 1, "", {
-        fontFamily: "Galmuri9, sans-serif",
-        fontSize: `${BOOTH_LABEL_FONT}px`,
-        color: "#fff7cc",
-        backgroundColor: "#10182a",
-        padding: { x: 2.5, y: 1 },
-        align: "center",
-        resolution: CAMERA_ZOOM,
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(booth.y + 1);
+    if (solidLayer) {
+      // 옛 타일맵(?map=v1): 팻말 기둥을 고정 물리 몸통으로 막습니다.
+      const post = this.add.zone(sign.x, sign.y + SIGN_FOOT / 2, 8, 6);
+      this.physics.add.existing(post, true);
+      this.physics.add.collider(this.player, post);
+    }
+    let boothImage = null;
+    let label = null;
+    if (booth) {
+      boothImage = this.add
+        .image(booth.x, booth.y, BOOTH_TEXTURE)
+        .setOrigin(BOOTH_SIZE.originX / BOOTH_SIZE.w, BOOTH_SIZE.originY / BOOTH_SIZE.h)
+        .setScale(BOOTH_SCALE)
+        .setDepth(booth.y)
+        .setInteractive({ useHandCursor: true });
+      boothImage.on("pointerdown", () => {
+        if (this.boothPlace === place) this.openBooth(place);
+      });
+      // 부스 이름표: 건물 이름표(addNameTag)와 같은 글꼴 · 색 · 배경, 지붕 바로 위
+      label = this.add
+        .text(booth.x, booth.y - BOOTH_SIZE.originY * BOOTH_SCALE - 1, "", {
+          fontFamily: "Galmuri9, sans-serif",
+          fontSize: `${BOOTH_LABEL_FONT}px`,
+          color: "#fff7cc",
+          backgroundColor: "#10182a",
+          padding: { x: 2.5, y: 1 },
+          align: "center",
+          resolution: CAMERA_ZOOM,
+        })
+        .setOrigin(0.5, 1)
+        .setScale(BOOTH_SCALE)
+        .setDepth(booth.y + 1);
+    }
     const stop = { place, signImage, boothImage, label };
     this.drawRallyTexts(stop);
     return stop;
   }
 
-  // 언어에 맞는 팻말 글자("[시설 안내문]") · 부스 이름표를 그립니다. 문이 옆을 보는 건물(도서관)은 팻말을 비스듬히(3/4 각도) 그립니다.
+  // 언어에 맞는 팻말 글자("[시설 안내문]") · 부스 이름표를 그립니다. 문이 옆을 보는 건물(도서관 등)은 팻말을 비스듬히(3/4 각도) 그립니다.
   drawRallyTexts({ place, signImage, label }) {
     const face = place.sign.face;
     const texture = signTexture(this, t("signLabel"), { angled: face === "left" || face === "right", mirror: face === "left" });
-    signImage.setTexture(texture.key).setOrigin(texture.originX, texture.originY).setScale(texture.scale);
+    signImage.setTexture(texture.key).setOrigin(texture.originX, texture.originY).setScale(texture.scale * SIGN_SCALE);
     signImage.input?.hitArea.setTo(0, 0, signImage.width, signImage.height);
-    place.signTop = texture.height - 8 + 2; // 팻말 자리에서 판 위 끝까지(말풍선 꼬리 끝)
-    label.setText(t("boothLabel"));
+    place.signTop = texture.height * SIGN_SCALE - SIGN_FOOT + 2; // 팻말 자리에서 판 위 끝까지(말풍선 꼬리 끝)
+    label?.setText(t("boothLabel"));
   }
 
   addNameTag(place) {
@@ -583,11 +560,10 @@ export class CampusScene extends Phaser.Scene {
       tag.setFontSize(Math.round(NAME_TAG_FONT * scale)).setText(lines === 2 ? twoLine : name);
       return { w: tag.width, h: tag.height };
     };
-    // 건물 소개 안내원 아래 글자 칸, 정문 기둥 · 현수막 그림(이름표는 땅 높이라 정문 그림에 가려짐 — 정문안내실),
-    // 스탬프 랠리 팻말(판)과 부스(지붕 · 이름표) 칸을 피합니다.
+    // 정문 기둥 · 현수막 그림(이름표는 땅 높이라 정문 그림에 가려짐 — 정문안내실),
+    // 시설 안내문 팻말(판)과 스탬프 랠리 부스(지붕 · 이름표) 칸을 피합니다.
     const gate = gateRects().map((r) => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }));
     const avoid = [
-      ...WORLD.buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide)),
       ...gate,
       ...WORLD.buildings.filter((b) => b.sign).map((b) => signArtRect(b.sign)),
       ...WORLD.buildings.filter((b) => b.booth).map((b) => boothArtRect(b.booth)),
