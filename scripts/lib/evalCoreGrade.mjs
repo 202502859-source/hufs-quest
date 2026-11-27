@@ -101,7 +101,7 @@ export function checkCoreAnswer(c, answer) {
 
   if (c.id === "C20") {
     const allCancelDenied =
-      /(?:전체\s*과목|모든\s*과목|전\s*과목|전부)[^.!?;]{0,40}(?:불가|없|안\s*됩|안\s*돼|안\s*됨|못)/.test(text);
+      /(?:전체\s*과목|모든\s*과목|전\s*과목|전부)[^.!?;]{0,40}(?:불가|없|안\s*됩|안\s*돼|안\s*됨|못|허용되지\s*않)/.test(text); // "허용되지 않" 11/26 추가(PM 승인: 이종헌)
 
     return allCancelDenied;
   }
