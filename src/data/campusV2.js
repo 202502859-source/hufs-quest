@@ -1,4 +1,4 @@
-import { AREAS, BUILDINGS_M, DOOR_OVERRIDES, OPEN_SPACES_M, PASSAGES_M, ROTATION_DEG, SPAWN_M, TREES } from "./campusV2Data.js";
+import { AREAS, BUILDINGS_M, DOOR_OVERRIDES, GATE_PILLARS_M, OPEN_SPACES_M, PASSAGES_M, ROTATION_DEG, SPAWN_M, TREES } from "./campusV2Data.js";
 import { buildingInfo } from "./buildingInfo.js";
 
 /*
@@ -119,9 +119,9 @@ export const BUILDINGS = BUILDINGS_M.map((b, index) => {
 export const OPEN_SPACES = OPEN_SPACES_M.map((s) => {
   const poly = s.poly.map(toWorld);
   const c = centroid(poly);
-  // tagAt: "bottom"이면 맵 위 이름표를 공간 아래쪽에 둡니다(정문 광장: 시작 위치 캐릭터 · 정문안내실 간판을 가리지 않게)
-  const tagY = s.tagAt === "bottom" ? Math.max(...poly.map((p) => p[1])) - 12 : c[1];
-  return { ...s, ...named(s.id), kind: "open", areaPolys: [poly], tag: { x: c[0], y: tagY }, mapLabel: offset(c, s.mapLabelOffset) };
+  // tagM(미터)이 있으면 맵 위 이름표를 그 자리에, 없으면 공간 가운데(정문 광장: 현수막 · 시작 캐릭터 · 정문안내실 간판을 피한 자리)
+  const tag = s.tagM ? toWorld(s.tagM) : c;
+  return { ...s, ...named(s.id), kind: "open", areaPolys: [poly], tag: { x: tag[0], y: tag[1] }, mapLabel: offset(c, s.mapLabelOffset) };
 });
 
 // ── 재질 격자(텍스처 해상도) ──────────────────────────────
@@ -153,6 +153,8 @@ export function walkGrid() {
       walk[j * GRID_W + i] = isBlockedMat(m) ? 0 : 1;
     }
   }
+  // 정문 기둥 받침(그림은 텍스처 밖에 따로 세우므로 재질 격자는 그대로, 판정 격자에서만 막음)
+  for (const p of GATE.pillars) for (const [i, j] of p.cells) walk[j * GRID_W + i] = 0;
   grid = walk;
   return grid;
 }
@@ -191,6 +193,45 @@ export function moveFeet(x, y, dx, dy, blocked = null) {
 
 // 서 있는 캐릭터(안내원)와 발 상자가 겹치는지. 두 발 상자(FEET)가 같은 크기라 가운데 거리로 봅니다.
 export const feetOverlap = (x, y, ox, oy) => Math.abs(x - ox) < FEET.right - FEET.left && Math.abs(y - oy) < FEET.bottom - FEET.top;
+
+// ── 정문 기둥 · 현수막(그림은 src/gfx/campusGate.js) ─────────────
+// 받침: 판정 칸(1m) 가운데 점이 받침 다각형 안이면 막습니다(4×2칸). 그림 사각형은 그 칸들의 바깥 테두리에 맞춥니다.
+// 크기(11/27 승인 · 같은 날 기둥 폭 16 → 24px): 기둥 24×54px(+바닥 그림자 2px), 현수막은 두 기둥 안쪽 면 사이(108×22px)
+// — 받침 바닥에서 26~48px 위, 양 끝 2px는 기둥 안쪽(가장 높은 판) 면에 물림.
+// 깊이: 캐릭터 · 안내원 · 퀴즈 상자는 깊이 = 스프라이트 가운데 y이고 발바닥은 가운데 + 8px(FEET.bottom)입니다.
+//       같은 기준으로 비교하도록 정문 깊이 = 받침 바닥 y − 8. 받침 바로 아래(바깥)에 선 캐릭터는 앞에, 안쪽은 뒤에 그려집니다.
+export const GATE_ART = { pillarW: 24, pillarH: 54, shadow: 2, bannerTop: 48, bannerH: 22, bannerOverlap: 2 };
+export const GATE = (() => {
+  const pillars = GATE_PILLARS_M.map((poly) => {
+    const px = poly.map(toWorld);
+    const box = bboxOf([px]);
+    const cells = [];
+    for (let j = Math.floor(box.y0 / CELL_PX); j <= Math.floor(box.y1 / CELL_PX); j++) {
+      for (let i = Math.floor(box.x0 / CELL_PX); i <= Math.floor(box.x1 / CELL_PX); i++) {
+        if (pointInPolygon([i * CELL_PX + CELL_PX / 2, j * CELL_PX + CELL_PX / 2], px)) cells.push([i, j]);
+      }
+    }
+    const x0 = Math.min(...cells.map(([i]) => i)) * CELL_PX;
+    const x1 = (Math.max(...cells.map(([i]) => i)) + 1) * CELL_PX;
+    const y0 = Math.min(...cells.map(([, j]) => j)) * CELL_PX;
+    const y1 = (Math.max(...cells.map(([, j]) => j)) + 1) * CELL_PX;
+    return { cells, base: { x0, x1, y0, y1 } };
+  }).sort((a, b) => a.base.x0 - b.base.x0);
+  const baseY = Math.max(...pillars.map((p) => p.base.y1));
+  const { pillarW, pillarH, shadow, bannerTop, bannerH, bannerOverlap } = GATE_ART;
+  pillars.forEach((p) => {
+    p.rect = { x: p.base.x0 + (p.base.x1 - p.base.x0 - pillarW) / 2, y: baseY - pillarH, w: pillarW, h: pillarH + shadow };
+  });
+  const [west, east] = pillars;
+  const bx0 = west.rect.x + pillarW - bannerOverlap;
+  const banner = { x: bx0, y: baseY - bannerTop, w: east.rect.x + bannerOverlap - bx0, h: bannerH };
+  return { pillars, banner, baseY, depth: baseY - FEET.bottom };
+})();
+// 정문 그림(기둥 · 그림자 · 현수막)이 덮는 사각형들
+export const gateRects = () => [...GATE.pillars.map((p) => p.rect), GATE.banner];
+const QUIZ_BOX_HALF = 8; // 퀴즈 상자 16×16px(위아래로 2px 흔들림)
+const overlapsGate = (x, y) =>
+  gateRects().some((r) => x - QUIZ_BOX_HALF < r.x + r.w && r.x < x + QUIZ_BOX_HALF && y - QUIZ_BOX_HALF - 2 < r.y + r.h && r.y < y + QUIZ_BOX_HALF);
 
 // ── 시작 위치 · 도달 가능 칸(4px 격자점 BFS) ─────────────────
 const snap = (v) => Math.floor(v / CELL_PX) * CELL_PX + CELL_PX / 2;
@@ -317,10 +358,16 @@ export function npcSpotOf(building) {
 
 // ── 퀴즈 상자 자리 ────────────────────────────────────
 const QUIZ_MATS = new Set([MAT.pave, MAT.lawn, MAT.dirt, MAT.steps, MAT.grove]);
-export function quizSpots() {
+// skipGate: 정문 그림과 겹치는 후보를 빼지 않은 목록(빠진 개수 확인용, 테스트)
+export function quizSpots({ skipGate = true } = {}) {
   const keep = [SPAWN, ...BUILDINGS.map(doorFrontOf), ...BUILDINGS.map(npcSpotOf)].filter(Boolean);
   return reachable().list.filter(
-    ({ x, y }) => (x - 2) % 16 === 0 && (y - 2) % 16 === 0 && QUIZ_MATS.has(matAt(x, y + 4)) && keep.every((k) => Math.hypot(k.x - x, k.y - y) >= 20),
+    ({ x, y }) =>
+      (x - 2) % 16 === 0 &&
+      (y - 2) % 16 === 0 &&
+      QUIZ_MATS.has(matAt(x, y + 4)) &&
+      keep.every((k) => Math.hypot(k.x - x, k.y - y) >= 20) &&
+      !(skipGate && overlapsGate(x, y)),
   );
 }
 

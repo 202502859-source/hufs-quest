@@ -20,6 +20,8 @@ export const PALETTE = {
   steps: "#d9cbab", stepsLine: "#c2b391",
   wall: "#e7e0cf", wallLine: "#d8cdb6", window: "#4b6878", windowLight: "#9fbccb", eave: "#6f7b79", door: "#5b3a26", doorFrame: "#8a5c3c",
   outline: "#2b3135", // 건물 윤곽 1px: 녹색 옥상(교수회관 · 외국어연수평가원)이 잔디 · 숲에 묻히지 않게
+  // 정문 현수막(src/gfx/campusGate.js, 11/27). 기둥 석재는 위 옥상 회색 · 흰색 · 처마 · 윤곽 색을 그대로 씁니다.
+  bannerBlue: "#2e5f9e", bannerEdge: "#1d3d6b", bannerYellow: "#f2c94c", bannerYellowEdge: "#b8862b",
 
   roof: { gray: "#9ba7a4", white: "#dde3df", green: "#5d9676", greenDark: "#3f7058", teal: "#5f8f9a", solar: "#4b6878", glass: "#4b6878", stairs: "#9ba7a4" },
   roofRim: { gray: "#7f8b88", white: "#b9c2bf", green: "#467a5d", greenDark: "#2f5643", teal: "#4a737c", solar: "#3a5361", glass: "#3a5361", stairs: "#6f7b79" },

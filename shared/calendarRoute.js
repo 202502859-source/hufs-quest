@@ -130,12 +130,36 @@ const fmt = (iso) => iso.replaceAll("-", ".");
 const daysBetween = (a, b) => Math.abs(Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000;
 
 function topicOf(question) {
-  return CALENDAR_TOPICS.find((t) => t.ask.test(question)) || null;
+  let rest = question;
+  const matched = [];
+
+  // 구체적인 일정 표현부터 확인하고 중복 인식을 피합니다.
+  for (const topic of CALENDAR_TOPICS) {
+    const pattern = new RegExp(topic.ask.source, topic.ask.flags + "g");
+    if (!topic.ask.test(rest)) continue;
+    matched.push(topic);
+    rest = rest.replace(pattern, " ");
+  }
+
+  // 계절학기 개강·종강은 하나의 일정 질문으로 봅니다.
+  if (matched.length === 2 && matched[0].key === "seasonal") {
+    if (["semesterStart", "semesterEnd"].includes(matched[1].key)) {
+      return matched[0];
+    }
+  }
+
+  // 서로 다른 일정 질문은 기존 일반 검색으로 넘깁니다.
+  return matched.length === 1 ? matched[0] : null;
 }
 
 function matchingItems(topic, question, items) {
   return items.filter((item) => {
     if (!item.targetSemester || !topic.item.test(item.name)) return false;
+    // 전기와 후기 학위수여식을 구분합니다.
+    if (topic.key === "commencement") {
+      if (/전기/.test(question) && !/전기/.test(item.name)) return false;
+      if (/후기/.test(question) && !/후기/.test(item.name)) return false;
+    }
     if (topic.exclude && topic.exclude.test(item.name) && !topic.exclude.test(question)) return false;
     // 계절학기를 물으면서 시작(개강) · 끝(종강)을 말했으면 그 일정만
     if (topic.key === "seasonal" && /개강|시작|start|begin/i.test(question) && !/개강/.test(item.name)) return false;
@@ -192,18 +216,74 @@ export function calendarNote(route, lang = "ko") {
   return `[학사일정 기준] 이 질문은 ${semesterLabel(route.semester)} 일정을 묻는 것으로 본다. [1] 학사일정 바로 찾기 자료의 날짜로 답하고, 다른 자료에 있는 다른 학기 · 연도의 날짜로 대신하지 않는다. 오늘 기준 이미 지난 일정이면 지났다고 말한다.`;
 }
 
-// 답에 바로 찾기 일정의 날짜(월 · 일)가 하나라도 있는지. 없으면 ask.js가 원문 보여 주기로 바꿉니다(서버에서 한 번 더 막기).
+// 답에 나온 날짜가 바로 찾기 일정과 모두 일치하는지 검사합니다.
+// 연도가 명시되면 연도도 비교하고, 생략되면 월과 일을 비교합니다.
 export function answerHasRouteDate(answer, route) {
   if (!route?.dates?.length) return true;
-  const text = String(answer ?? "");
-  const found = new Set();
-  for (const m of text.matchAll(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/g)) found.add(`${Number(m[1])}-${Number(m[2])}`);
-  for (const m of text.matchAll(/(?:\d{4}\s*[.\-/]\s*)?(\d{1,2})\s*[.\-/]\s*(\d{1,2})(?!\d)/g)) found.add(`${Number(m[1])}-${Number(m[2])}`);
-  for (const m of text.matchAll(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\b/gi)) {
-    found.add(`${MONTH_NAMES.indexOf(m[1].toLowerCase()) + 1}-${Number(m[2])}`);
+
+  const text = String(answer ?? "")
+    // 한국어 축약 기간을 시작일과 종료일로 펼칩니다.
+    .replace(
+      /(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*(?:일)?\s*(?:[~∼～–—-]|부터)\s*(\d{1,2})\s*일/g,
+      (_, year, month, first, last) => {
+        const prefix = year ? `${year}년 ` : "";
+        return `${prefix}${month}월 ${first}일 ~ ${prefix}${month}월 ${last}일`;
+      }
+    )
+    // 영어 축약 기간도 두 날짜로 펼칩니다.
+    .replace(
+      /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\s*[~–—-]\s*(\d{1,2})\b(?:,?\s+(\d{4}))?/gi,
+      (_, month, first, last, year) => {
+        const suffix = year ? `, ${year}` : "";
+        return `${month} ${first}${suffix} ~ ${month} ${last}${suffix}`;
+      }
+    );
+  const found = [];
+
+  const add = (year, month, day) => {
+    found.push({
+      year: year ? Number(year) : null,
+      month: Number(month),
+      day: Number(day),
+    });
+  };
+
+  // 한국어 날짜
+  for (const m of text.matchAll(
+    /(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일/g
+  )) {
+    add(m[1], m[2], m[3]);
   }
-  return route.dates.some((iso) => found.has(`${Number(iso.slice(5, 7))}-${Number(iso.slice(8, 10))}`));
+
+  // 숫자로 표기된 날짜
+  for (const m of text.matchAll(
+    /(?<![\d.\-/])(?:(\d{4})\s*[.\-/]\s*)?(\d{1,2})\s*[.\-/]\s*(\d{1,2})(?!\d)/g
+  )) {
+    add(m[1], m[2], m[3]);
+  }
+
+  // 영어 날짜
+  for (const m of text.matchAll(
+    /\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2})\b(?:,?\s+(\d{4}))?/gi
+  )) {
+    add(
+      m[3],
+      MONTH_NAMES.indexOf(m[1].toLowerCase()) + 1,
+      m[2]
+    );
+  }
+
+  if (!found.length) return false;
+
+  return found.every((date) =>
+    route.dates.some((iso) =>
+      (date.year === null || date.year === Number(iso.slice(0, 4))) &&
+      date.month === Number(iso.slice(5, 7)) &&
+      date.day === Number(iso.slice(8, 10))
+    )
+  );
 }
+
 const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
 
 // question: 원 질문, today: 한국 날짜 "YYYY-MM-DD". 해당 없으면 null(검색창은 지금과 똑같이 동작).
@@ -227,7 +307,7 @@ export function routeCalendar(question, { today, calendar = ACADEMIC_CALENDAR } 
     const inYear = items.filter((i) => i.academicYear === academicYear);
     pool = inYear.filter((i) => i.startDate.slice(0, 7) <= ym && itemDate(i).slice(0, 7) >= ym);
     // 그 달에 실제 날짜가 없으면(예: 1월에 진행 중인 겨울 계절학기의 개강일은 12월) 그 달을 포함하는 학기의 일정으로 봅니다.
-    if (!pool.length) {
+    if (!pool.length && topic.key === "seasonal") {
       pool = inYear.filter((i) => {
         const [from, to] = semesterMonths(i.targetSemester);
         return from <= ym && ym <= to;

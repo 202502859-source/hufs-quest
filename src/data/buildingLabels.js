@@ -77,6 +77,13 @@ export function placeBuildingLabel(b, measure, avoid = []) {
   return { x: c.x, y: c.y, scale: 0.8, lines: 2, fit: "center" };
 }
 
+// 이름표(가운데 x, y · 크기 w, h)가 rects(땅보다 위에 서 있는 그림, 예: 정문 기둥 · 현수막)와 겹치면
+// 겹치지 않을 때까지 위로만 올린 y를 돌려줍니다. 이름표는 땅 높이라 그런 그림에 가려지기 때문입니다(정문안내실, 11/27).
+export function liftClear(x, y, w, h, rects, maxLift = 64) {
+  for (let lift = 0; lift <= maxLift; lift++) if (!hitsAny(rects, x, y - lift, w, h)) return y - lift;
+  return y;
+}
+
 // 이름을 두 줄로 나눕니다. buildingInfo.js mapName처럼 이미 줄바꿈("\n")이 있으면 그 자리에서,
 // 없으면 가운데에 가까운 띄어쓰기(영어), 그것도 없으면 글자 수 절반.
 export function splitTwoLines(name) {

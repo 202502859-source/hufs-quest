@@ -487,8 +487,8 @@ export default async function handler(req, res) {
     // 근거 번호 없이 "자료에 없다"고만 하는 답은 내보내지 않습니다. 이런 답에 근거에 없는 부서 · 앱 이름이 섞여도(11/26 셔틀버스)
     // 사용자는 "찾지 못함"만 보게 됩니다. 숫자 검사보다 먼저 보고, 답 내용은 로그에 남기지 않으며 답변 캐시에도 저장하지 않습니다.
     if (isRefusalAnswer(answer)) {
-      console.log(JSON.stringify({ mode: "none", reason: "refusal", cacheHit: false, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
-      return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
+      console.log(JSON.stringify({ mode: "none", reason: "refusal", cacheHit: false, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+      return res.status(200).json({ mode: "none", answer: null, sources: [], ...calendarExtra, ...evalDebug });
     }
     // 근거 조각 어디에도 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)를 말하면
     // (예: 2026학년도 일정만 있는데 "2027년 3월 2일", "2027학년도 1학기 개강은 3월 2일") 원문도 보여 주지 않고 "찾지 못함"으로 답합니다.

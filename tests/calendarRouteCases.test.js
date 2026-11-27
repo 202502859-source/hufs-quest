@@ -3,7 +3,7 @@
 // 학기가 분명한 질문(연도+학기, 이번 · 다음 · 지난 학기)은 termBasis · alternatives 없음.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { routeCalendar } from "../shared/calendarRoute.js";
+import { routeCalendar, answerHasRouteDate } from "../shared/calendarRoute.js";
 
 const TODAY = "2026-11-27";
 const rows = (r) => r.lines.map((l) => l.replace(/^.* > /, "").replace(" (오늘 기준 지난 일정)", ""));
@@ -180,4 +180,167 @@ test("일정 이름의 다른 말: 졸업식 → 학위수여식, 개학 → 개
   assert.deepEqual(rows(routeCalendar("개학 언제야?", { today: TODAY })), ["2027.03.02: 2027학년도 제1학기 개강"]);
   assert.deepEqual(rows(routeCalendar("2027년 8월 졸업식 언제야?", { today: TODAY })), ["2027.08.20: 2027년 후기 학위수여식"]);
   assert.equal(routeCalendar("예비수강신청 언제야?", { today: TODAY }), null);
+});
+
+
+test("R01 regression: 전기와 후기 학위수여식 구분", () => {
+  const cases = [
+    ["2027년 후기 학위수여식 언제야?", ["2027-08-20"]],
+    ["2027년 전기 학위수여식 언제야?", ["2027-02-19"]],
+    ["2027년 전기와 후기 학위수여식 언제야?", null],
+  ];
+
+  for (const [q, expected] of cases) {
+    assert.deepEqual(
+      routeCalendar(q, { today: TODAY })?.dates ?? null,
+      expected,
+      q
+    );
+  }
+});
+
+test("R02 regression: 명시한 월과 다른 일정 반환 방지", () => {
+  const cases = [
+    ["2027년 1월 수강신청 언제야?", null],
+    ["2027년 1월 겨울 계절학기 시작 언제야?", ["2026-12-22"]],
+    ["2027년 2월 사전수강신청 언제야?", ["2027-02-01"]],
+    ["2027년 8월 수강신청 언제야?", ["2027-08-09", "2027-08-13"]],
+  ];
+
+  for (const [q, expected] of cases) {
+    assert.deepEqual(
+      routeCalendar(q, { today: TODAY })?.dates ?? null,
+      expected,
+      q
+    );
+  }
+});
+
+test("R03 regression: 복합 일정은 일반 검색으로 전달", () => {
+  const cases = [
+    ["중간고사랑 기말고사 언제야?", null],
+    ["수강신청이랑 수강취소 언제야?", null],
+    ["사전수강신청과 수강신청 언제야?", null],
+    ["개강일과 종강일 언제야?", null],
+    ["When are midterm and final exams?", null],
+    ["사전수강신청 언제야?", "preRegistration"],
+    ["수강신청 변경 언제야?", "registrationChange"],
+    ["수강신청 취소 언제야?", "registrationCancel"],
+    ["겨울 계절학기 개강 언제야?", "seasonal"],
+    ["겨울 계절학기 종강 언제야?", "seasonal"],
+  ];
+
+  for (const [q, expected] of cases) {
+    assert.equal(
+      routeCalendar(q, { today: TODAY })?.topic ?? null,
+      expected,
+      q
+    );
+  }
+});
+
+test("R04 regression: 잘못된 날짜 및 연도 차단", () => {
+  const r = routeCalendar(
+    "사전수강신청 언제야?",
+    { today: TODAY }
+  );
+
+  const cases = [
+    ["2026년 2월 1일입니다. [1]", false],
+    ["2027년 2월 1일과 8월 3일입니다. [1]", false],
+    ["2027년 2월 1일입니다. [1]", true],
+    ["February 1, 2026. [1]", false],
+    ["February 1, 2027. [1]", true],
+    ["2027.02.01입니다. [1]", true],
+    ["2026-02-01입니다. [1]", false],
+    ["2027-02-01입니다. [1]", true],
+    ["2월 1일입니다. [1]", true],
+    ["2027년 8월 3일입니다. [1]", false],
+    ["아직 공개되지 않았습니다.", false],
+  ];
+
+  for (const [answer, expected] of cases) {
+    assert.equal(
+      answerHasRouteDate(answer, r),
+      expected,
+      answer
+    );
+  }
+});
+
+test("R04 regression: 기간 시작일과 종료일 검증", () => {
+  const r = routeCalendar(
+    "기말고사 언제야?",
+    { today: TODAY }
+  );
+
+  assert.equal(
+    answerHasRouteDate("12월 15일부터 12월 25일까지", r),
+    false
+  );
+
+  assert.equal(
+    answerHasRouteDate("12월 15일부터 12월 21일까지", r),
+    true
+  );
+
+  assert.equal(
+    answerHasRouteDate("2026.12.15 ~ 2026.12.21", r),
+    true
+  );
+});
+
+test("R04 regression: 연도가 바뀌는 일정 검증", () => {
+  const r = routeCalendar(
+    "2학기 성적 열람 기간 언제야?",
+    { today: TODAY }
+  );
+
+  assert.equal(
+    answerHasRouteDate(
+      "2026년 12월 28일부터 2027년 1월 4일까지",
+      r
+    ),
+    true
+  );
+
+  assert.equal(
+    answerHasRouteDate(
+      "2026년 12월 28일부터 2026년 1월 4일까지",
+      r
+    ),
+    false
+  );
+
+  assert.equal(answerHasRouteDate("일반 답변", null), true);
+});
+
+test("R04 compact range regression: 축약 날짜 기간 검증", () => {
+  const r = routeCalendar(
+    "기말고사 언제야?",
+    { today: TODAY }
+  );
+
+  const cases = [
+    ["12월 15~21일", true],
+    ["12월 15일~21일", true],
+    ["12월 15일~25일", false],
+    ["12월 15~25일", false],
+    ["2025년 12월 15일~21일", false],
+    ["2026년 12월 15일부터 21일까지", true],
+    ["2026.12.15~12.21", true],
+    ["2026.12.15~12.25", false],
+    ["December 15-21, 2026", true],
+    ["December 15-25, 2026", false],
+    ["December 15-21, 2025", false],
+    ["12월 15일", true],
+  ];
+
+  for (const [answer, expected] of cases) {
+    assert.equal(
+      answerHasRouteDate(answer, r),
+      expected,
+      answer
+    );
+  }
 });
