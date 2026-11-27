@@ -69,6 +69,8 @@ export function hudButtonRowRect({ W, H, touch }) {
 }
 
 // 상태창 사각형(그림자 포함)
+// 상태창(게스트 모드 창 · 재학생 레벨 창) 본체의 가로 정중앙 x(그림자 제외). 두 창의 폭이 같아 같은 값. 휴대폰 방향키가 이 세로선에 맞춥니다.
+export const statusCenterX = () => MARGIN + STATUS_PANEL.w / 2;
 export const statusRect = (guest) => ({ x: 0, y: 0, w: MARGIN + STATUS_PANEL.w + STATUS_PANEL.shadow, h: MARGIN + (guest ? STATUS_PANEL.guest : STATUS_PANEL.student) + STATUS_PANEL.shadow });
 
 /*

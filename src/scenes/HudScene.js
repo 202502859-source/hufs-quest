@@ -20,7 +20,7 @@ import { addConfetti, addStampMark, addStampSlot } from "../ui/stampMark.js";
 import { HERE_COLOR, drawQuizDot } from "../ui/quizDot.js";
 
 // 미니맵 · 일일 퀘스트 창 자리는 src/ui/hudLayout.js hudSideLayout(11/27: 오른쪽 위, 미니맵 PC 232px · 휴대폰 194px).
-// 휴대폰 방향키 자리는 src/ui/firstScreen.js padLayout(첫 화면의 사이버관 안내원 화면 x에 맞춤).
+// 휴대폰 방향키 자리는 src/ui/firstScreen.js padLayout(왼쪽 위 상태창의 가로 정중앙 x에 맞춤).
 // 미니맵 건물명: 스탬프 랠리 4곳과 시연 동선 건물을 먼저 놓고, 나머지는 넓은 건물 순. 다른 이름표와 겹치면 숨깁니다.
 const MINIMAP_LABEL_FIRST = ["library", "union", "main", "humanities", "gatehouse", "cyber", "flc", "club"];
 const DAILY_ANIM_MS = 200; // 일일 퀘스트 창 접기 · 펴기
@@ -165,7 +165,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   // 터치 기기에서 캐릭터를 움직이는 방향 패드입니다.
-  // 자리는 src/ui/firstScreen.js padLayout: 정중앙 x = 첫 화면에서 사이버관 안내원의 화면 x(고정, 플레이어를 따라가지 않음),
+  // 자리는 src/ui/firstScreen.js padLayout: 정중앙 x = 왼쪽 위 상태창의 가로 정중앙 x(고정, 플레이어를 따라가지 않음),
   // 세로는 아래에서 MARGIN + PAD_LIFT 위. 누르는 범위도 패드 가운데 기준이고, 첫 화면의 안내원 · 정문 · HUD를 피해 잘라 냅니다.
   renderPad() {
     // 보이는 패드는 작고 반투명하게 그리되, 누르는 범위는 넓게 둡니다. 작아져도 손가락으로 조작하기 쉽게 하기 위해서입니다.
