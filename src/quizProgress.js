@@ -4,6 +4,7 @@
 import { QUIZ } from "./data/quiz.js";
 import { answerQuiz } from "./data/progressApi.js";
 import { applyProgress, isGuest, notifyReward, session } from "./state.js";
+import { afterQuizAnswer } from "./dailyQuests.js";
 
 // 예전 버전이 브라우저에 남긴 기록 때문에 경험치가 계속 막히지 않도록 한 번 지웁니다.
 try {
@@ -40,12 +41,16 @@ export function nextQuestion(exclude = new Set()) {
 export async function recordAnswer(question, choice) {
   if (isGuest()) {
     if (!local.guestAnswered.includes(question.id)) local.guestAnswered.push(question.id);
-    return choice === question.answer ? "guest" : "wrong";
+    const guestResult = choice === question.answer ? "guest" : "wrong";
+    await afterQuizAnswer(question.id, guestResult); // 일일 퀴즈 "맞춘 정답 n/5"(게스트는 메모리)
+    return guestResult;
   }
   try {
     const response = await answerQuiz(question.id, choice);
     applyProgress(response.progress);
     if (response.result === "ok") notifyReward(response.gained); // 퀴즈 창을 닫으면 HUD가 "+10 EXP"를 알립니다.
+    // 일일 퀴즈: 목표(DAILY_QUIZ_GOAL)번째 정답 직후면 보너스를 자동으로 요청합니다(조건은 서버가 다시 확인).
+    if (response.result === "ok") await afterQuizAnswer(question.id, response.result);
     return response.result;
   } catch (error) {
     // 경험치를 화면에서 임시로 주지 않고 "저장하지 못했어요"로 안내합니다(PROGRESS_API.md 결정 4).

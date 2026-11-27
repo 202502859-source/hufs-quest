@@ -1,6 +1,6 @@
 // 게임 상태입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답(progress)으로만 바뀝니다(applyProgress).
 // 서버와 주고받는 것은 src/data/progressApi.js가 맡고, 게스트는 지금처럼 메모리에서만 동작합니다.
-import { REWARD_QUESTS, expToNextLevel } from "../shared/progressRules.js";
+import { DAILY_QUIZ_GOAL, REWARD_QUESTS, expToNextLevel, kstToday } from "../shared/progressRules.js";
 import { SHOW_OUT_OF_SCOPE } from "./data/features.js";
 
 const listeners = new Set();
@@ -20,6 +20,9 @@ export function onLangChange(fn) {
   return () => listeners.delete(fn);
 }
 
+// 일일 퀘스트(스탬프 랠리 · 일일 퀴즈)의 오늘 상태. 재학생은 서버 응답(progress.daily), 게스트는 메모리(src/dailyQuests.js).
+export const emptyDaily = (date = kstToday()) => ({ date, quizCorrect: 0, quizGoal: DAILY_QUIZ_GOAL, quizBonusDone: false, stamps: [], rallyDone: false });
+
 // 재학생 값은 처음 불러올 때(getProgress) 서버 값으로 덮어씁니다. 새 계정은 Lv.1 · 경험치 0 · 포인트 0입니다.
 export const session = {
   mode: "guest", // "student" 또는 "guest"
@@ -29,6 +32,7 @@ export const session = {
   points: 0,
   completed: new Set(),
   quiz: null, // 서버의 퀴즈 기록(progress.quiz) 복사본. 다음 문제를 고를 때만 읽습니다.
+  daily: emptyDaily(), // 오늘의 일일 퀘스트 상태(한국 날짜가 바뀌면 0으로)
   progressLoaded: false, // 서버 진행 상태를 한 번이라도 받았는지(처음 불러올 때는 레벨 업 알림을 띄우지 않음)
   pendingLevelUp: null, // 캠퍼스 화면에서 알릴 레벨 업(마지막 레벨만, 저장 안 함)
   trackedQuest: null, // 목적지를 안내 중인 퀘스트 (저장 안 함)
@@ -48,6 +52,8 @@ export function applyProgress(progress) {
   const localOnly = [...session.completed].filter((id) => !REWARD_QUESTS.includes(id));
   session.completed = new Set([...progress.completedQuests, ...localOnly]);
   session.quiz = { ...progress.quiz, rewarded: [...progress.quiz.rewarded], answered: [...progress.quiz.answered] };
+  // 옛 응답(daily 없음)도 오류 없이 0으로 둡니다.
+  session.daily = progress.daily ? { ...emptyDaily(progress.daily.date), ...progress.daily, stamps: [...(progress.daily.stamps ?? [])] } : emptyDaily();
   if (session.completed.has(session.trackedQuest)) session.trackedQuest = null;
 }
 
@@ -67,6 +73,7 @@ export function resetSession() {
     points: 0,
     completed: new Set(),
     quiz: null,
+    daily: emptyDaily(),
     trackedQuest: null,
     pendingReward: null,
     progressLoaded: false,
@@ -326,6 +333,41 @@ const STRINGS = {
   quizAlready: { ko: "이미 경험치를 받은 문제예요.", en: "You already earned EXP for this question." },
   quizCap: { ko: "오늘 퀴즈로 받을 수 있는 경험치({cap})를 다 받았어요.", en: "You've reached today's quiz EXP limit ({cap})." },
   quizSaving: { ko: "저장하는 중…", en: "Saving…" },
+  // 일일 퀘스트 창(HUD, 미니맵 바로 위) · 스탬프 랠리 부스 · 시설 안내문 팻말 (11/27)
+  dailyTitle: { ko: "일일 퀘스트", en: "Daily Quests" },
+  dailyRally: { ko: "스탬프 랠리", en: "Stamp Rally" },
+  dailyRallyNext: { ko: "다음: {place}", en: "Next: {place}" },
+  dailyRallyDone: { ko: "완주! +{exp} EXP", en: "Complete! +{exp} EXP" },
+  dailyRallyDoneGuest: { ko: "완주!", en: "Complete!" },
+  dailyQuiz: { ko: "일일 퀴즈", en: "Daily Quiz" },
+  dailyQuizCount: { ko: "맞춘 정답: {n}/{goal}개", en: "Correct today: {n}/{goal}" },
+  dailyQuizDone: { ko: "완료! 보너스 +{exp} EXP", en: "Done! Bonus +{exp} EXP" },
+  dailyQuizDoneGuest: { ko: "완료!", en: "Done!" },
+  dailyGuestNote: { ko: "게스트는 경험치가 저장되지 않아요", en: "Guests don't keep EXP" },
+  dailyQuizBonus: { ko: "일일 퀴즈 완료! 보너스 +{exp} EXP", en: "Daily Quiz done! Bonus +{exp} EXP" },
+  rallyDetailIntro: {
+    ko: "건물 앞 부스 4곳에서 문제를 맞히면 스탬프를 받아요. 답은 부스 옆 '시설 안내문' 팻말에 있어요. 매일 한국 시간 자정에 새로 시작해요.",
+    en: "Answer the question at each of the 4 booths to get a stamp. The answer is on the 'Facility Guide' sign by the booth. Resets daily at midnight (KST).",
+  },
+  rallyStopDone: { ko: "스탬프 받음", en: "Stamped" },
+  rallyStopTodo: { ko: "아직", en: "Not yet" },
+  rallyReward: { ko: "4곳 완주 보상: +{exp} EXP, +{points} 포인트 (하루 한 번)", en: "Reward for all 4: +{exp} EXP, +{points} points (once a day)" },
+  dailyQuizDetail: {
+    ko: "맵의 '?' 퀴즈 상자에서 정답 {goal}개를 맞히면 보너스 +{exp} EXP (하루 한 번)",
+    en: "Get {goal} correct answers from '?' quiz boxes for a +{exp} EXP bonus (once a day)",
+  },
+  boothPrompt: { ko: "스탬프 랠리", en: "Stamp Rally" },
+  boothLabel: { ko: "[스탬프 랠리 부스]", en: "[Stamp Rally Booth]" },
+  signLabel: { ko: "[시설 안내문]", en: "[Facility Guide]" },
+  boothTitle: { ko: "스탬프 랠리 부스", en: "Stamp Rally Booth" },
+  boothHint: { ko: "답은 옆 '시설 안내문'에 있어요", en: "The answer is on the 'Facility Guide' sign next to the entrance" },
+  boothKeys: { ko: "키보드 1 / 2 / 3 키로도 고를 수 있어요", en: "You can also press the 1, 2 or 3 key" },
+  boothWrong: { ko: "시설 안내문에서 다시 찾아보세요", en: "Check the Facility Guide sign and try again" },
+  boothAlready: { ko: "오늘 이 부스 스탬프는 이미 받았어요", en: "You already got today's stamp here" },
+  boothPreparing: { ko: "이 부스는 준비 중이에요", en: "This booth is coming soon" },
+  stampCollected: { ko: "스탬프 획득! ({n}/{total})", en: "Stamp collected! ({n}/{total})" },
+  rallyComplete: { ko: "랠리 완주! +{exp} EXP", en: "Rally complete! +{exp} EXP" },
+  rallyCompleteGuest: { ko: "랠리 완주!", en: "Rally complete!" },
   saveFailed: { ko: "저장하지 못했어요. 잠시 후 다시 시도해 주세요.", en: "Couldn't save. Please try again in a moment." },
   // 행사 제보 보상 알림(src/data/rewardNotices.js · HudScene). 앞에 "+20 EXP" 칩이 붙습니다.
   eventRewardNotice: { ko: "제보한 행사가 확인되어 경험치가 올랐어요", en: "Your reported event was verified!" },
@@ -404,9 +446,28 @@ export const t = (key, vars) => {
 };
 
 // outOfScope: true인 퀘스트는 src/data/features.js의 SHOW_OUT_OF_SCOPE가 false면 목록에서 빠집니다.
-// 11/24: '이중전공 요건 알아보기'(doubleMajor) · '다국어 스탬프 랠리'(stampRally)는 화면 목록에서 뺐습니다.
-// 서버(shared/progressRules.js REWARD_QUESTS, api/quest-complete.js)와 이미 저장된 완료 기록은 그대로 둡니다.
+// 11/27 일일 퀘스트(캠퍼스 스탬프 랠리 4곳·일일 퀴즈)로 복원·추가(이종헌)
+// daily: true인 퀘스트는 HUD의 일일 퀘스트 창(미니맵 바로 위)에 보이고, 완료 여부는 session.completed가 아니라 session.daily로 봅니다
+// (매일 한국 시간 자정에 다시 시작). '이중전공 요건 알아보기'(doubleMajor) · 모의 수강신청(mockReg)은 계속 숨김입니다.
 const ALL_QUESTS = [
+  {
+    id: "stampRally",
+    daily: true,
+    name: { ko: "캠퍼스 스탬프 랠리", en: "Campus Stamp Rally" },
+    description: {
+      ko: "건물 앞 스탬프 랠리 부스 4곳에서 문제를 맞히고 스탬프를 모아요.\n답은 부스 옆 '시설 안내문' 팻말에 있어요.",
+      en: "Answer the question at 4 stamp rally booths to collect stamps.\nThe answer is on the 'Facility Guide' sign by each booth.",
+    },
+  },
+  {
+    id: "dailyQuiz",
+    daily: true,
+    name: { ko: "일일 퀴즈", en: "Daily Quiz" },
+    description: {
+      ko: `맵의 '?' 퀴즈 상자에서 하루에 정답 ${DAILY_QUIZ_GOAL}개를 맞혀요.`,
+      en: `Get ${DAILY_QUIZ_GOAL} correct answers a day from the '?' quiz boxes on the map.`,
+    },
+  },
   {
     id: "mockReg",
     name: { ko: "모의 수강신청 도전", en: "Mock course registration" },
@@ -424,5 +485,8 @@ const ALL_QUESTS = [
 // 화면(퀘스트 목록 · 안내 창 · 지도)이 쓰는 퀘스트 목록입니다.
 export const QUEST_LIST = SHOW_OUT_OF_SCOPE ? ALL_QUESTS : ALL_QUESTS.filter((q) => !q.outOfScope);
 
-// 진행 중인(아직 완료하지 않은) 퀘스트. 0개면 HUD의 퀘스트 버튼을 숨깁니다. 서버가 보낸 완료 기록 중 목록에 없는 id는 쓰지 않습니다.
-export const activeQuests = () => QUEST_LIST.filter((q) => !session.completed.has(q.id));
+// 일일 퀘스트(스탬프 랠리 · 일일 퀴즈). HUD의 일일 퀘스트 창과 상세 창(src/ui/questOverlay.js)이 씁니다.
+export const DAILY_QUEST_LIST = QUEST_LIST.filter((q) => q.daily);
+
+// 진행 중인(아직 완료하지 않은) 일반 퀘스트(일일 퀘스트 제외). 서버가 보낸 완료 기록 중 목록에 없는 id는 쓰지 않습니다.
+export const activeQuests = () => QUEST_LIST.filter((q) => !q.daily && !session.completed.has(q.id));

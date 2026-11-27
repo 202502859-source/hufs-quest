@@ -84,6 +84,18 @@ export function liftClear(x, y, w, h, rects, maxLift = 64) {
   return y;
 }
 
+// 화면에 그리는 건물 이름표 칸의 어림(글자 크기는 estimateLabelSize). CampusScene.layoutNameTag와 같은 순서:
+// 지붕 안 자리(avoid 피함) → liftRects(정문 그림)에 가리면 위로. lang: "ko" | "en". 반환 { x0, y0, x1, y1 }
+export function buildingTagRect(b, lang, avoid = [], liftRects = []) {
+  const name = (lang === "en" ? b.nameEn : null) ?? b.name;
+  const two = lang === "en" ? name : b.mapName ?? name;
+  const measure = (scale, lines) => estimateLabelSize(lines === 2 ? two : name, scale, lines);
+  const spot = placeBuildingLabel(b, measure, avoid);
+  const { w, h } = measure(spot.scale, spot.lines);
+  const y = liftClear(spot.x, spot.y, w, h, liftRects);
+  return { x0: spot.x - w / 2, x1: spot.x + w / 2, y0: y - h / 2, y1: y + h / 2 };
+}
+
 // 이름을 두 줄로 나눕니다. buildingInfo.js mapName처럼 이미 줄바꿈("\n")이 있으면 그 자리에서,
 // 없으면 가운데에 가까운 띄어쓰기(영어), 그것도 없으면 글자 수 절반.
 export function splitTwoLines(name) {
