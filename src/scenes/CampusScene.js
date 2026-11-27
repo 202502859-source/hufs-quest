@@ -8,7 +8,8 @@ import { guideTextRect } from "../data/guides.js";
 import { GuidePrompt } from "../ui/guidePrompt.js";
 import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
 import { liftClear, placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
-import { isTouchDevice } from "../device.js";
+import { isTouchDevice, onTouchDetected } from "../device.js";
+import { CAMERA_ZOOM, cameraOffsetX } from "../ui/firstScreen.js";
 import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
 import { signOut } from "../data/auth.js";
@@ -29,7 +30,6 @@ import { createOfficeOverlay } from "../ui/officeOverlay.js";
 import { createMapReportOverlay } from "../ui/mapReportOverlay.js";
 import { nearestOfficePlace, officeSpot } from "../ui/officeView.js";
 
-const CAMERA_ZOOM = 3;
 const PLAYER_SPEED = 90;
 const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
 // 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
@@ -128,6 +128,13 @@ export class CampusScene extends Phaser.Scene {
     camera.setBounds(0, 0, worldWidth, worldHeight);
     camera.setZoom(CAMERA_ZOOM);
     camera.startFollow(this.player, true, 0.15, 0.15);
+    // 첫 화면에서 오른쪽 위 HUD(미니맵 + 펼친 일일 퀘스트 창)가 정문을 가리지 않도록 카메라를 가로로 옮깁니다
+    // (src/ui/firstScreen.js cameraOffsetX: 가리는 만큼 + 8px, 안 가리면 0). 화면 크기 · 터치 여부가 바뀌면 다시 계산합니다.
+    this.applyCameraOffset();
+    const reapply = () => this.applyCameraOffset();
+    this.scale.on("resize", reapply);
+    this.events.once("shutdown", () => this.scale.off("resize", reapply));
+    onTouchDetected(reapply);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.mapKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
@@ -167,6 +174,15 @@ export class CampusScene extends Phaser.Scene {
       this.input.keyboard.resetKeys();
       this.searchBar.setVisible(true);
     });
+  }
+
+  applyCameraOffset() {
+    if (!this.cameras?.main) return;
+    const displayScale = this.game.canvas.getBoundingClientRect().width / this.scale.width || 1;
+    const offset = WORLD.version === "v2" ? cameraOffsetX({ W: this.scale.width, H: this.scale.height, touch: isTouchDevice(), displayScale }) : 0;
+    this.cameraOffset = offset;
+    // Phaser 카메라는 (플레이어 x − followOffset.x)를 가운데에 둡니다. 음수면 가운데가 플레이어보다 오른쪽 → 화면 속 물체가 왼쪽으로.
+    this.cameras.main.setFollowOffset(-offset / CAMERA_ZOOM, 0);
   }
 
   askQuestion(question) {

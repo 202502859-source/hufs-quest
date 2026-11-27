@@ -14,10 +14,12 @@ import { DAILY_QUIZ_BONUS_EXP, EVENT_REPORT_REWARD_EXP, STAMP_RALLY_REWARD } fro
 import { STAMP_RALLY_STOPS } from "../../shared/stampRally.js";
 import { STAMP_TOTAL, dailyState, nextStop, refreshDailyIfNewDay, retryRallyComplete } from "../dailyQuests.js";
 import { buildingInfo } from "../data/buildingInfo.js";
-import { DAILY_FONT, HUD_BUTTON, MINIMAP, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudLeftLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
+import { DAILY_FONT, HUD_BUTTON, MARGIN, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudSideLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
+import { padLayout, touchSize } from "../ui/firstScreen.js";
 import { addConfetti, addStampMark, addStampSlot } from "../ui/stampMark.js";
 
-// 미니맵 크기는 src/ui/hudLayout.js(MINIMAP: PC 211px · 휴대폰 176px, 11/27 20% 축소). PC는 왼쪽 아래, 휴대폰은 이동 패드를 피해 위쪽.
+// 미니맵 · 일일 퀘스트 창 자리는 src/ui/hudLayout.js hudSideLayout(11/27: 오른쪽 위, 미니맵 PC 232px · 휴대폰 194px).
+// 휴대폰 방향키 자리는 src/ui/firstScreen.js padLayout(첫 화면의 사이버관 안내원 화면 x에 맞춤).
 // 미니맵 건물명: 스탬프 랠리 4곳과 시연 동선 건물을 먼저 놓고, 나머지는 넓은 건물 순. 다른 이름표와 겹치면 숨깁니다.
 const MINIMAP_LABEL_FIRST = ["library", "union", "main", "humanities", "gatehouse", "cyber", "flc", "club"];
 const DAILY_ANIM_MS = 200; // 일일 퀘스트 창 접기 · 펴기
@@ -25,10 +27,8 @@ const DAILY_CHECK_MS = 30_000; // 한국 시간 자정을 넘겼는지 확인하
 const BOOTH_BLINK_MS = 2500; // 다음 부스 위치 깜빡임
 const BOOTH_DOT_COLOR = 0x2f6fd0; // 부스 지붕과 같은 파란색
 const DAILY_TOAST = { stamp: 14, complete: 16 }; // 스탬프 획득 · 완주 알림 글자(보상 알림 20px보다 작게)
-const MIN_TOUCH_PX = 52; // 실제 화면에서 최소 48px 이상이 되도록 약간 여유를 둡니다.
 const PAD_ALPHA = 0.55;
 const REWARD_TOAST_MS = 2500;
-const MARGIN = 12;
 const PLANNER_LINE_GAP = 4;
 const QUIZ_DOT_COLOR = 0xff9f1c; // 내 위치(노란 점)와 구분되는 주황색
 // 오른쪽 아래 아이콘 버튼 줄(퀘스트 · 행사 · 마감 공지). PC는 아이콘 아래에 단축키를 쓰므로 바닥 여백이 더 큽니다.
@@ -139,16 +139,23 @@ export class HudScene extends Phaser.Scene {
     this.pointerLabel.setVisible(showing);
     if (!showing) return;
     const angle = Phaser.Math.Angle.Between(campus.player.x, campus.player.y, destination.worldX, destination.worldY);
-    const x = this.scale.width / 2 + Math.cos(angle) * 120;
-    const y = this.scale.height / 2 + Math.sin(angle) * 95;
+    // 화면 가운데가 아니라 플레이어가 화면에 그려진 자리 기준(첫 화면 카메라 오프셋으로 플레이어가 가운데가 아닐 수 있음)
+    const px = (campus.player.x - camera.worldView.x) * camera.zoom;
+    const py = (campus.player.y - camera.worldView.y) * camera.zoom;
+    const x = px + Math.cos(angle) * 120;
+    const y = py + Math.sin(angle) * 95;
     this.pointer.setPosition(x, y).setRotation(angle);
     this.pointerLabel.setPosition(x, y + (Math.sin(angle) > 0 ? -30 : 30)).setText(placeName(destination.building));
   }
 
-  // 게임 화면이 확대·축소되어도 실제 크기가 MIN_TOUCH_PX 이상이 되는 게임 안 크기를 구합니다.
+  // 게임 화면을 실제 화면에 줄여 보여 주는 배율(css 폭 / 게임 폭)
+  displayScale() {
+    return this.game.canvas.getBoundingClientRect().width / this.scale.width || 1;
+  }
+
+  // 게임 화면이 확대·축소되어도 실제 크기가 최소 터치 크기 이상이 되는 게임 안 크기를 구합니다(src/ui/firstScreen.js).
   touchSize(minimum) {
-    const displayScale = this.game.canvas.getBoundingClientRect().width / this.scale.width;
-    return Math.ceil(Math.max(minimum, MIN_TOUCH_PX / (displayScale || 1)));
+    return touchSize(minimum, this.displayScale());
   }
 
   // 터치 기기에서만 방향 패드를 보여 줍니다. (건물 NPC를 없애 대화하기 버튼과 안내 문구는 쓰지 않습니다.)
@@ -158,12 +165,15 @@ export class HudScene extends Phaser.Scene {
   }
 
   // 터치 기기에서 캐릭터를 움직이는 방향 패드입니다.
+  // 자리는 src/ui/firstScreen.js padLayout: 정중앙 x = 첫 화면에서 사이버관 안내원의 화면 x(고정, 플레이어를 따라가지 않음),
+  // 세로는 아래에서 MARGIN + PAD_LIFT 위. 누르는 범위도 패드 가운데 기준이고, 첫 화면의 안내원 · 정문 · HUD를 피해 잘라 냅니다.
   renderPad() {
     // 보이는 패드는 작고 반투명하게 그리되, 누르는 범위는 넓게 둡니다. 작아져도 손가락으로 조작하기 쉽게 하기 위해서입니다.
-    const fullCell = this.touchSize(56);
-    const cell = Math.ceil(fullCell / 2);
-    const left = MARGIN;
-    const top = this.scale.height - MARGIN - cell * 3;
+    const layout = padLayout({ W: this.scale.width, H: this.scale.height, touch: true, displayScale: this.displayScale() });
+    const { cell } = layout;
+    const left = layout.pad.x;
+    const top = layout.pad.y;
+    this.padRect = layout.pad;
     const graphics = this.add.graphics().setAlpha(PAD_ALPHA);
     const labels = [
       ["▲", 1, 0],
@@ -177,14 +187,8 @@ export class HudScene extends Phaser.Scene {
         .setAlpha(PAD_ALPHA);
     });
 
-    this.padCenter = { x: left + cell * 1.5, y: top + cell * 1.5, deadZone: cell * 0.3 };
-    const reach = fullCell * 3;
-    // 누르는 범위도 미니맵까지 올라가지 않게 합니다.
-    const zoneTop = Math.max(this.scale.height - reach, this.minimapBottom + 8);
-    const zone = this.add
-      .zone(0, zoneTop, reach, this.scale.height - zoneTop)
-      .setOrigin(0)
-      .setInteractive();
+    this.padCenter = { x: layout.center.x, y: layout.center.y, deadZone: cell * 0.3 };
+    const zone = this.add.zone(layout.zone.x, layout.zone.y, layout.zone.w, layout.zone.h).setOrigin(0).setInteractive();
     zone.on("pointerdown", (pointer) => {
       this.padPointerId = pointer.id;
       this.updatePadFromPointer(pointer);
@@ -267,8 +271,11 @@ export class HudScene extends Phaser.Scene {
     if (!this.notice || this.notice.until <= this.time.now) return;
     const { key, vars, chip } = rewardNoticeText(this.notice);
     const toast = addNoticeToast(this, this.scale.width / 2, this.scale.height - 16, chip, t(key, vars)).setDepth(50);
-    // 왼쪽 아래 미니맵(PC) · 오른쪽 아래 버튼 줄과 겹치지 않게, 너무 길면 가운데 폭 안으로 줄입니다.
-    const maxWidth = this.scale.width - 2 * (MINIMAP.pc.width + MARGIN * 3);
+    // 왼쪽 아래 방향키(휴대폰) · 오른쪽 아래 버튼 줄과 겹치지 않게, 너무 길면 가운데 폭 안으로 줄입니다.
+    const W = this.scale.width;
+    const leftLimit = this.pad && this.padRect ? this.padRect.x + this.padRect.w + MARGIN : MARGIN;
+    const rightLimit = (this.hudButtonsLeft ?? W) - MARGIN;
+    const maxWidth = 2 * Math.min(W / 2 - leftLimit, rightLimit - W / 2);
     if (toast.width > maxWidth) toast.setScale(maxWidth / toast.width);
     this.noticeToast = toast;
     this.tweens.add({
@@ -303,17 +310,19 @@ export class HudScene extends Phaser.Scene {
     if (dialogOpen && this.padPointerId !== null && this.padPointerId !== undefined) this.setPadDirection(0, 0, null);
   }
 
-  // 왼쪽 줄(일일 퀘스트 창 · 미니맵) 자리 계산(src/ui/hudLayout.js). 접힌 탭 너비는 제목 글자 너비로 정합니다.
-  leftLayout() {
+  // 오른쪽 위(미니맵 + 일일 퀘스트 창) 자리 계산(src/ui/hudLayout.js hudSideLayout). 접힌 탭 너비는 제목 글자 너비로 정합니다.
+  sideLayout() {
     const info = overviewInfo();
-    const probe = addLabel(this, 0, 0, `▶ ${t("dailyTitle")}`, { size: DAILY_FONT.title });
+    const probe = addLabel(this, 0, 0, `◀ ${t("dailyTitle")}`, { size: DAILY_FONT.title });
     const tabWidth = Math.ceil(probe.width) + 20;
     probe.destroy();
-    return hudLeftLayout({
+    return hudSideLayout({
+      W: this.scale.width,
+      H: this.scale.height,
       touch: isTouchDevice(),
       guest: isGuest(),
       collapsed: this.dailyCollapsed,
-      screenH: this.scale.height,
+      displayScale: this.displayScale(),
       mapAspect: info.height / info.width,
       tabWidth,
     });
@@ -325,38 +334,45 @@ export class HudScene extends Phaser.Scene {
   }
 
   /*
-   * 일일 퀘스트 창(미니맵 바로 위, 같은 왼쪽 선). 제목 줄을 누르면 접히거나 펴집니다(왼쪽 끝 기준으로 오른쪽으로 열림, 0.2초).
+   * 일일 퀘스트 창(미니맵 바로 아래, 오른쪽 선을 미니맵과 맞춤). 제목 줄을 누르면 접히거나 펴집니다.
+   * 접힘: 오른쪽 끝에 붙은 탭 "◀ 일일 퀘스트". 펼침: 오른쪽 선은 그대로, 왼쪽으로 열림(0.2초), 제목 "▶ 일일 퀘스트"(누르면 오른쪽으로 접힘).
    * 내용: (1) 스탬프 랠리 — 도장 4칸 + "다음: 본관"(완주하면 "완주! +50 EXP") (2) 일일 퀴즈 — "맞춘 정답: 0/10개"(10개면 "완료! 보너스 +50 EXP")
    * 줄을 누르면 상세 창(4곳 체크 목록)이 열리고, 닫으면 미니맵에서 다음 부스가 깜빡입니다.
    */
   renderDailyPanel(layout) {
-    const { x, y, w, h, tabH, rows } = layout;
+    const { x, y, w, h, tabH, rows, right } = layout;
     const lang = getLang();
     const daily = dailyState();
     this.dailySignature = this.dailySignatureNow();
     const collapsed = this.dailyCollapsed;
 
-    // 제목 탭(접힘: ▶만 남음, 펼침: ▼)
-    const tab = this.add.graphics();
-    const title = addLabel(this, x + 10, y + tabH / 2, `${collapsed ? "▶" : "▼"} ${t("dailyTitle")}`, { size: DAILY_FONT.title, color: "#f2c94c" }).setOrigin(0, 0.5);
-    const tabW = Math.ceil(title.width) + 20;
-    if (collapsed) drawPanel(tab, x, y, tabW, tabH, { border: COLOR.line });
-    const tabZone = this.add.zone(x, y, collapsed ? tabW : w, tabH).setOrigin(0).setInteractive({ useHandCursor: true });
-    tabZone.on("pointerdown", () => this.toggleDailyPanel());
-    this.dailyBody = null;
-    if (collapsed) return;
+    if (collapsed) {
+      // 접힘: 미니맵 아래 오른쪽 끝에 붙은 제목 탭만
+      const tab = this.add.graphics();
+      const title = addLabel(this, right - 10, y + tabH / 2, `◀ ${t("dailyTitle")}`, { size: DAILY_FONT.title, color: "#f2c94c" }).setOrigin(1, 0.5);
+      const tabW = Math.ceil(title.width) + 20;
+      drawPanel(tab, right - tabW, y, tabW, tabH, { border: COLOR.line });
+      this.children.bringToTop(title);
+      const tabZone = this.add.zone(right - tabW, y, tabW, tabH).setOrigin(0).setInteractive({ useHandCursor: true });
+      tabZone.on("pointerdown", () => this.toggleDailyPanel());
+      this.dailyBody = null;
+      return;
+    }
 
-    // 펼친 창: 왼쪽 끝을 기준으로 가로로 열리도록 컨테이너(scaleX)에 담습니다.
-    const body = this.add.container(x, y);
+    // 펼친 창: 오른쪽 선을 기준점으로 왼쪽으로 열리도록, 컨테이너를 오른쪽 끝에 두고 안쪽 그림을 왼쪽(−w)에 그립니다(scaleX).
+    const body = this.add.container(right, y);
     const g = this.add.graphics();
-    drawPanel(g, 0, 0, w, h, { border: COLOR.line });
-    g.fillStyle(COLOR.line, 1).fillRect(6, tabH - 1, w - 12, 1);
+    drawPanel(g, -w, 0, w, h, { border: COLOR.line });
+    g.fillStyle(COLOR.line, 1).fillRect(-w + 6, tabH - 1, w - 12, 1);
     body.add(g);
     const put = (px, py, text, style) => {
-      const label = addLabel(this, px, py, text, style);
+      const label = addLabel(this, px - w, py, text, style);
       body.add(label);
       return label;
     };
+    put(10, tabH / 2, `▶ ${t("dailyTitle")}`, { size: DAILY_FONT.title, color: "#f2c94c" }).setOrigin(0, 0.5);
+    const tabZone = this.add.zone(x, y, w, tabH).setOrigin(0).setInteractive({ useHandCursor: true });
+    tabZone.on("pointerdown", () => this.toggleDailyPanel());
     const guest = isGuest();
     const done = daily.rallyDone || daily.stamps.length >= STAMP_TOTAL;
 
@@ -375,10 +391,10 @@ export class HudScene extends Phaser.Scene {
     STAMP_RALLY_STOPS.forEach((stop, i) => {
       const cx = rows.stamps.x + i * (radius * 2 + gap);
       const cy = rows.stamps.y;
-      body.add(addStampSlot(this, cx, cy, radius));
+      body.add(addStampSlot(this, cx - w, cy, radius));
       if (!daily.stamps.includes(stop.buildingId)) return;
       const animate = this.stampAnim?.id === stop.buildingId && this.stampAnim.until > this.time.now;
-      body.add(addStampMark(this, cx, cy, radius, stop.label[lang], { animate, seed: stop.buildingId }));
+      body.add(addStampMark(this, cx - w, cy, radius, stop.label[lang], { animate, seed: stop.buildingId }));
     });
     this.stampAnim = null;
 
@@ -402,16 +418,16 @@ export class HudScene extends Phaser.Scene {
       });
     });
 
-    this.children.bringToTop(title);
     this.dailyBody = body;
     if (this.dailyOpening) {
+      // 오른쪽 기준점(컨테이너 자리 = 오른쪽 선)에서 왼쪽으로 펼쳐집니다.
       this.dailyOpening = false;
       body.setScale(0.12, 1).setAlpha(0.3);
       this.tweens.add({ targets: body, scaleX: 1, alpha: 1, duration: DAILY_ANIM_MS, ease: "Quad.easeOut" });
     }
   }
 
-  // 제목 줄을 누르면 접거나 폅니다. 접을 때는 0.2초 동안 왼쪽으로 닫힌 뒤 탭만 남깁니다.
+  // 제목 줄을 누르면 접거나 폅니다. 접을 때는 0.2초 동안 오른쪽으로 닫힌 뒤 탭만 남깁니다.
   toggleDailyPanel() {
     if (this.dailyToggling) return;
     if (this.dailyCollapsed) {
@@ -469,7 +485,7 @@ export class HudScene extends Phaser.Scene {
     }
   }
 
-  // 미니맵입니다. PC는 왼쪽 아래, 휴대폰은 이동 패드(왼쪽 아래)를 피해 상태창 · 일일 퀘스트 창 아래에 둡니다. 클릭하면 전체 지도가 열립니다.
+  // 미니맵입니다. PC · 휴대폰 모두 오른쪽 위(검색창 · KO/EN 버튼 아래). 클릭하면 전체 지도가 열립니다.
   renderMinimap(layout) {
     const size = { width: layout.mapW, dot: layout.dot };
     const info = overviewInfo();
@@ -484,7 +500,6 @@ export class HudScene extends Phaser.Scene {
     this.minimap = { x: x + MINIMAP_PAD, y: y + MINIMAP_PAD, w: mapW, h: mapH, dot: size.dot, label: layout.label };
     // 월드 px → 미니맵 안 px
     this.toMini = (wx, wy) => ({ x: this.minimap.x + wx * info.perWorld * scale, y: this.minimap.y + wy * info.perWorld * scale });
-    this.minimapBottom = y + panelH + 4;
     this.add.image(this.minimap.x, this.minimap.y, overviewTexture(this)).setOrigin(0).setScale(scale);
     this.renderMinimapLabels();
     addLabel(this, x + MINIMAP_PAD + mapW / 2, y + mapH + 13, t("mapButton"), { size: MINIMAP_BUTTON_FONT, color: "#f2c94c" }).setOrigin(0.5, 0);
@@ -592,9 +607,9 @@ export class HudScene extends Phaser.Scene {
     this.children.removeAll(true);
     this.setPadDirection(0, 0, null);
     this.renderStatus();
-    const left = this.leftLayout();
-    this.renderMinimap(left.minimap);
-    this.renderDailyPanel(left.daily);
+    const side = this.sideLayout();
+    this.renderMinimap(side.minimap);
+    this.renderDailyPanel(side.daily);
     addLangButtons(this, this.scale.width - MARGIN, MARGIN);
     this.renderDestinationPointer();
     this.renderTalkControls();
@@ -611,7 +626,7 @@ export class HudScene extends Phaser.Scene {
   }
 
   // 오른쪽 아래 아이콘 버튼 줄: [행사 V] [마감 공지 N]. 배지: 행사 = 오늘 · 진행 중 수, 마감 공지 = D-3 이하 수.
-  // 11/27: 퀘스트 버튼은 왼쪽 일일 퀘스트 창(미니맵 바로 위)으로 대체했습니다. Q 키는 일일 퀘스트 상세 창을 엽니다.
+  // 11/27: 퀘스트 버튼은 일일 퀘스트 창(오른쪽 위 미니맵 아래)으로 대체했습니다. Q 키는 일일 퀘스트 상세 창을 엽니다.
   hudButtons() {
     const campus = this.scene.get("Campus");
     return [
