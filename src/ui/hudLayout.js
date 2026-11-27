@@ -6,6 +6,13 @@
  */
 export const MARGIN = 12;
 
+// 오른쪽 아래 아이콘 버튼 줄(행사 V · 마감 공지 N, HudScene.hudButtons). PC는 아이콘 아래 단축키 글자 때문에 바닥 여백이 더 큽니다.
+// keys는 HudScene.hudButtons의 버튼 순서와 같아야 합니다(tests/campusGate.test.js가 이 값으로 버튼 줄 자리를 계산).
+// 11/27: 퀘스트 버튼(Q)은 왼쪽 일일 퀘스트 창으로 대체해 빠졌습니다.
+export const HUD_BUTTON = { size: 64, inset: 16, insetWithKey: 30, gap: 12, keys: ["V", "N"] };
+// 상태창(그림자 4px 포함): 재학생 248×84, 게스트 248×58
+export const STATUS_PANEL = { w: 248, student: 84, guest: 58, shadow: 4 };
+
 // 미니맵 가로(px, 세로는 맵 비율대로). 11/27: 20% 축소(PC 264 → 211, 휴대폰 220 → 176).
 // dot: 점 · 위치 표시 배율(1.5 → 1.2, 1.25 → 1.0), label: 건물 이름표 글자(9px → 8px, 읽히는 최소 크기).
 export const MINIMAP = { pc: { width: 211, dot: 1.2, label: 8 }, touch: { width: 176, dot: 1, label: 8 } };

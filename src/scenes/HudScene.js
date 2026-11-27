@@ -14,7 +14,7 @@ import { DAILY_QUIZ_BONUS_EXP, EVENT_REPORT_REWARD_EXP, STAMP_RALLY_REWARD } fro
 import { STAMP_RALLY_STOPS } from "../../shared/stampRally.js";
 import { STAMP_TOTAL, dailyState, nextStop, refreshDailyIfNewDay, retryRallyComplete } from "../dailyQuests.js";
 import { buildingInfo } from "../data/buildingInfo.js";
-import { DAILY_FONT, MINIMAP, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudLeftLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
+import { DAILY_FONT, HUD_BUTTON, MINIMAP, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudLeftLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
 import { addConfetti, addStampMark, addStampSlot } from "../ui/stampMark.js";
 
 // 미니맵 크기는 src/ui/hudLayout.js(MINIMAP: PC 211px · 휴대폰 176px, 11/27 20% 축소). PC는 왼쪽 아래, 휴대폰은 이동 패드를 피해 위쪽.
@@ -32,7 +32,6 @@ const MARGIN = 12;
 const PLANNER_LINE_GAP = 4;
 const QUIZ_DOT_COLOR = 0xff9f1c; // 내 위치(노란 점)와 구분되는 주황색
 // 오른쪽 아래 아이콘 버튼 줄(퀘스트 · 행사 · 마감 공지). PC는 아이콘 아래에 단축키를 쓰므로 바닥 여백이 더 큽니다.
-const HUD_BUTTON = { size: 64, inset: 16, insetWithKey: 30, gap: 12 };
 
 // 게임 화면 위에 고정으로 그리는 정보 화면입니다. 카메라 확대의 영향을 받지 않습니다.
 export class HudScene extends Phaser.Scene {

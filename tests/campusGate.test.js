@@ -33,7 +33,7 @@ import { PALETTE } from "../src/gfx/campusV2Paint.js";
 import { estimateLabelSize, liftClear, placeBuildingLabel } from "../src/data/buildingLabels.js";
 import { guideTextRects } from "../src/data/guides.js";
 import { WORLD } from "../src/data/world.js";
-import { QUEST_LIST } from "../src/state.js";
+import { HUD_BUTTON, MARGIN, STATUS_PANEL, hudLeftLayout } from "../src/ui/hudLayout.js";
 
 const CAMERA_ZOOM = 3; // src/scenes/CampusScene.js
 const SCREEN = { w: 960, h: 540 }; // 게임 화면(휴대폰 가로 844×390도 이 화면을 줄여 보여 줌 — Phaser Scale.FIT)
@@ -86,20 +86,34 @@ test("정문 자리: 진입로 가운데 선 기준 거울 대칭, 차도 · 양
   assert.deepEqual([GATE.banner.w, GATE.banner.h, GATE.banner.y], [108, 22, GATE.baseY - 48]);
 });
 
-// HUD가 덮는 화면 사각형(게임 화면 px). src/scenes/HudScene.js 기준이고 11/27 개발 서버에서 실제 HUD 오브젝트 범위를 재서 맞춤:
-// PC(960×540) 미니맵 x 12~292 · y 241~528, 버튼 x 804~949 · y 437~529 / 터치 가로(폭 = 540 × 화면비, src/viewport.js) 미니맵 x 12~248 · y 82~328,
-// 이동 패드 누르는 범위 x 0~219 · y 340~540, 버튼은 오른쪽 끝 기준. 버튼 64px · 간격 12 · 오른쪽 여백 16, 배지가 위 · 오른쪽으로 10~12px 나옴.
-// 퀘스트 버튼(Q)은 진행 중 퀘스트가 있을 때만 생김(지금 QUEST_LIST가 비어 있어 없음 — 생기면 이 테스트가 다시 확인).
-function hudRects(mode, W) {
-  const buttons = QUEST_LIST.length ? 3 : 2;
-  const rowLeft = W - 16 - 64 * buttons - 12 * (buttons - 1);
+// HUD가 덮는 화면 사각형(게임 화면 px). 11/27 #113(미니맵 20% 축소 · 일일 퀘스트 창) 기준으로 바꿈:
+// 왼쪽 줄(일일 퀘스트 창 · 미니맵)은 실제 HUD가 쓰는 src/ui/hudLayout.js hudLeftLayout으로 계산하고(그림자 4px 포함),
+// 학생 · 게스트 × 펼침 · 접힘 네 경우를 모두 봅니다. 미니맵이나 창 크기 · 자리가 바뀌어 정문을 가리면 이 테스트가 실패합니다.
+// 오른쪽 아래 버튼 줄은 hudLayout.js HUD_BUTTON(버튼 2개: 행사 V · 마감 공지 N, 배지가 위 · 오른쪽으로 10~12px 나옴).
+// 터치 가로(폭 = 540 × 화면비, src/viewport.js)는 이동 패드 누르는 범위 x 0~219 · y 340~540(여유를 두고 0~230 · 330~540).
+const SHADOW = 4;
+const LEFT_CASES = [
+  { guest: false, collapsed: false },
+  { guest: false, collapsed: true },
+  { guest: true, collapsed: false },
+  { guest: true, collapsed: true },
+];
+function hudRects(mode, W, { guest, collapsed }) {
+  const touch = mode !== "pc";
+  const { size, gap: btnGap, inset, insetWithKey, keys } = HUD_BUTTON;
+  const rowLeft = W - inset - size * keys.length - btnGap * (keys.length - 1);
+  const rowTop = 540 - (touch ? inset : insetWithKey) - size - 12; // 배지 12px
+  // 접힌 탭 너비는 제목 글자 너비로 정해지므로 넉넉하게(펼친 창 폭) 잡습니다.
+  const left = hudLeftLayout({ touch, guest, collapsed, screenH: 540, mapAspect: WORLD_H / WORLD_W, tabWidth: 140 });
+  const status = guest ? STATUS_PANEL.guest : STATUS_PANEL.student;
   const rects = [
-    { name: "상태창", x: 0, y: 0, w: 270, h: 76 },
+    { name: "상태창", x: 0, y: 0, w: MARGIN + STATUS_PANEL.w + SHADOW, h: MARGIN + status + SHADOW },
     { name: "언어 버튼", x: W - 104, y: 12, w: 92, h: 32 },
-    { name: "오른쪽 아래 버튼 줄", x: rowLeft, y: mode === "pc" ? 437 : 451, w: W - rowLeft, h: 540 - (mode === "pc" ? 437 : 451) },
+    { name: "오른쪽 아래 버튼 줄", x: rowLeft, y: rowTop, w: W - rowLeft, h: 540 - rowTop },
+    { name: collapsed ? "일일 퀘스트 탭(접힘)" : "일일 퀘스트 창(펼침)", x: left.daily.x, y: left.daily.y, w: left.daily.w + SHADOW, h: left.daily.h + SHADOW },
+    { name: "미니맵", x: left.minimap.x, y: left.minimap.y, w: left.minimap.panelW + SHADOW, h: left.minimap.panelH + SHADOW },
   ];
-  if (mode === "pc") rects.push({ name: "미니맵", x: 12, y: 241, w: 280, h: 287 });
-  else rects.push({ name: "미니맵", x: 12, y: 82, w: 236, h: 272 }, { name: "이동 패드", x: 0, y: 330, w: 230, h: 210 });
+  if (touch) rects.push({ name: "이동 패드", x: 0, y: 330, w: 230, h: 210 });
   return rects;
 }
 const SCREENS = [
@@ -118,7 +132,7 @@ const firstCamera = (W = SCREEN.w) => {
 };
 const toScreen = (r, cam) => ({ x: (r.x - cam.x) * CAMERA_ZOOM, y: (r.y - cam.y) * CAMERA_ZOOM, w: r.w * CAMERA_ZOOM, h: r.h * CAMERA_ZOOM });
 
-test("첫 화면(SPAWN, 카메라 3배): 두 기둥 · 현수막 · 정문안내실이 화면 안이고 PC · 휴대폰 가로 HUD 어디에도 가리지 않음", () => {
+test("첫 화면(SPAWN, 카메라 3배): 두 기둥 · 현수막 · 정문안내실이 화면 안이고 PC · 휴대폰 가로 HUD(축소 미니맵 · 일일 퀘스트 창 펼침/접힘 · 버튼) 어디에도 가리지 않음", () => {
   const gh = { x: gatehouse.box.x0, y: gatehouse.box.y0, w: gatehouse.box.x1 - gatehouse.box.x0, h: gatehouse.box.y1 - gatehouse.box.y0 };
   const things = [...gateRects().map((r, i) => ({ ...r, name: ["서쪽 기둥", "동쪽 기둥", "현수막"][i] })), { ...gh, name: "정문안내실" }];
   for (const { mode, W } of SCREENS) {
@@ -126,7 +140,10 @@ test("첫 화면(SPAWN, 카메라 3배): 두 기둥 · 현수막 · 정문안내
     for (const t of things) {
       assert.ok(inside(t, cam), `${mode} ${W}: ${t.name}이(가) 첫 화면 밖`);
       const s = toScreen(t, cam);
-      for (const h of hudRects(mode, W)) assert.ok(gap(s, h) >= 8, `${mode} ${W}: ${t.name}이(가) ${h.name}에 가림 또는 8px 안으로 붙음`);
+      for (const c of LEFT_CASES) {
+        const who = `${mode} ${W} ${c.guest ? "게스트" : "학생"} ${c.collapsed ? "접힘" : "펼침"}`;
+        for (const h of hudRects(mode, W, c)) assert.ok(gap(s, h) >= 8, `${who}: ${t.name}이(가) ${h.name}에 가림 또는 8px 안으로 붙음`);
+      }
     }
   }
   const player = { x: SPAWN.x - 8, y: SPAWN.y - 8, w: 16, h: 16 };
@@ -323,4 +340,17 @@ test("끼임 방지: 기둥 안쪽 옆을 위아래로 지나가고, 기둥 바�
     pos = hold(pos, 0, 1, 24);
     assert.ok(pos.y + FEET.bottom > GATE.baseY, `x ${p.base.x0}: 비킨 뒤에도 못 내려감 (${Math.round(pos.x)},${Math.round(pos.y)})`);
   }
+});
+
+test("HUD 기준이 정말 정문을 지키는지: 서쪽 기둥과 미니맵 사이 여유가 8px 이상이고, 미니맵 패널이 그만큼 넓어지면 가림으로 잡힘", () => {
+  const cam = firstCamera(960);
+  const west = toScreen(gateRects()[0], cam);
+  const { daily, minimap } = hudLeftLayout({ touch: false, guest: false, collapsed: false, screenH: 540, mapAspect: WORLD_H / WORLD_W, tabWidth: 140 });
+  const panel = { x: minimap.x, y: minimap.y, w: minimap.panelW + SHADOW, h: minimap.panelH + SHADOW };
+  const room = gap(west, panel);
+  assert.ok(room >= 8, `서쪽 기둥과 미니맵 사이 ${room}px`);
+  assert.ok(west.y < panel.y + panel.h && panel.y < west.y + west.h, "서쪽 기둥과 미니맵이 같은 높이에 있어 폭이 늘면 가림");
+  // 예: 미니맵을 예전 크기(264px)보다 더 넓혀 여유를 다 쓰면 실패해야 함
+  assert.ok(gap(west, { ...panel, w: panel.w + room - 7 }) < 8, "넓힌 미니맵을 가림으로 찾지 못함");
+  assert.ok(daily.x + daily.w + SHADOW < west.x - 8, "일일 퀘스트 창이 서쪽 기둥 쪽으로 너무 넓음");
 });

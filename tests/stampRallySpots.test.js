@@ -1,11 +1,12 @@
 // 스탬프 랠리 부스 · "시설 안내문" 팻말 자리(src/data/stampRallySpots.js)와 [Enter] 시설 소개 위치를 확인합니다. 실행: npm test
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BUILDINGS, BUILDING_BASE, CELL_PX, GRID_W, MAT, PASSAGES, SPAWN, WORLD_H, WORLD_W, doorFrontOf, doorOf, feetOverlap, fits, isReachable, matAt, moveFeet, reachable } from "../src/data/campusV2.js";
+import { BUILDINGS, BUILDING_BASE, CELL_PX, GRID_W, MAT, PASSAGES, SPAWN, WORLD_H, WORLD_W, doorFrontOf, doorOf, feetOverlap, fits, gateRects, quizSpots, isReachable, matAt, moveFeet, reachable } from "../src/data/campusV2.js";
 import { WORLD } from "../src/data/world.js";
 import { BOOTH_TALK, boothRect, boothTalkPoint, feetHitBooth, feetHitSign, rallySpotsOf, rallyStops } from "../src/data/stampRallySpots.js";
 import { GUIDE_RANGE, nearestOfficePlace, officeSpot } from "../src/ui/officeView.js";
 import { STAMP_RALLY_IDS } from "../shared/stampRally.js";
+import { BOOTH_SIZE } from "../src/gfx/rallyTextures.js";
 
 const stops = rallyStops();
 const NOT_TARGETS = ["cyber", "gatehouse", "flc"];
@@ -152,5 +153,29 @@ test("부스 · 팻말은 통과할 수 없음(이동 판정), 퀴즈 상자는 
       assert.ok(!inBooth, `${id}: 퀴즈 상자 (${q.x}, ${q.y})가 부스와 겹침`);
       assert.ok(Math.hypot(q.x - sign.x, q.y - sign.y) >= 28, `${id}: 퀴즈 상자 (${q.x}, ${q.y})가 팻말과 겹침`);
     }
+  }
+});
+
+test("정문 기둥 · 현수막(#114)과 겹치지 않음: 부스 그림 · 팻말이 정문 그림에서 떨어져 있고, 퀴즈 상자 후보는 정문 · 부스 · 팻말 제외가 함께 걸림", () => {
+  const gate = gateRects();
+  const hit = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  for (const { id, sign, booth } of stops) {
+    // 부스 그림(46×46, 바닥 기준점 23 · 39)과 이름표 칸, 팻말 판 · 기둥 칸
+    const boothArt = { x: booth.x - BOOTH_SIZE.originX, y: booth.y - BOOTH_SIZE.originY - 12, w: BOOTH_SIZE.w, h: BOOTH_SIZE.h + 12 };
+    const signArt = { x: sign.x - 28, y: sign.y - 24, w: 56, h: 32 };
+    for (const r of gate) {
+      assert.ok(!hit(boothArt, r), `${id}: 부스가 정문 그림과 겹침`);
+      assert.ok(!hit(signArt, r), `${id}: 팻말이 정문 그림과 겹침`);
+    }
+    // 정문 기둥 받침 칸(판정 격자에서 막힘) 위에 부스 바닥 · 팻말 · 부스 앞 말 거는 자리가 없음
+    for (const p of [sign, boothTalkPoint(booth)]) assert.ok(fits(p.x, p.y), `${id}: (${p.x}, ${p.y})가 막힌 칸`);
+  }
+  // WORLD.quizSpots = 맵 후보(정문 그림 제외, campusV2.quizSpots) ∩ 안내원 · 부스 · 팻말 제외
+  const v2Spots = new Set(quizSpots().map((p) => `${p.x},${p.y}`));
+  const worldSpots = WORLD.quizSpots();
+  assert.ok(worldSpots.length > 100, `퀴즈 상자 후보 ${worldSpots.length}개`);
+  for (const q of worldSpots) {
+    assert.ok(v2Spots.has(`${q.x},${q.y}`), `(${q.x}, ${q.y})는 정문 제외 목록에 없는 후보`);
+    for (const r of gate) assert.ok(!hit({ x: q.x - 8, y: q.y - 10, w: 16, h: 18 }, r), `(${q.x}, ${q.y}) 정문 그림과 겹침`);
   }
 });
