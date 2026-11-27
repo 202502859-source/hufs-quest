@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
-import { splitDoubleMajor } from "./ragSplit.mjs";
+import { splitDoubleMajor, splitRagChunk } from "./ragSplit.mjs";
 import { buildMetadata } from "./ragMetadata.mjs";
 
 const chunks = JSON.parse(readFileSync(
@@ -115,4 +116,53 @@ test("세분화 대상이 아닌 조각은 원문과 ID 유지", () => {
     ...original,
     parent_id: original.id
   }]);
+});
+
+// ── 11/26: 수강신청지침(11377-02) 분리 ──
+test("11384 이중전공 분리 결과는 규칙 일반화 전과 한 글자도 같음", () => {
+  // 일반화 전 splitDoubleMajor(11/26 main)로 만든 결과(JSON)의 SHA-256
+  const json = JSON.stringify(originals.flatMap(splitRagChunk));
+  assert.equal(
+    createHash("sha256").update(json).digest("hex"),
+    "264f498f17e44c99f4739007a2680eafed2557e3d449c350059265ba4044413b"
+  );
+  assert.equal(splitDoubleMajor, splitRagChunk);
+});
+
+test("11377-02: 일정 표(-a) · 본인 신청 · 성적 불인정(-b) 두 조각, 원문 줄 순서 그대로, 머리글 유지", () => {
+  const original = chunks.find(c => c.id === "11377-02");
+  const lines = original.text.split("\n");
+  assert.equal(lines.length, 11, "머리글 1줄 + 본문 10줄");
+
+  const parts = splitRagChunk(original);
+  assert.deepEqual(parts.map(c => c.id), ["11377-02-a", "11377-02-b"]);
+  assert.deepEqual(parts.map(c => c.split_label), ["수강신청 일정", "본인 신청·미신청 성적 불인정"]);
+
+  for (const c of parts) {
+    assert.equal(c.text.split("\n")[0], lines[0], "머리글 유지");
+    assert.equal(c.parent_id, "11377-02");
+    assert.equal(c.title, "수강신청지침");
+    assert.equal(c.url, original.url);
+    assert.equal(c.section, original.section);
+    assert.equal(c.collected_at, original.collected_at);
+  }
+
+  // 원문 줄 그대로: -a는 본문 1~9줄(일정 표 · "일정별 신청학년…" · "(예시 …)"), -b는 마지막 줄
+  assert.deepEqual(parts[0].text.split("\n").slice(1), lines.slice(1, 10));
+  assert.deepEqual(parts[1].text.split("\n").slice(1), lines.slice(10));
+  assert.ok(parts[0].text.includes("일정별 신청학년은 해당 학기 등록횟수를 기준으로 함"));
+  assert.ok(parts[0].text.includes("(예시 :"));
+  assert.ok(parts[1].text.includes("수강신청하지 않고 수업에 참여한 경우 성적으로 인정하지 않음"));
+
+  // 합치면 원문과 같음
+  assert.equal(
+    [lines[0], ...parts.flatMap(c => c.text.split("\n").slice(1))].join("\n"),
+    original.text
+  );
+});
+
+test("11377-02: 제목 · 줄 수가 바뀌면 나누지 않고 오류", () => {
+  const original = chunks.find(c => c.id === "11377-02");
+  assert.throws(() => splitRagChunk({ ...original, title: "이중전공" }), /예상하지 못한 원문 제목/);
+  assert.throws(() => splitRagChunk({ ...original, text: original.text + "\n추가 문장" }), /원문 구조 변경/);
 });

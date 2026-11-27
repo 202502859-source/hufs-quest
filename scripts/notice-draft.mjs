@@ -10,7 +10,7 @@
  *   --from-output FILE  AI를 부르지 않고, 저장해 둔 도우미 출력(FILE)을 씀(시험용)
  *
  * 하는 일
- *  1. 공지 추출 도우미(scripts/extract-notice.mjs)를 실행합니다. .env의 CLOVA_API_KEY는 node가 읽기만 합니다(이 파일은 키를 다루지 않음).
+ *  1. 공지 추출 도우미(scripts/extract-notice-hcx007.mjs)를 실행합니다. .env의 CLOVA_API_KEY는 node가 읽기만 합니다(이 파일은 키를 다루지 않음).
  *     도우미는 원문 근거 검사(noticeEvidence)를 거친 값만 초안에 남깁니다. 중혁 님 HCX-007 도우미로 바뀌면 EXTRACTOR만 바꿉니다.
  *  2. 새 브랜치 data/notice-<글번호>(origin/main 기준)에서 shared/deadlines.js 끝에 항목을 넣습니다. checked는 비워 둡니다.
  *  3. 커밋 · push 후 gh로 Draft PR을 만듭니다(gh가 없으면 PR 만들기 주소를 출력).
@@ -20,14 +20,21 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { parseExtractOutput, parseArticleUrl, buildDeadlineEntry, insertDeadline, comparisonTable } from "./lib/noticeDraft.mjs";
 
-const EXTRACTOR = "scripts/extract-notice.mjs"; // 지금 도우미(HCX-005). HCX-007 도우미가 Merge되면 여기만 바꿈
+import { validPublishedAt } from "./lib/noticeHcx007Date.mjs";
+
+const EXTRACTOR = "scripts/extract-notice-hcx007.mjs"; // HCX-007 도우미 (PR #116, 11/30 전환)
 const DEADLINES_FILE = "shared/deadlines.js";
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
 const option = (name) => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : null);
 const fromOutput = option("--from-output");
-const positional = argv.filter((a, i) => !a.startsWith("--") && argv[i - 1] !== "--from-output");
+const publishedAt = option("--published-at");
+const positional = argv.filter((a, i) =>
+  !a.startsWith("--") &&
+  argv[i - 1] !== "--from-output" &&
+  argv[i - 1] !== "--published-at"
+);
 const [noticeFile, articleUrl] = positional;
 const dryRun = flag("--dry-run");
 const useGit = !flag("--no-git") && !dryRun;
@@ -35,7 +42,24 @@ const useGit = !flag("--no-git") && !dryRun;
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
 
 function runExtractor() {
-  const r = spawnSync(process.execPath, ["--env-file=.env", EXTRACTOR, noticeFile, articleUrl], { encoding: "utf8" });
+  // 기존 HCX-005 운영 경로는 현규가 직접 전환한다.
+  if (publishedAt && EXTRACTOR === "scripts/extract-notice.mjs") {
+    throw new Error("게시일 옵션은 HCX-007 연동 이후 사용할 수 있습니다.");
+  }
+
+  const extractorArgs = [
+    "--env-file=.env",
+    EXTRACTOR,
+    noticeFile,
+    articleUrl,
+    ...(publishedAt ? ["--published-at", publishedAt] : []),
+  ];
+
+  const r = spawnSync(
+    process.execPath,
+    extractorArgs,
+    { encoding: "utf8" }
+  );
   if (r.status !== 0) throw new Error(`공지 추출 도우미 실패:\n${r.stderr || r.stdout}`);
   return r.stdout;
 }
@@ -45,6 +69,13 @@ function hasGh() {
 }
 
 async function main() {
+  if (
+    argv.filter(a => a === "--published-at").length > 1 ||
+    (flag("--published-at") && !validPublishedAt(publishedAt))
+  ) {
+    throw new Error("게시일은 YYYY-MM-DD 형식의 실제 날짜로 입력하세요.");
+  }
+
   if (!noticeFile || !articleUrl) {
     throw new Error("사용법: npm.cmd run notice:draft -- <본문 파일> <원문 주소>");
   }
@@ -53,8 +84,13 @@ async function main() {
 
   // 1. AI 초안
   const output = fromOutput ? await readFile(fromOutput, "utf8") : runExtractor();
-  const { draft, evidence } = parseExtractOutput(output);
+  const { draft, evidence, reviewNotes } = parseExtractOutput(output);
   const { entry, problems } = buildDeadlineEntry(draft, articleUrl);
+
+  // 기존 확인 목록과 함께 로컬 검수 문서 및 Draft PR에 전달한다.
+  problems.push(
+    ...reviewNotes.map(note => "마감 검수: " + note)
+  );
   const table = comparisonTable(entry, evidence);
 
   console.log("\n=== 원문 근거 문장 ↔ 입력값 비교표 ===");

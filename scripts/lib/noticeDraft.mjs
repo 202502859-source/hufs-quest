@@ -31,7 +31,24 @@ export function parseExtractOutput(output) {
   const draft = jsonAfterHeading(output, "shared/deadlines.js 입력용 초안");
   const result = jsonAfterHeading(output, "공지 추출 JSON 초안");
   if (!draft) throw new Error("도우미 출력에서 'shared/deadlines.js 입력용 초안'을 찾지 못했습니다.");
-  return { draft, evidence: result?.evidence ?? {} };
+  const reviewNotes = result?.reviewNotes ?? [];
+
+  if (
+    !Array.isArray(reviewNotes) ||
+    reviewNotes.some(note =>
+      typeof note !== "string" ||
+      !note.trim() ||
+      /[\r\n]/.test(note)
+    )
+  ) {
+    throw new Error("검수 메모 형식 오류");
+  }
+
+  return {
+    draft,
+    evidence: result?.evidence ?? {},
+    reviewNotes,
+  };
 }
 
 /** 원문 주소 → { site, boardNo, postId } (학교 공지 본문 주소 모양만) */

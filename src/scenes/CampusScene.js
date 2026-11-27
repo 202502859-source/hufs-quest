@@ -2,17 +2,20 @@ import Phaser from "phaser";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { buildCampusLayers } from "../data/campus.js";
 import { WORLD, findPlace } from "../data/world.js";
-import { feetOverlap } from "../data/campusV2.js";
-import { guideTextRect } from "../data/guides.js";
+import { gateRects } from "../data/campusV2.js";
+import { addCampusGate } from "../gfx/campusGate.js";
 import { GuidePrompt } from "../ui/guidePrompt.js";
 import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
-import { placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
-import { isTouchDevice } from "../device.js";
+import { liftClear, placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
+import { isTouchDevice, onTouchDetected } from "../device.js";
+import { CAMERA_ZOOM, cameraOffsetX } from "../ui/firstScreen.js";
 import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
 import { signOut } from "../data/auth.js";
 import { resetProgressCache } from "../data/progressApi.js";
-import { activeQuests, getLang, onLangChange, resetSession, t } from "../state.js";
+import { getLang, onLangChange, resetSession, t } from "../state.js";
+import { BOOTH_SIZE, BOOTH_TEXTURE, registerRallyTextures, signTexture } from "../gfx/rallyTextures.js";
+import { BOOTH_SCALE, BOOTH_TALK, SIGN_FOOT, SIGN_SCALE, boothArtRect, boothTalkPoint, feetHitBooth, feetHitSign, signArtRect } from "../data/stampRallySpots.js";
 import { placeName, trackedDestination } from "../ui/campusMap.js";
 import { createPlannerOverlay } from "../ui/plannerOverlay.js";
 import { SHOW_OUT_OF_SCOPE } from "../data/features.js";
@@ -24,17 +27,15 @@ import { createQuestOverlay } from "../ui/questOverlay.js";
 import { createSearchBar } from "../ui/searchBar.js";
 import { createOfficeOverlay } from "../ui/officeOverlay.js";
 import { createMapReportOverlay } from "../ui/mapReportOverlay.js";
-import { nearestOfficePlace } from "../ui/officeView.js";
+import { nearestOfficePlace, officeSpot } from "../ui/officeView.js";
 
-const CAMERA_ZOOM = 3;
 const PLAYER_SPEED = 90;
 const IDLE_FRAME = { down: 0, up: 2, left: 4, right: 6 };
 // 이름표는 땅(-10) 바로 위: 캐릭터 · NPC · 퀴즈 상자(깊이 = y 좌표)보다 아래에 그려 가리지 않습니다.
 // "건물 소개 안내원" 글자도 땅 위 글자라 이름표 바로 위(-4), 캐릭터가 지나가면 캐릭터가 위에 그려집니다.
-const DEPTH = { NAME_TAG: -5, GUIDE_LABEL: -4, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
-const OFFICE_PROMPT_ABOVE_GUIDE = 9; // [Enter] 시설 소개 말풍선 꼬리 끝을 안내원 가운데보다 이만큼 위(머리 바로 위)에 둡니다.
-const GUIDE_LOOK = "npc-1"; // 건물 소개 안내원 모양(src/gfx/textures.js NPC_LOOKS, 11명 모두 같음)
-const GUIDE_LABEL_FONT = 6; // 안내원 발밑 이름표(11/26: 8px → 6px, 건물 이름표 10px보다 확실히 작게)
+const DEPTH = { NAME_TAG: -5, DEST_ARROW: 5002, QUIZ_PROMPT: 5003, OFFICE_PROMPT: 5004 };
+const BOOTH_LABEL_FONT = 6; // "[스탬프 랠리 부스]" 이름표(건물 이름표 10px와 같은 글꼴 · 색 · 배경, 크기는 안내원 이름표 · 팻말 글자와 같은 6px)
+const SIGN_PROMPT_ABOVE = 18 * SIGN_SCALE; // 팻말 판 바로 위에 [Enter] 시설 소개 말풍선 꼬리 끝(그림을 그리기 전 기본값)
 const NAME_TAG_FONT = 10;
 const ARROW_ABOVE_DOOR = 26;
 const PLANNER_RANGE = 6 * TILE_SIZE;
@@ -54,6 +55,8 @@ export class CampusScene extends Phaser.Scene {
       solidLayer.setCollisionByExclusion([-1]);
     } else {
       addCampusV2Ground(this);
+      // 정문 기둥 한 쌍 · 현수막(v2 전용, 맵 텍스처 밖에 따로 세운 그림). 깊이는 받침 바닥 기준이라 캐릭터 · 안내원 · 퀴즈 상자와 앞뒤로 겹칩니다.
+      addCampusGate(this);
     }
     const worldWidth = WORLD.width;
     const worldHeight = WORLD.height;
@@ -63,7 +66,7 @@ export class CampusScene extends Phaser.Scene {
     // 언어를 바꾸면 이름 길이가 달라지므로 자리도 다시 계산합니다.
     const offLang = onLangChange(() => {
       this.nameTags.forEach(({ place, tag }) => this.layoutNameTag(place, tag));
-      this.guides.forEach(({ label }) => label.setText(t("guideLabel")));
+      this.rally.forEach((stop) => this.drawRallyTexts(stop));
     });
     this.events.once("shutdown", offLang);
     this.loggingOut = false;
@@ -78,9 +81,11 @@ export class CampusScene extends Phaser.Scene {
     // v1은 타일 충돌, v2는 movePlayer에서 판정 격자(WORLD.moveFeet)로 직접 움직입니다.
     if (solidLayer) this.physics.add.collider(this.player, solidLayer);
 
-    // 건물 소개 안내원: 정문(DOOR_OVERRIDES 11곳) 옆에 서 있고, 가까이 가면 머리 위에 "[Enter] 시설 소개"가 뜹니다.
-    // 안내원 칸은 지나갈 수 없습니다(v2는 movePlayer의 blocked, v1은 고정 물리 몸통).
-    this.guides = WORLD.buildings.filter((place) => place.guide).map((place) => this.addGuide(place, solidLayer));
+    // "시설 안내문" 팻말(11/27 오후: 예전 건물 소개 안내원 NPC 대신): 시설 소개가 있는 건물의 출입구 옆 외벽에 붙어 있고,
+    // 가까이 가면 판 위에 "[Enter] 시설 소개"가 뜹니다. 스탬프 랠리 대상 4곳은 문 반대쪽에 부스도 있습니다
+    // (src/data/stampRallySpots.js). 팻말 · 부스 칸은 지나갈 수 없습니다(v2는 movePlayer의 blocked, v1은 고정 물리 몸통).
+    registerRallyTextures(this);
+    this.rally = WORLD.buildings.filter((place) => place.sign).map((place) => this.addRallyStop(place, solidLayer));
 
     this.destArrow = this.add.image(0, 0, "dest-arrow").setDepth(DEPTH.DEST_ARROW).setVisible(false);
 
@@ -105,11 +110,24 @@ export class CampusScene extends Phaser.Scene {
     this.officePrompt.on("tap", () => {
       if (this.officePlace) this.openOffice(this.officePlace.id);
     });
+    // 스탬프 랠리 부스 앞에 서면 뜨는 "[Enter] 스탬프 랠리" 말풍선(같은 모양). 터치 화면은 말풍선이나 부스를 누르면 열립니다.
+    this.boothPlace = null;
+    this.boothPrompt = new GuidePrompt(this, CAMERA_ZOOM).setDepth(DEPTH.OFFICE_PROMPT).setVisible(false);
+    this.boothPrompt.on("tap", () => {
+      if (this.boothPlace) this.openBooth(this.boothPlace);
+    });
 
     const camera = this.cameras.main;
     camera.setBounds(0, 0, worldWidth, worldHeight);
     camera.setZoom(CAMERA_ZOOM);
     camera.startFollow(this.player, true, 0.15, 0.15);
+    // 첫 화면에서 오른쪽 위 HUD(미니맵 + 펼친 일일 퀘스트 창)가 정문을 가리지 않도록 카메라를 가로로 옮깁니다
+    // (src/ui/firstScreen.js cameraOffsetX: 가리는 만큼 + 8px, 안 가리면 0). 화면 크기 · 터치 여부가 바뀌면 다시 계산합니다.
+    this.applyCameraOffset();
+    const reapply = () => this.applyCameraOffset();
+    this.scale.on("resize", reapply);
+    this.events.once("shutdown", () => this.scale.off("resize", reapply));
+    onTouchDetected(reapply);
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.mapKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.M);
@@ -122,6 +140,12 @@ export class CampusScene extends Phaser.Scene {
     // 매 프레임 JustDown으로 보면 아주 짧게 누른 Enter(한 프레임 안에 눌렀다 뗌)를 놓쳐서 키 이벤트로 받습니다.
     // addKey로 등록하지 않아 다른 HTML 입력칸의 Enter를 가로채지(preventDefault) 않습니다. 장면이 멈추거나 키 입력이 꺼지면 오지 않습니다.
     this.input.keyboard.on("keydown-ENTER", (event) => {
+      // 부스와 팻말이 둘 다 가까우면 더 가까운 쪽 말풍선 하나만 떠 있습니다(updateBoothPrompt).
+      if (this.boothPlace && this.boothPrompt.visible) {
+        event.preventDefault();
+        this.openBooth(this.boothPlace);
+        return;
+      }
       if (!this.officePlace || !this.officePrompt.visible) return;
       // 창이 열리면 "닫기" 버튼에 포커스가 가는데, 같은 Enter의 keypress가 그 버튼을 눌러 바로 닫히지 않게 막습니다.
       event.preventDefault();
@@ -143,6 +167,15 @@ export class CampusScene extends Phaser.Scene {
       this.input.keyboard.resetKeys();
       this.searchBar.setVisible(true);
     });
+  }
+
+  applyCameraOffset() {
+    if (!this.cameras?.main) return;
+    const displayScale = this.game.canvas.getBoundingClientRect().width / this.scale.width || 1;
+    const offset = WORLD.version === "v2" ? cameraOffsetX({ W: this.scale.width, H: this.scale.height, touch: isTouchDevice(), displayScale }) : 0;
+    this.cameraOffset = offset;
+    // Phaser 카메라는 (플레이어 x − followOffset.x)를 가운데에 둡니다. 음수면 가운데가 플레이어보다 오른쪽 → 화면 속 물체가 왼쪽으로.
+    this.cameras.main.setFollowOffset(-offset / CAMERA_ZOOM, 0);
   }
 
   askQuestion(question) {
@@ -170,10 +203,11 @@ export class CampusScene extends Phaser.Scene {
 
   // 퀴즈 상자를 엽니다. 지도·퀘스트 창과 같은 방식으로, 열려 있는 동안 캐릭터와 검색창을 멈춥니다.
   openQuiz(box) {
-    if (this.dialog.isOpen || this.scene.isActive("Quiz")) return;
+    if (this.dialog.isOpen || this.scene.isActive("Quiz") || this.scene.isActive("Booth")) return;
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
     this.officePrompt.setVisible(false);
+    this.boothPrompt.setVisible(false);
     // 한 번 연 상자는 같은 문제를 유지합니다(풀지 않고 닫았다가 다시 열어도 같은 문제).
     box.question ??= nextQuestion(this.quizBoxes.assignedIds(box));
     this.searchBar.setVisible(false);
@@ -183,6 +217,25 @@ export class CampusScene extends Phaser.Scene {
         this.closeOverlay();
         if (answered) this.quizBoxes.solve(box);
         this.scene.get("Hud").dirty = true; // 받은 경험치를 바로 보여 줍니다.
+      },
+    });
+    this.scene.pause();
+  }
+
+  // 스탬프 랠리 부스의 문제 창(BoothScene)을 엽니다. 퀴즈 창과 같은 방식으로 캐릭터와 검색창을 멈춥니다.
+  // 닫히면 HUD에 알립니다(스탬프 획득 알림 · 도장 찍히는 연출 · 완주 알림).
+  openBooth(place) {
+    if (this.anyOverlayOpen() || this.scene.isActive("Quiz") || this.scene.isActive("Booth")) return;
+    this.stopPlayer();
+    this.quizPrompt.setVisible(false);
+    this.officePrompt.setVisible(false);
+    this.boothPrompt.setVisible(false);
+    this.searchBar.setVisible(false);
+    this.scene.launch("Booth", {
+      buildingId: place.id,
+      onClose: (outcome) => {
+        this.closeOverlay();
+        this.scene.get("Hud").onBoothClosed?.(outcome);
       },
     });
     this.scene.pause();
@@ -212,13 +265,14 @@ export class CampusScene extends Phaser.Scene {
     this.scene.pause();
   }
 
-  // HUD의 퀘스트 버튼이나 Q 키로 퀘스트 창을 엽니다. 진행 중인 퀘스트가 없으면 버튼이 숨겨지고 Q도 무시합니다.
+  // HUD 일일 퀘스트 창의 줄을 누르거나 Q 키로 일일 퀘스트 상세 창(스탬프 랠리 4곳 체크 목록 · 일일 퀴즈)을 엽니다.
+  // 닫으면 미니맵에서 다음 부스 위치가 잠깐 깜빡입니다.
   openQuests() {
-    if (!activeQuests().length || this.anyOverlayOpen()) return;
+    if (this.anyOverlayOpen()) return;
     this.pauseForOverlay();
-    this.questOverlay ??= createQuestOverlay(this.game, (result) => {
+    this.questOverlay ??= createQuestOverlay(this.game, () => {
       this.closeOverlay();
-      if (result?.questId) this.openQuestInfo(result.questId);
+      this.scene.get("Hud").blinkNextBooth?.();
     });
     this.questOverlay.show();
   }
@@ -257,7 +311,7 @@ export class CampusScene extends Phaser.Scene {
     this.mapReportOverlay.show(placeId);
   }
 
-  // 가장 가까운 건물 소개 안내원 머리 위에 문구를 띄웁니다(맵 v1 · v2 모두 place.guide). 정문 쪽 문구는 없습니다.
+  // 가장 가까운 건물 소개 안내원(스탬프 랠리 4곳은 "시설 안내문" 팻말) 위에 문구를 띄웁니다. 정문 쪽 문구는 없습니다.
   // 퀴즈 상자 문구와 겹치면 그 위로 올립니다.
   updateOfficePrompt() {
     const place = nearestOfficePlace(WORLD.buildings, this.player.x, this.player.y);
@@ -266,13 +320,41 @@ export class CampusScene extends Phaser.Scene {
     if (!place) return null;
     // 키 이름은 괄호 없이 키 모양 안에: "[Enter]" → Enter, "[터치]" → 터치
     const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint").replace(/[[\]]/g, "");
-    this.officePrompt.setContent(hint, t("officePrompt")).setPosition(place.guide.x, place.guide.y - OFFICE_PROMPT_ABOVE_GUIDE);
+    const spot = officeSpot(place);
+    const above = place.signTop ?? SIGN_PROMPT_ABOVE;
+    this.officePrompt.setContent(hint, t("officePrompt")).setPosition(spot.x, spot.y - above);
     if (this.quizPrompt.visible) {
       const a = this.officePrompt.getBounds();
       const b = this.quizPrompt.getBounds();
       if (Phaser.Geom.Rectangle.Overlaps(a, b)) this.officePrompt.setY(b.top - 2);
     }
     return place;
+  }
+
+  // 부스 앞(아래쪽)에 서면 지붕 위에 "[Enter] 스탬프 랠리"를 띄웁니다. 팻말 문구와 둘 다 뜰 거리면 더 가까운 쪽 하나만 남깁니다.
+  updateBoothPrompt() {
+    let best = null;
+    let bestDistance = BOOTH_TALK.range;
+    for (const stop of this.rally) {
+      if (!stop.place.booth) continue;
+      const talk = boothTalkPoint(stop.place.booth);
+      const distance = Math.hypot(talk.x - this.player.x, talk.y - this.player.y);
+      if (distance < bestDistance) {
+        best = stop;
+        bestDistance = distance;
+      }
+    }
+    if (best && this.officePlace && this.officePrompt.visible) {
+      const spot = officeSpot(this.officePlace);
+      if (Math.hypot(spot.x - this.player.x, spot.y - this.player.y) < bestDistance) best = null;
+      else this.officePrompt.setVisible(false);
+    }
+    this.boothPlace = best?.place ?? null;
+    this.boothPrompt.setVisible(Boolean(best));
+    if (!best) return;
+    const hint = t(isTouchDevice() ? "officeKeyHintTouch" : "officeKeyHint").replace(/[[\]]/g, "");
+    const { booth } = best.place;
+    this.boothPrompt.setContent(hint, t("boothPrompt")).setPosition(booth.x, best.label.getBounds().top - 1);
   }
 
   anyOverlayOpen() {
@@ -292,6 +374,7 @@ export class CampusScene extends Phaser.Scene {
     this.stopPlayer();
     this.quizPrompt.setVisible(false);
     this.officePrompt.setVisible(false);
+    this.boothPrompt.setVisible(false);
     this.searchBar.setVisible(false);
     this.input.keyboard.enabled = false;
     this.setHudInput(false);
@@ -344,7 +427,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.dialog?.isOpen) this.dialog.close();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
-    ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
+    ["Quiz", "Booth", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
     resetSession();
     this.scene.start("Title", { openLogin: true });
   }
@@ -363,7 +446,7 @@ export class CampusScene extends Phaser.Scene {
     if (this.mapReportOverlay?.isOpen()) this.mapReportOverlay.hide();
     this.searchBar.setVisible(false);
     this.searchBar.clear();
-    ["Quiz", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
+    ["Quiz", "Booth", "QuestInfo", "Map", "Hud", "Dialog"].forEach((key) => this.scene.stop(key));
     await signOut();
     resetProgressCache();
     resetSession();
@@ -387,35 +470,64 @@ export class CampusScene extends Phaser.Scene {
     return map.createLayer(0, tileset, 0, 0);
   }
 
-  // 안내원 한 명과 바로 아래 "건물 소개 안내원" 글자. 안내원을 누르면(문구가 떠 있을 때) 시설 소개 창을 엽니다.
-  addGuide(place, solidLayer) {
-    const { x, y } = place.guide;
-    const sprite = this.add.sprite(x, y, GUIDE_LOOK, 0).setDepth(y).setInteractive({ useHandCursor: true });
-    sprite.on("pointerdown", () => {
+  // v2 이동에서 팻말 · 부스 칸을 막습니다(판정 격자에는 넣지 않음).
+  blockedByGuide = (x, y) => this.rally.some(({ place }) => feetHitSign(x, y, place.sign) || (place.booth && feetHitBooth(x, y, place.booth)));
+
+  // 건물 한 곳의 "시설 안내문" 팻말(출입구 옆 외벽에 붙음)과, 스탬프 랠리 대상이면 문 반대쪽 부스(지붕 위 "[스탬프 랠리 부스]" 이름표).
+  // 팻말을 누르면(문구가 떠 있을 때) 시설 소개 창, 부스를 누르면(앞에 서 있을 때) 문제 창을 엽니다. 그림은 예전의 80%(SIGN_SCALE · BOOTH_SCALE).
+  addRallyStop(place, solidLayer) {
+    const { sign, booth } = place;
+    const signImage = this.add.image(sign.x, sign.y + SIGN_FOOT, "__DEFAULT").setDepth(sign.y).setInteractive({ useHandCursor: true });
+    signImage.on("pointerdown", () => {
       if (this.officePlace === place && this.officePrompt.visible) this.openOffice(place.id);
     });
-    const label = this.add
-      .text(x, y + 7, t("guideLabel"), {
-        fontFamily: "Galmuri9, sans-serif",
-        fontSize: `${GUIDE_LABEL_FONT}px`,
-        color: "#fff7cc",
-        backgroundColor: "rgba(16, 24, 42, 0.78)",
-        padding: { x: 2, y: 0.5 },
-        resolution: CAMERA_ZOOM,
-      })
-      .setOrigin(0.5, 0)
-      .setAlpha(0.92)
-      .setDepth(DEPTH.GUIDE_LABEL);
     if (solidLayer) {
-      this.physics.add.existing(sprite, true);
-      sprite.body.setSize(10, 7).setOffset(3, 9);
-      this.physics.add.collider(this.player, sprite);
+      // 옛 타일맵(?map=v1): 팻말 기둥을 고정 물리 몸통으로 막습니다.
+      const post = this.add.zone(sign.x, sign.y + SIGN_FOOT / 2, 8, 6);
+      this.physics.add.existing(post, true);
+      this.physics.add.collider(this.player, post);
     }
-    return { place, sprite, label };
+    let boothImage = null;
+    let label = null;
+    if (booth) {
+      boothImage = this.add
+        .image(booth.x, booth.y, BOOTH_TEXTURE)
+        .setOrigin(BOOTH_SIZE.originX / BOOTH_SIZE.w, BOOTH_SIZE.originY / BOOTH_SIZE.h)
+        .setScale(BOOTH_SCALE)
+        .setDepth(booth.y)
+        .setInteractive({ useHandCursor: true });
+      boothImage.on("pointerdown", () => {
+        if (this.boothPlace === place) this.openBooth(place);
+      });
+      // 부스 이름표: 건물 이름표(addNameTag)와 같은 글꼴 · 색 · 배경, 지붕 바로 위
+      label = this.add
+        .text(booth.x, booth.y - BOOTH_SIZE.originY * BOOTH_SCALE - 1, "", {
+          fontFamily: "Galmuri9, sans-serif",
+          fontSize: `${BOOTH_LABEL_FONT}px`,
+          color: "#fff7cc",
+          backgroundColor: "#10182a",
+          padding: { x: 2.5, y: 1 },
+          align: "center",
+          resolution: CAMERA_ZOOM,
+        })
+        .setOrigin(0.5, 1)
+        .setScale(BOOTH_SCALE)
+        .setDepth(booth.y + 1);
+    }
+    const stop = { place, signImage, boothImage, label };
+    this.drawRallyTexts(stop);
+    return stop;
   }
 
-  // v2 이동에서 안내원 칸을 막습니다(판정 격자에는 넣지 않음).
-  blockedByGuide = (x, y) => this.guides.some(({ place }) => feetOverlap(x, y, place.guide.x, place.guide.y));
+  // 언어에 맞는 팻말 글자("[시설 안내문]") · 부스 이름표를 그립니다. 문이 옆을 보는 건물(도서관 등)은 팻말을 비스듬히(3/4 각도) 그립니다.
+  drawRallyTexts({ place, signImage, label }) {
+    const face = place.sign.face;
+    const texture = signTexture(this, t("signLabel"), { angled: face === "left" || face === "right", mirror: face === "left" });
+    signImage.setTexture(texture.key).setOrigin(texture.originX, texture.originY).setScale(texture.scale * SIGN_SCALE);
+    signImage.input?.hitArea.setTo(0, 0, signImage.width, signImage.height);
+    place.signTop = texture.height * SIGN_SCALE - SIGN_FOOT + 2; // 팻말 자리에서 판 위 끝까지(말풍선 꼬리 끝)
+    label?.setText(t("boothLabel"));
+  }
 
   addNameTag(place) {
     const tag = this.add
@@ -448,11 +560,18 @@ export class CampusScene extends Phaser.Scene {
       tag.setFontSize(Math.round(NAME_TAG_FONT * scale)).setText(lines === 2 ? twoLine : name);
       return { w: tag.width, h: tag.height };
     };
-    // 건물 소개 안내원 아래 글자 칸은 피합니다(지붕 가장자리에 걸칠 때 겹치지 않게).
-    const avoid = WORLD.buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide));
+    // 정문 기둥 · 현수막 그림(이름표는 땅 높이라 정문 그림에 가려짐 — 정문안내실),
+    // 시설 안내문 팻말(판)과 스탬프 랠리 부스(지붕 · 이름표) 칸을 피합니다.
+    const gate = gateRects().map((r) => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }));
+    const avoid = [
+      ...gate,
+      ...WORLD.buildings.filter((b) => b.sign).map((b) => signArtRect(b.sign)),
+      ...WORLD.buildings.filter((b) => b.booth).map((b) => boothArtRect(b.booth)),
+    ];
     const spot = placeBuildingLabel(place, measure, avoid);
-    measure(spot.scale, spot.lines);
-    tag.setPosition(spot.x, spot.y);
+    const { w, h } = measure(spot.scale, spot.lines);
+    // 지붕 가운데 대안 자리가 정문 그림에 가리면(정문안내실) 이름표만 위로 올립니다.
+    tag.setPosition(spot.x, liftClear(spot.x, spot.y, w, h, gate));
   }
 
   stopPlayer() {
@@ -480,6 +599,7 @@ export class CampusScene extends Phaser.Scene {
       this.stopPlayer();
       this.quizPrompt.setVisible(false);
       this.officePrompt.setVisible(false);
+      this.boothPrompt.setVisible(false);
       return;
     }
 
@@ -510,6 +630,7 @@ export class CampusScene extends Phaser.Scene {
     }
 
     this.updateOfficePrompt();
+    this.updateBoothPrompt();
 
     this.movePlayer(delta);
     this.player.setDepth(this.player.y);

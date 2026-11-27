@@ -1,5 +1,5 @@
 // 재학생 진행 상태(레벨 · 경험치 · 포인트 · 퀘스트 · 퀴즈 기록)를 서버와 주고받는 유일한 통로입니다.
-// 화면 코드는 이 파일의 함수 4개만 부릅니다. 요청 · 응답 형식은 docs/PROGRESS_API.md 4장과 같습니다.
+// 화면 코드는 이 파일의 함수 5개만 부릅니다. 요청 · 응답 형식은 docs/PROGRESS_API.md 4장과 같습니다.
 // 게스트는 이 파일을 부르지 않습니다.
 //
 // 모드: VITE_PROGRESS_MODE (비밀 값 아님)
@@ -10,7 +10,8 @@
 // VITE_AUTH_MODE=mock + VITE_PROGRESS_MODE=real이면 콘솔에 경고하고 진행 저장도 가짜(mock)로 동작합니다.
 //
 // 가짜 모드에서 주소 끝에 붙여 상황을 재현할 수 있습니다.
-//   ?mock=cap      오늘 퀴즈 상한(50)에 이미 도달한 계정
+//   ?mock=cap      오늘 퀴즈 상한(100)에 이미 도달한 계정
+//   ?mock=daily    오늘 스탬프 2곳 + 퀴즈 정답 3개 · ?mock=rally3 스탬프 3곳 · ?mock=quiz9 퀴즈 정답 목표 - 1개(지금 4개)(일일 퀘스트 확인용)
 //   ?mock=already  퀴즈 · 퀘스트 · 출석을 모두 이미 받은 계정
 //   ?mock=error    퀴즈 · 퀘스트 · 출석 저장이 서버 오류로 실패 (불러오기는 성공)
 //   ?mock=slow     모든 응답이 3초 늦게 옴
@@ -47,7 +48,14 @@ export function answerQuiz(questionId, choice) {
   return PROGRESS_MODE === "real" ? request("POST", "/api/quiz-answer", body) : mockCall("answerQuiz", body);
 }
 
-// ③ 퀘스트 완료 기록 → { result, gained, leveledUp, progress }
+// ②-2 스탬프 랠리 부스 답. choiceIndex: 0 · 1 · 2 → { result: "ok" | "already" | "wrong", correct, gained(0), progress }
+// 새 서버 함수 없이 같은 /api/quiz-answer에 kind: "booth"로 보냅니다.
+export function answerBooth(buildingId, choiceIndex) {
+  const body = { kind: "booth", buildingId, choiceIndex };
+  return PROGRESS_MODE === "real" ? request("POST", "/api/quiz-answer", body) : mockCall("answerBooth", body);
+}
+
+// ③ 퀘스트 완료 기록(일일 퀘스트 "stampRally" · "dailyQuiz" 포함) → { result, gained, leveledUp, progress }
 export function completeQuest(questId) {
   const body = { questId };
   return PROGRESS_MODE === "real" ? request("POST", "/api/quest-complete", body) : mockCall("completeQuest", body);

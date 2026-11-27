@@ -62,7 +62,15 @@
     "rewarded": ["seasonal-credits", "warning-dismissal", "grad-2025"],
     "answered": ["seasonal-credits", "warning-dismissal", "grad-2025", "minor-credits"],
     "todayExp": 30,
-    "dailyCap": 50
+    "dailyCap": 100
+  },
+  "daily": {
+    "date": "2026-11-27",
+    "quizCorrect": 3,
+    "quizGoal": 5,
+    "quizBonusDone": false,
+    "stamps": ["library", "union"],
+    "rallyDone": false
   }
 }
 ```
@@ -76,11 +84,29 @@
 | 다음 레벨까지 필요한 경험치 | 레벨 n에서 **10 × n** (Lv.1 10, Lv.2 20, Lv.3 30 …). 이전에는 레벨마다 100 |
 | 레벨업 | 필요량에 **도달하면** 레벨업, 남은 경험치는 이월(예: Lv.1 EXP 8에서 +5 → Lv.2 EXP 3/20). 한 번에 여러 레벨도 오름 |
 | 계산식 | Lv.L을 시작하는 누적 경험치 = 5 · L · (L − 1). `level` = 이 값이 `total_exp` 이하인 가장 큰 L, `exp` = `total_exp` − 5 · L · (L − 1), `expMax` = 10 · L |
-| 누적 → 레벨 예 | 0 → Lv.1 0/10 · 10 → Lv.2 0/20 · 30 → Lv.3 0/30 · 60 → Lv.4 0/40 · 100 → Lv.5 0/50 · 620(문제 60 + 퀘스트 2) → Lv.11 70/110 |
+| 누적 → 레벨 예 | 0 → Lv.1 0/10 · 10 → Lv.2 0/20 · 30 → Lv.3 0/30 · 60 → Lv.4 0/40 · 100 → Lv.5 0/50 · 1020(문제 100 + 퀘스트 2) → Lv.14 110/140 |
 | 기존 사용자 | DB에는 `profiles.total_exp`만 있고 레벨은 매번 계산하므로 **데이터 변경 · SQL 없음**. Merge하면 같은 누적 경험치로 새 레벨이 보임(예: 누적 120 = 이전 Lv.2 20/100 → 새 Lv.5 20/50). 포인트는 그대로 |
 | 레벨 업 알림 | 퀴즈 · 퀘스트 응답으로 레벨이 오르면 HUD에 "레벨 업! Lv.N"을 한 번(여러 레벨이 올라도 마지막 레벨만). 로그인해서 처음 불러올 때는 띄우지 않음 |
-| 그대로인 것 | 퀴즈 보상 10 · 하루 상한 50, 퀘스트 완료 10 · 포인트 10, 출석 포인트 5, 응답 `progress` 형식 |
+| 그대로인 것 | 퀴즈 보상 10 · 하루 상한 50(11/27부터 100), 퀘스트 완료 10 · 포인트 10, 출석 포인트 5, 응답 `progress` 형식 |
 - `quiz.answered`는 다음 상자에 아직 안 푼 문제를 먼저 내는 데 씁니다. 순서는 처음 푼 순서입니다.
+- `daily`(2026-11-27 추가)는 오늘(한국 날짜 `date`)의 일일 퀘스트 상태입니다. 한국 시간 자정이 지나면 서버가 0으로 돌려줍니다.
+  - `quizCorrect`: 오늘 `reward_log`에서 `source = 'quiz'`로 경험치를 받은 개수(= 일일 퀴즈 "맞춘 정답 n/5"). `quizGoal`은 5(`DAILY_QUIZ_GOAL`, 11/27 서버 리뷰로 10 → 5: 문제당 평생 1회만 경험치를 줘서 목표 10이면 60문항으로 보너스가 1인당 6일뿐. #120에서 100문항이 되어 목표 5개면 20일). 하루 상한(10문제)까지는 5를 넘어 계속 셉니다.
+  - `quizBonusDone`: 오늘 일일 퀴즈 보너스를 받았는지(`quest_log`에 `dailyQuiz:<날짜>`).
+  - `stamps`: 오늘 받은 스탬프 랠리 건물 ID(표시 순서: `library` · `union` · `main` · `humanities`). `rallyDone`: 오늘 완주 보상을 받았는지(`stampRally:<날짜>`).
+  - 일일 퀘스트 완료 기록(`stampRally:<날짜>` · `dailyQuiz:<날짜>`, 11/24 이전에 저장된 날짜 없는 `stampRally` 포함)은 `completedQuests`에 **싣지 않습니다**.
+
+**일일 퀘스트 규칙 (2026-11-27 추가, PM 결정: 이종헌)** — 새 서버 함수 파일 · 새 SQL 없이 기존 `quiz-answer` · `quest-complete` · DB 함수를 넓혀 씁니다.
+
+| 항목 | 규칙 |
+| --- | --- |
+| 퀴즈 하루 상한 | `QUIZ_DAILY_CAP` **50 → 100**(하루 10문제 × 10). 문제당 경험치 10, 같은 문제는 처음 맞힐 때만 인정(DB 함수 `record_quiz_answer` 그대로, 상한은 인자로 넘김) |
+| 일일 퀴즈 보너스 | 오늘 정답 5개(`DAILY_QUIZ_GOAL`)를 채우면 하루 한 번 **경험치 50**(`DAILY_QUIZ_BONUS_EXP`), 포인트 0. 화면이 5번째 정답 직후 `quest-complete`에 `dailyQuiz`를 보내고, 서버가 오늘 정답 수를 직접 확인 |
+| 스탬프 | 부스 문제(3지선다)를 맞히면 `reward_log`에 `source 'stamp'`, `ref_id "<날짜>:<건물 ID>"`, 경험치 0 · 포인트 0으로 기록. 같은 날 같은 부스는 한 번(UNIQUE 조건). 대상 4곳: 도서관 · 국제학사 및 학생회관 · 본관 · 인문과학관. 받는 순서는 자유 |
+| 오늘의 부스 문제 | `shared/stampRally.js` `boothQuestionFor(건물 ID, 한국 날짜)`: 건물마다 후보 3개 중 날짜로 정해지는 1개. 서버와 화면이 같은 함수를 써서 같은 문제를 고름. 오답은 벌점 없이 다시 풀 수 있음 |
+| 랠리 완주 보상 | 오늘 스탬프 4곳을 다 모으면 하루 한 번 **경험치 50 · 포인트 10**(`STAMP_RALLY_REWARD`). 화면이 4번째 스탬프 직후 `quest-complete`에 `stampRally`를 보내고, 서버가 오늘 스탬프를 직접 확인. 다음 날 다시 완주하면 또 받음 |
+| 날짜 붙인 완료 기록 | 일일 퀘스트는 `complete_quest`의 `p_quest_id`에 한국 날짜를 붙임(`stampRally:2026-11-27`, `dailyQuiz:2026-11-27`). `quest_log (user_id, quest_id)` 유일 조건이 하루 한 번을 보장 |
+| 옛 기록 | 11/24 이전의 날짜 없는 `stampRally` 완료 기록은 지우지 않음. id가 달라 새 일일 방식과 충돌하지 않고, 응답 `completedQuests`에서만 뺌 |
+| 게스트 | 서버를 부르지 않음. 스탬프 · 완주 · 정답 수는 화면 메모리로만, 경험치 없음 |
 
 ### ① `GET /api/progress` — 진행 상태 불러오기
 
@@ -110,9 +136,22 @@
 | `ok` | 정답, 경험치 지급 | `quizCorrect` |
 | `wrong` | 오답 | `quizWrong` |
 | `already` | 이미 경험치를 받은 문제 | `quizAlready` |
-| `cap` | 오늘 상한(50) 도달 | `quizCap` |
+| `cap` | 오늘 상한(100, 11/27 이전 50) 도달 | `quizCap` |
 
 `400`: 없는 문제 ID · `429`: 요청이 너무 잦음
+
+**스탬프 랠리 부스 답 (2026-11-27 추가)** — 같은 주소에 `kind: "booth"`로 보냅니다.
+
+```json
+{ "kind": "booth", "buildingId": "library", "choiceIndex": 1 }
+```
+```json
+{ "result": "ok", "correct": true, "gained": { "exp": 0, "points": 0 }, "leveledUp": false, "progress": { … } }
+```
+
+- `choiceIndex`는 고른 보기 번호(0 · 1 · 2)입니다. 서버가 `shared/stampRally.js`로 오늘의 문제를 다시 골라 채점합니다(화면이 보낸 문제 내용은 받지 않음).
+- `result`: `ok`(스탬프를 새로 받음) · `already`(오늘 이 부스 스탬프를 이미 받음) · `wrong`(오답, 기록 없음). 경험치는 주지 않습니다.
+- `400`: 대상 4곳이 아닌 `buildingId`, 0~2가 아닌 `choiceIndex`.
 
 ### ③ `POST /api/quest-complete` — 퀘스트 완료 기록
 
@@ -122,9 +161,13 @@
 ```json
 { "result": "ok", "gained": { "exp": 10, "points": 10 }, "leveledUp": false, "progress": { … } }
 ```
-- 서버는 허용된 퀘스트 ID 목록에 있는지만 확인합니다. 보상은 `shared/progressRules.js`에서 정합니다(퀘스트마다 경험치 10, 포인트 10).
+- 영구 퀘스트(`REWARD_QUESTS`, 지금은 `doubleMajor`): 서버는 허용된 퀘스트 ID 목록에 있는지만 확인합니다. 보상은 `shared/progressRules.js`에서 정합니다(퀘스트마다 경험치 10, 포인트 10).
 - 이미 완료한 퀘스트면 `"result": "already"`, 보상 없음.
 - 범위 밖 기능인 `mockReg`(모의 수강신청)는 목록에 넣지 않습니다.
+- **일일 퀘스트(`DAILY_QUESTS`, 2026-11-27 추가)**: `questId`가 `stampRally` 또는 `dailyQuiz`이면 서버가 조건을 직접 확인합니다.
+  - `stampRally`: 오늘 스탬프 4곳이 모두 있어야 함 → `complete_quest(p_quest_id "stampRally:<날짜>", 경험치 50, 포인트 10)`
+  - `dailyQuiz`: 오늘 `quizCorrect` ≥ 10이어야 함 → `complete_quest(p_quest_id "dailyQuiz:<날짜>", 경험치 50, 포인트 0)`
+  - 조건을 못 채웠으면 `400`(`quest_not_ready`). 같은 날 두 번째는 `already`. 날짜를 직접 붙인 `questId`(예: `stampRally:2026-11-27`)는 `400`.
 
 ### ④ `POST /api/check-in` — 하루 첫 접속 보상
 
@@ -150,7 +193,7 @@ SQL은 `supabase/` 폴더에 저장합니다.
 | `profiles` | `user_id`(PK, auth.users 참조), `email`, `total_exp`, `points`, `created_at`, `updated_at` | 첫 `GET /api/progress` 때 생성 |
 | `quiz_log` | `user_id`, `question_id`, `correct`, `rewarded`, `answered_at`, `rewarded_at` · PK(`user_id`, `question_id`) | 하루 경험치는 `rewarded_at`이 오늘(한국 시간)인 행으로 계산 |
 | `quest_log` | `user_id`, `quest_id`, `completed_at` · PK(`user_id`, `quest_id`) | |
-| `reward_log` | `user_id`, `source`, `ref_id`, `exp`, `points`, `created_at` · UNIQUE(`user_id`, `source`, `ref_id`) | 모든 보상 지급 기록. `source`: `quiz` · `quest` · `check-in` · `event` · 앞으로 추가될 것. 출석은 `ref_id`에 날짜(`2026-11-19`)를 넣어 하루 한 번을 DB가 보장 |
+| `reward_log` | `user_id`, `source`, `ref_id`, `exp`, `points`, `created_at` · UNIQUE(`user_id`, `source`, `ref_id`) | 모든 보상 지급 기록. `source`: `quiz` · `quest` · `check-in` · `event` · `stamp`(11/27, 스탬프 랠리. `ref_id` `"2026-11-27:library"`, 경험치 · 포인트 0) · 앞으로 추가될 것. 출석은 `ref_id`에 날짜(`2026-11-19`)를 넣어 하루 한 번을 DB가 보장 |
 
 `reward_log`를 따로 두는 이유: 포인트를 얻는 방법이 앞으로 더 늘어날 예정이라, 새 방법이 생겨도 `source` 이름만 하나 추가하면 됩니다. 같은 보상이 두 번 들어가는 것도 UNIQUE 조건이 막아 줍니다. `profiles`의 `total_exp`, `points`는 이 기록을 더한 값과 항상 같아야 합니다.
 
@@ -162,7 +205,8 @@ SQL은 `supabase/` 폴더에 저장합니다.
 
 | 파일 | 담당 | 내용 |
 | --- | --- | --- |
-| `shared/progressRules.js` (새로 만듦) | 임현규 | 레벨 계산식, 퀴즈 보상 10(하루 상한 50), 퀘스트 완료 보상(경험치 10·포인트 10), 출석 보상(포인트 5), 퀘스트 목록. **서버와 화면이 같이 씀** |
+| `shared/progressRules.js` (새로 만듦) | 임현규 | 레벨 계산식, 퀴즈 보상 10(하루 상한 100), 퀘스트 완료 보상(경험치 10·포인트 10), 출석 보상(포인트 5), 퀘스트 목록, 일일 퀘스트 상수(11/27). **서버와 화면이 같이 씀** |
+| `shared/stampRally.js` (11/27 새로 만듦) | 이종헌 | 스탬프 랠리 대상 4곳 · 부스 문제 은행 · 오늘의 문제 고르기 · 채점. **서버와 화면이 같이 씀** |
 | `api/progress.js`, `api/quiz-answer.js`, `api/quest-complete.js`, `api/check-in.js` | 임현규 | 위 API (**11/19 구현 완료, 11/19 확인 완료**) |
 | `supabase/*.sql` | 임현규 | 테이블, RLS |
 | `src/data/progressApi.js` (새로 만듦) | 이종헌 | API 호출 함수. **처음엔 가짜 응답으로 만들고, 서버가 되면 진짜로 교체** |
@@ -195,6 +239,7 @@ SQL은 `supabase/` 폴더에 저장합니다.
 | 6 | 포인트를 얻는 방법 | ✅ **퀘스트 완료, 행사 참여, 하루 첫 접속(출석)**, 앞으로 추가 예정. 금액: 퀘스트 완료 10, 출석 5, 행사는 행사마다 등록할 때 정함 |
 | 7 | 인증 메일 발송 | ✅ 베타테스트(20명) 전에 Supabase 메일 발송 한도 확인 |
 | 11 | 레벨별 필요 경험치 (2026-11-24) | ✅ 레벨 n → n+1에 **10 × n**, 도달하면 레벨업 · 이월. 누적 경험치로 다시 계산하므로 저장 데이터 변경 없음(4장 레벨 규칙 표) |
+| 12 | 일일 퀘스트 (2026-11-27, PM 결정: 이종헌) | ✅ 캠퍼스 스탬프 랠리 4곳(완주 경험치 50 · 포인트 10) + 일일 퀴즈(정답 5개 보너스 경험치 50, 11/27 저녁 10 → 5). 퀴즈 하루 상한 50 → 100. 완료 기록 id에 한국 날짜를 붙여 하루 한 번. 새 서버 함수 · 새 SQL 없음(4장 일일 퀘스트 규칙 표) |
 | 10 | 로그인 입력 방식 (2026-11-18, 아이디 규칙 수정) | ✅ 이메일 직접 입력 대신 **학교 메일 아이디 + 도메인 목록**. 아이디는 학번 9자리만이 아니라 **영문 대 · 소문자와 숫자, 최대 64자**(구글 상한, 학교 공식 상한은 확인 못 함), **보낼 때 소문자로 변환**. 코드 만료 10분, 재발송 60초, 로그인 · 진행 저장 모드 분리 |
 
 ### 남은 질문

@@ -1,4 +1,4 @@
-import { AREAS, BUILDINGS_M, DOOR_OVERRIDES, OPEN_SPACES_M, PASSAGES_M, ROTATION_DEG, SPAWN_M, TREES } from "./campusV2Data.js";
+import { AREAS, BUILDINGS_M, DOOR_OVERRIDES, GATE_PILLARS_M, OPEN_SPACES_M, PASSAGES_M, ROTATION_DEG, SPAWN_M, TREES } from "./campusV2Data.js";
 import { buildingInfo } from "./buildingInfo.js";
 
 /*
@@ -119,9 +119,9 @@ export const BUILDINGS = BUILDINGS_M.map((b, index) => {
 export const OPEN_SPACES = OPEN_SPACES_M.map((s) => {
   const poly = s.poly.map(toWorld);
   const c = centroid(poly);
-  // tagAt: "bottom"이면 맵 위 이름표를 공간 아래쪽에 둡니다(정문 광장: 시작 위치 캐릭터 · 정문안내실 간판을 가리지 않게)
-  const tagY = s.tagAt === "bottom" ? Math.max(...poly.map((p) => p[1])) - 12 : c[1];
-  return { ...s, ...named(s.id), kind: "open", areaPolys: [poly], tag: { x: c[0], y: tagY }, mapLabel: offset(c, s.mapLabelOffset) };
+  // tagM(미터)이 있으면 맵 위 이름표를 그 자리에, 없으면 공간 가운데(정문 광장: 현수막 · 시작 캐릭터 · 정문안내실 간판을 피한 자리)
+  const tag = s.tagM ? toWorld(s.tagM) : c;
+  return { ...s, ...named(s.id), kind: "open", areaPolys: [poly], tag: { x: tag[0], y: tag[1] }, mapLabel: offset(c, s.mapLabelOffset) };
 });
 
 // ── 재질 격자(텍스처 해상도) ──────────────────────────────
@@ -153,6 +153,8 @@ export function walkGrid() {
       walk[j * GRID_W + i] = isBlockedMat(m) ? 0 : 1;
     }
   }
+  // 정문 기둥 받침(그림은 텍스처 밖에 따로 세우므로 재질 격자는 그대로, 판정 격자에서만 막음)
+  for (const p of GATE.pillars) for (const [i, j] of p.cells) walk[j * GRID_W + i] = 0;
   grid = walk;
   return grid;
 }
@@ -191,6 +193,56 @@ export function moveFeet(x, y, dx, dy, blocked = null) {
 
 // 서 있는 캐릭터(안내원)와 발 상자가 겹치는지. 두 발 상자(FEET)가 같은 크기라 가운데 거리로 봅니다.
 export const feetOverlap = (x, y, ox, oy) => Math.abs(x - ox) < FEET.right - FEET.left && Math.abs(y - oy) < FEET.bottom - FEET.top;
+
+// ── 정문 기둥 · 현수막(그림은 src/gfx/campusGate.js) ─────────────
+// 받침: 판정 칸(1m) 가운데 점이 받침 다각형 안이면 막습니다(4×2칸). 그림 사각형은 그 칸들의 바깥 테두리에 맞춥니다.
+// 크기(11/27 승인 · 같은 날 기둥 폭 16 → 24px): 기둥 24×54px(+바닥 그림자 2px), 현수막은 두 기둥 안쪽 면 사이(108×22px)
+// — 받침 바닥에서 26~48px 위, 양 끝 2px는 기둥 안쪽(가장 높은 판) 면에 물림.
+// 깊이: 캐릭터 · 안내원 · 퀴즈 상자는 깊이 = 스프라이트 가운데 y이고 발바닥은 가운데 + 8px(FEET.bottom)입니다.
+//       같은 기준으로 비교하도록 정문 깊이 = 받침 바닥 y − 8. 받침 바로 아래(바깥)에 선 캐릭터는 앞에, 안쪽은 뒤에 그려집니다.
+export const GATE_ART = { pillarW: 24, pillarH: 54, shadow: 2, bannerTop: 48, bannerH: 22, bannerOverlap: 2 };
+export const GATE = (() => {
+  const pillars = GATE_PILLARS_M.map((poly) => {
+    const px = poly.map(toWorld);
+    const box = bboxOf([px]);
+    const cells = [];
+    for (let j = Math.floor(box.y0 / CELL_PX); j <= Math.floor(box.y1 / CELL_PX); j++) {
+      for (let i = Math.floor(box.x0 / CELL_PX); i <= Math.floor(box.x1 / CELL_PX); i++) {
+        if (pointInPolygon([i * CELL_PX + CELL_PX / 2, j * CELL_PX + CELL_PX / 2], px)) cells.push([i, j]);
+      }
+    }
+    const x0 = Math.min(...cells.map(([i]) => i)) * CELL_PX;
+    const x1 = (Math.max(...cells.map(([i]) => i)) + 1) * CELL_PX;
+    const y0 = Math.min(...cells.map(([, j]) => j)) * CELL_PX;
+    const y1 = (Math.max(...cells.map(([, j]) => j)) + 1) * CELL_PX;
+    return { cells, base: { x0, x1, y0, y1 } };
+  }).sort((a, b) => a.base.x0 - b.base.x0);
+  const baseY = Math.max(...pillars.map((p) => p.base.y1));
+  const { pillarW, pillarH, shadow, bannerTop, bannerH, bannerOverlap } = GATE_ART;
+  pillars.forEach((p) => {
+    p.rect = { x: p.base.x0 + (p.base.x1 - p.base.x0 - pillarW) / 2, y: baseY - pillarH, w: pillarW, h: pillarH + shadow };
+  });
+  const [west, east] = pillars;
+  const bx0 = west.rect.x + pillarW - bannerOverlap;
+  const banner = { x: bx0, y: baseY - bannerTop, w: east.rect.x + bannerOverlap - bx0, h: bannerH };
+  return { pillars, banner, baseY, depth: baseY - FEET.bottom };
+})();
+// 정문 그림(기둥 · 그림자 · 현수막)이 덮는 사각형들
+export const gateRects = () => [...GATE.pillars.map((p) => p.rect), GATE.banner];
+export const QUIZ_BOX_HALF = 8; // 퀴즈 상자 16×16px
+export const QUIZ_BOX_BOB = 2; // 위로 2px 흔들림(src/quizBoxes.js 트윈)
+export const QUIZ_LABEL_CLEAR = 4; // 이름표 · 안내원 글자 · 팻말 · 부스와 둘 여유(11/27)
+// 퀴즈 상자(가운데 x, y)가 흔들리며 덮는 사각형, margin만큼 넓혀서(x0, y0, x1, y1)
+export const quizBoxRect = (x, y, margin = 0) => ({
+  x0: x - QUIZ_BOX_HALF - margin,
+  x1: x + QUIZ_BOX_HALF + margin,
+  y0: y - QUIZ_BOX_HALF - QUIZ_BOX_BOB - margin,
+  y1: y + QUIZ_BOX_HALF + margin,
+});
+const overlapsGate = (x, y) => {
+  const q = quizBoxRect(x, y);
+  return gateRects().some((r) => q.x0 < r.x + r.w && r.x < q.x1 && q.y0 < r.y + r.h && r.y < q.y1);
+};
 
 // ── 시작 위치 · 도달 가능 칸(4px 격자점 BFS) ─────────────────
 const snap = (v) => Math.floor(v / CELL_PX) * CELL_PX + CELL_PX / 2;
@@ -297,6 +349,30 @@ function fixedDoor(b) {
   return null;
 }
 export const doorOf = (building) => computeDoors().get(building.id)?.door ?? null;
+
+// ── 문 그림 칸(그리기는 src/gfx/campusV2Paint.js) ─────────────────
+// 문 자리(doorOf) 기준 px. 아래쪽 면은 7×8, 위쪽 면은 아래로, 옆면은 건물 안쪽으로 6×8. 자동 계산 입구는 아래쪽 면 모양.
+// DOOR_ART_SCALE: 그림만 키우는 배율(문 앞 칸 · 충돌 · 맵 다각형은 그대로). 문 자리에서 바깥쪽으로 같은 비율로 늘립니다.
+export const DOOR_ART_BASE = {
+  down: { x0: -3, x1: 3, y0: -7, y1: 0 },
+  up: { x0: -3, x1: 3, y0: 0, y1: 7 },
+  right: { x0: -5, x1: 0, y0: -5, y1: 2 },
+  left: { x0: 0, x1: 5, y0: -5, y1: 2 },
+};
+export const DOOR_ART_SCALE = 1.5; // 11/27 오후: 출입문 그림을 1.5배로(7×8 → 11×12, 옆면 6×8 → 9×12)
+const scaleOut = (v) => Math.sign(v) * Math.round(Math.abs(v) * DOOR_ART_SCALE);
+// 문 그림 범위(문 자리 기준, 양 끝 포함)
+export const doorArtOffsets = (face, fixed = true) => {
+  const base = DOOR_ART_BASE[fixed ? face : "down"];
+  return { x0: scaleOut(base.x0), x1: scaleOut(base.x1), y0: scaleOut(base.y0), y1: scaleOut(base.y1) };
+};
+// 문 그림이 덮는 월드 사각형(x0 · y0 · x1 · y1, 끝 픽셀 다음까지). 팻말 · 부스 자리가 피합니다.
+export function doorArtRect(building) {
+  const d = doorOf(building);
+  if (!d) return null;
+  const o = doorArtOffsets(d.face, Boolean(d.fixed));
+  return { x0: d.x + o.x0, x1: d.x + o.x1 + 1, y0: d.y + o.y0, y1: d.y + o.y1 + 1 };
+}
 export const doorFrontOf = (building) => computeDoors().get(building.id)?.front ?? null;
 
 // 안내원 자리: 문 앞 칸의 옆(문을 바라보고 섰을 때 옆쪽). 아래 · 위쪽 면의 문은 좌우로, 왼쪽 · 오른쪽 면의 문은 위아래로 비켜 섭니다.
@@ -317,10 +393,16 @@ export function npcSpotOf(building) {
 
 // ── 퀴즈 상자 자리 ────────────────────────────────────
 const QUIZ_MATS = new Set([MAT.pave, MAT.lawn, MAT.dirt, MAT.steps, MAT.grove]);
-export function quizSpots() {
+// skipGate: 정문 그림과 겹치는 후보를 빼지 않은 목록(빠진 개수 확인용, 테스트)
+export function quizSpots({ skipGate = true } = {}) {
   const keep = [SPAWN, ...BUILDINGS.map(doorFrontOf), ...BUILDINGS.map(npcSpotOf)].filter(Boolean);
   return reachable().list.filter(
-    ({ x, y }) => (x - 2) % 16 === 0 && (y - 2) % 16 === 0 && QUIZ_MATS.has(matAt(x, y + 4)) && keep.every((k) => Math.hypot(k.x - x, k.y - y) >= 20),
+    ({ x, y }) =>
+      (x - 2) % 16 === 0 &&
+      (y - 2) % 16 === 0 &&
+      QUIZ_MATS.has(matAt(x, y + 4)) &&
+      keep.every((k) => Math.hypot(k.x - x, k.y - y) >= 20) &&
+      !(skipGate && overlapsGate(x, y)),
   );
 }
 
@@ -339,4 +421,85 @@ export function nearestPlace(x, y) {
 }
 
 export const PASSAGES = PASSAGES_M.map(([name, seg]) => ({ name, seg, segPx: seg.map(toWorld) }));
+// ── 가로수 정리(그림만, 걷기 · 충돌과 무관) ─────────────────
+// 11/27 오후(PM 결정: 이종헌): campusV2Data.js TREES(원본, 맵 범위 계산에도 쓰임)는 그대로 두고 그릴 나무만 고릅니다.
+// - 길 위 나무 삭제: 밑동(줄기 가운데)이 차도 · 보도 · 건널목 · 주차장 · 계단 칸 위면 그리지 않습니다(보도 가장자리 가로수 줄은 예외, 아래 TREE_ROW).
+//   잔디 · 수풀 · 흙에 서 있고 잎만 길로 튀어나온 나무는 그대로 둡니다.
+// - 겹친 나무 합치기: 두 나무 가운데 거리가 나무 지름(둘 중 큰 쪽)의 TREE_MERGE_RATIO 미만이면 먼저 나온 하나만 남깁니다.
+export const TREE_PATH_MATS = [MAT.road, MAT.pave, MAT.crosswalk, MAT.parking, MAT.steps, MAT.outerRoad];
+export const TREE_MERGE_RATIO = 0.6;
+/*
+ * 가로수 줄 되살리기(11/27 저녁, PM 결정: 이종헌): 길 위 나무라도 "보도 가장자리를 따라 일정한 간격으로 줄지어 선 가로수"는 그립니다.
+ * 줄 판정(TREE_ROW): 아래를 모두 만족하는 나무가 한 직선 위에 같은 간격으로 minCount그루 이상
+ * - mats: 밑동이 보도 칸 위(차도 · 주차장 · 건널목 · 계단 위 나무는 줄이어도 지움)
+ * - edgePx: 밑동에서 보도가 아닌 칸까지 이 거리 이하(= 보도 가장자리. 걷는 길 한가운데 나무는 지움)
+ * - maxGapPx: 이웃 나무와의 간격이 이 값 이하, tolerancePx: 같은 간격 · 같은 직선에서 벗어나도 되는 정도
+ */
+export const TREE_ROW = { mats: [MAT.pave], edgePx: 12, minCount: 3, maxGapPx: 40, tolerancePx: 3 };
+// 밑동에서 가장 가까운 "보도가 아닌 칸"까지의 거리(px). limit보다 멀면 Infinity
+export function treeEdgeDistance(x, y, limit = TREE_ROW.edgePx) {
+  const mats = new Set(TREE_ROW.mats);
+  let best = Infinity;
+  for (let dy = -limit; dy <= limit; dy++) {
+    for (let dx = -limit; dx <= limit; dx++) {
+      const d = Math.hypot(dx, dy);
+      if (d <= limit && d < best && !mats.has(matAt(x + dx, y + dy))) best = d;
+    }
+  }
+  return best;
+}
+// 길 위 나무 가운데 가로수 줄에 든 나무(Set)
+export function treeRows(trees = TREES) {
+  const { mats, minCount, maxGapPx, tolerancePx } = TREE_ROW;
+  const rowMats = new Set(mats);
+  const points = trees
+    .map((tree) => ({ tree, p: toWorld([tree[0], tree[1]]) }))
+    .filter(({ p }) => rowMats.has(matAt(p[0], p[1])) && treeEdgeDistance(p[0], p[1]) <= TREE_ROW.edgePx);
+  const at = (x, y) => points.find((q) => Math.hypot(q.p[0] - x, q.p[1] - y) <= tolerancePx);
+  const inRow = new Set();
+  for (const a of points) {
+    for (const b of points) {
+      const dx = b.p[0] - a.p[0];
+      const dy = b.p[1] - a.p[1];
+      const gap = Math.hypot(dx, dy);
+      if (a === b || gap > maxGapPx || gap <= tolerancePx) continue;
+      // a에서 b 방향으로 같은 간격만큼씩 나아가며 이어지는 나무를 모읍니다(a가 줄의 시작일 때만 minCount를 채움).
+      const run = [a, b];
+      for (let next = at(b.p[0] + dx, b.p[1] + dy); next && !run.includes(next); next = at(next.p[0] + dx, next.p[1] + dy)) run.push(next);
+      if (run.length >= minCount) run.forEach((q) => inRow.add(q.tree));
+    }
+  }
+  return inRow;
+}
+let treeResult = null;
+// { kept: [[E, N, r], …](그릴 나무), rows: 길 위지만 가로수 줄이라 되살린 나무(kept에 들어 있음), onPath: 길 위라 지운 나무, merged: 겹쳐서 합친(지운) 나무 }
+export function cleanedTrees() {
+  if (treeResult) return treeResult;
+  const pathMats = new Set(TREE_PATH_MATS);
+  const rowTrees = treeRows();
+  const kept = [];
+  const rows = [];
+  const onPath = [];
+  const merged = [];
+  for (const tree of TREES) {
+    const [x, y] = toWorld([tree[0], tree[1]]);
+    if (pathMats.has(matAt(x, y))) {
+      if (!rowTrees.has(tree)) {
+        onPath.push(tree);
+        continue;
+      }
+      rows.push(tree);
+    }
+    const tooClose = kept.some((k) => {
+      const [kx, ky] = toWorld([k[0], k[1]]);
+      return Math.hypot(kx - x, ky - y) < Math.max(k[2], tree[2]) * 2 * PX_PER_M * TREE_MERGE_RATIO;
+    });
+    if (tooClose) {
+      merged.push(tree);
+      if (rows.at(-1) === tree) rows.pop();
+    } else kept.push(tree);
+  }
+  treeResult = { kept, rows, onPath, merged };
+  return treeResult;
+}
 export { TREES };

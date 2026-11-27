@@ -43,3 +43,11 @@ for (const [id, answer, expected] of cases) {
     assert.equal(passes(id, answer), expected);
   });
 }
+
+// 11/26: C20 마지막 묶음에 "허용되지 않" 추가(PM 승인: 이종헌). 시험용 DB eval 답(뜻은 맞음)이 통과
+test("C20: \"허용되지 않습니다\"로 답해도 통과", () => {
+  assert.equal(passes("C20", "4학년은 전체 과목을 취소하는 것은 허용되지 않습니다. 다만, 12학점 미만으로 수강 취소가 가능한 점은 예외입니다. [1]"), true);
+  assert.equal(passes("C20", "4학년은 12학점 미만으로도 수강 취소가 가능하지만, 전체 과목을 취소할 수는 없습니다. [1]"), true);
+  // 전체 과목 취소 여부를 말하지 않으면 여전히 실패
+  assert.equal(passes("C20", "4학년은 12학점 미만으로도 수강 취소가 가능합니다. [1]"), false);
+});

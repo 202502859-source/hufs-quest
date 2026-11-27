@@ -1,4 +1,4 @@
-import { BUILDINGS, BUILDING_BASE, GRID_H, GRID_W, MAT, PX_PER_M, TREES, WORLD_W, doorOf, pointInPolygon, rasterize, toWorld } from "../data/campusV2.js";
+import { BUILDINGS, BUILDING_BASE, GRID_H, GRID_W, MAT, PX_PER_M, WORLD_W, cleanedTrees, doorArtOffsets, doorOf, pointInPolygon, rasterize, toWorld } from "../data/campusV2.js";
 
 /*
  * 캠퍼스 맵 v2의 색칠. 재질 격자(campusV2.js)를 RGBA 픽셀로 바꿉니다. 브라우저 API를 쓰지 않습니다.
@@ -20,19 +20,14 @@ export const PALETTE = {
   steps: "#d9cbab", stepsLine: "#c2b391",
   wall: "#e7e0cf", wallLine: "#d8cdb6", window: "#4b6878", windowLight: "#9fbccb", eave: "#6f7b79", door: "#5b3a26", doorFrame: "#8a5c3c",
   outline: "#2b3135", // 건물 윤곽 1px: 녹색 옥상(교수회관 · 외국어연수평가원)이 잔디 · 숲에 묻히지 않게
+  // 정문 현수막(src/gfx/campusGate.js, 11/27). 기둥 석재는 위 옥상 회색 · 흰색 · 처마 · 윤곽 색을 그대로 씁니다.
+  bannerBlue: "#2e5f9e", bannerEdge: "#1d3d6b", bannerYellow: "#f2c94c", bannerYellowEdge: "#b8862b",
 
   roof: { gray: "#9ba7a4", white: "#dde3df", green: "#5d9676", greenDark: "#3f7058", teal: "#5f8f9a", solar: "#4b6878", glass: "#4b6878", stairs: "#9ba7a4" },
   roofRim: { gray: "#7f8b88", white: "#b9c2bf", green: "#467a5d", greenDark: "#2f5643", teal: "#4a737c", solar: "#3a5361", glass: "#3a5361", stairs: "#6f7b79" },
 };
 const C = Object.fromEntries(Object.entries(PALETTE).filter(([, v]) => typeof v === "string").map(([k, v]) => [k, hex(v)]));
 const ROOF = Object.fromEntries(Object.entries(PALETTE.roof).map(([k, v]) => [k, hex(v)]));
-// 고정 입구의 문 그림 범위(문 자리 기준 px). 아래쪽 면은 자동 입구와 같은 7×8, 위쪽 면은 아래로, 옆면은 건물 안쪽으로 6×8.
-const DOOR_RECT = {
-  down: { x0: -3, x1: 3, y0: -7, y1: 0 },
-  up: { x0: -3, x1: 3, y0: 0, y1: 7 },
-  right: { x0: -5, x1: 0, y0: -5, y1: 2 },
-  left: { x0: 0, x1: 5, y0: -5, y1: 2 },
-};
 const RIM = Object.fromEntries(Object.entries(PALETTE.roofRim).map(([k, v]) => [k, hex(v)]));
 const WALL_PX = { none: 0, low: 6, mid: 10, high: 14 };
 
@@ -117,8 +112,8 @@ export function paintRegion(x0, y0, w, h) {
     const o = (y * w + x) * 4;
     out[o] = c[0]; out[o + 1] = c[1]; out[o + 2] = c[2];
   };
-  // 가로수(그림만): 그림자 → 잎 → 밝은 면
-  for (const [E, N, r] of TREES) {
+  // 가로수(그림만): 그림자 → 잎 → 밝은 면. 길 위 나무(보도 가장자리 가로수 줄은 남김) · 크게 겹친 나무는 뺀 목록(campusV2.js cleanedTrees)
+  for (const [E, N, r] of cleanedTrees().kept) {
     const [cx, cy] = toWorld([E, N]);
     const R = r * PX_PER_M;
     if (cx + R + 3 < x0 || cy + R + 3 < y0 || cx - R > x0 + w || cy - R > y0 + h) continue;
@@ -136,19 +131,17 @@ export function paintRegion(x0, y0, w, h) {
   for (const b of BUILDINGS) {
     const d = doorOf(b);
     if (!d) continue;
-    if (!d.fixed) {
-      for (let dy = -7; dy <= 0; dy++) for (let dx = -3; dx <= 3; dx++) put(d.x + dx, d.y + dy, Math.abs(dx) === 3 || dy === -7 ? C.doorFrame : C.door);
-      continue;
-    }
-    // 고정 입구(DOOR_OVERRIDES): 문을 붙일 면에서 건물 안쪽으로 문 그림을 그리고, 건물 밖으로 삐져나온 픽셀은 버립니다(비스듬한 벽).
+    // 문 그림 칸은 src/data/campusV2.js doorArtOffsets(DOOR_ART_SCALE 배율 포함). 문을 붙일 면에서 건물 안쪽으로 그리고,
+    // 건물 밖으로 삐져나온 픽셀은 버립니다(비스듬한 벽). 자동 계산 입구는 아래쪽 면 모양입니다.
     const own = BUILDING_BASE + b.index;
-    const rect = DOOR_RECT[d.face];
+    const face = d.fixed ? d.face : "down";
+    const rect = doorArtOffsets(d.face, Boolean(d.fixed));
     for (let dy = rect.y0; dy <= rect.y1; dy++) {
       for (let dx = rect.x0; dx <= rect.x1; dx++) {
         if (matAt(d.x + dx, d.y + dy) !== own) continue;
         const frame = dx === rect.x0 || dx === rect.x1 || dy === rect.y0 || dy === rect.y1;
         // 바깥쪽(캐릭터 쪽) 가장자리는 열린 문이라 틀을 두지 않습니다.
-        const open = (d.face === "down" && dy === rect.y1) || (d.face === "up" && dy === rect.y0) || (d.face === "right" && dx === rect.x1) || (d.face === "left" && dx === rect.x0);
+        const open = (face === "down" && dy === rect.y1) || (face === "up" && dy === rect.y0) || (face === "right" && dx === rect.x1) || (face === "left" && dx === rect.x0);
         put(d.x + dx, d.y + dy, frame && !open ? C.doorFrame : C.door);
       }
     }

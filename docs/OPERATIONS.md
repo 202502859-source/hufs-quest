@@ -1,7 +1,7 @@
 # 🛠 HUFS Quest 운영 · 보안 · 이관 노트
 
 > 서비스를 **누가, 언제, 어떻게** 돌보는지 적는 문서입니다. 대회가 끝난 뒤 이어받을 사람도 이 문서만 보고 움직일 수 있게 씁니다.
-> 마지막 수정: 2026-11-26(지원금 입금 · 크레딧 등록 확인, NCP 활용 계획의 공지 흐름) · 근거: 11/18 사전교육 「배포 전 5분 점검」「크레딧 지키기」「이어받을 사람을 위해 남길 세 가지」, 네이버클라우드 팀 피드백
+> 마지막 수정: 2026-11-27(NCP · CLOVA 비용 운영: 키 · 월 예산 알림 · 크레딧 잔액 감시 · 검색창 하루 상한) · 근거: 11/18 사전교육 「배포 전 5분 점검」「크레딧 지키기」「이어받을 사람을 위해 남길 세 가지」, 네이버클라우드 팀 피드백
 > **키 값, 비밀번호, 개인 연락처, 학번은 이 문서에 적지 않습니다.** (저장소가 공개 상태)
 
 ---
@@ -62,7 +62,7 @@
 | 답 길이 | Vercel 로그 `/api/ask`의 `{"mode":"ai", …}` 줄: `completionTokens`(답에 쓴 토큰), `finishReason`, `chars`(답 글자 수), 검색어 정리 쪽은 `rewrite`로 시작하는 같은 값. 질문 · 검색어 · 답 내용은 남기지 않음 | `finishReason`이 `"length"`(상한에 걸려 답이 잘림), `completionTokens`가 `maxTokens`에 가까움 |
 | truncated 비율 (11/22~) | Vercel 로그 `/api/ask`에서 `"truncated":true`인 줄 수 ÷ `truncated` 값이 있는 줄 수(답변 출력 상한 `maxTokens` 400에 걸려 끝난 문장까지만 남긴 답, 끝난 문장이 없으면 `mode: "evidence"`) | 하루 5% 이상이거나 같은 질문 유형이 반복해서 잘림 → `api/ask.js` `ANSWER_MAX_TOKENS` 상향 검토(11/22 측정: 출력 토큰 최대 202) |
 | DB · 메일 | Supabase 대시보드 사용량, Auth 메일 발송 수 | 메일 한도 도달, 용량 급증 |
-| 검색 흐름 (#42 Merge 뒤) | Vercel 로그 `/api/ask`의 `rpc` · `subQueries` · `rewriteFormat` · `unsupportedNumbers`(근거에 없던 숫자만, 문장은 남기지 않음) | 실서비스 로그의 `rpc`가 `match_chunks`가 아님(시험 DB를 보고 있음), `rewriteFormat`이 `none`인 줄이 잦음(질문 쪼개기 지시문이 안 먹힘), `mode: "evidence"`가 잦음(숫자 검사에 자주 걸림 → `unsupportedNumbers` 값 공유) |
+| 검색 흐름 (#42 Merge 뒤) | Vercel 로그 `/api/ask`의 `rpc` · `subQueries` · `rewriteFormat` · `unsupportedNumbers`(근거에 없던 숫자만, 문장은 남기지 않음) · `reason: unsupported_contact`(11/27~, 근거에 없는 이메일 · 전화번호 · 주소. 개수 `unsupportedContacts`와 종류 `unsupportedContactKinds`만 남김) | 실서비스 로그의 `rpc`가 `match_chunks`가 아님(시험 DB를 보고 있음), `rewriteFormat`이 `none`인 줄이 잦음(질문 쪼개기 지시문이 안 먹힘), `mode: "evidence"`가 잦음(숫자 검사에 자주 걸림 → `unsupportedNumbers` 값 공유, 또는 `unsupported_contact`가 잦음 → 정상 연락처가 근거와 다른 형식으로 쓰였는지 확인) |
 
 **eval · 크레딧 규칙 (11/26):** 크레딧 등록 완료(11/26, 잔액 497,980원, 12/31 만료). CLOVA Studio 호출(리랭커·검증 호출·더 큰 모델 비교 포함)은 크레딧으로 쓰므로 비용 때문에 줄이지 않는다. 판단 기준은 정답률과 평균 응답 4초. eval 실행 횟수 제한 없음. 단 숨긴 문항(hidden)은 단계 PR의 최종 판단 때만 돌리고, 연속 실행으로 429가 나면 문항 사이에 간격을 둔다. 기준선 비교·실서비스 eval 결과는 PR이나 STATUS에 결과 파일·정답 수를 기록하고, 밤 점검 때 크레딧 잔액을 같이 적는다. 하루 크레딧이 1만 원 넘게 줄면 단톡에 한 줄 공유한다(허락 필요 없음). 사용자당 호출·입력 길이 제한은 남용 방어라 그대로 둔다.
 
@@ -72,11 +72,23 @@
 - 알림 받는 사람: **이종헌 1명(메일 · 문자)**. 임현규는 등록하지 않음 → 알림이 오면 이종헌이 단톡에 공유.
 - ⚠️ 설정 당일 사용 비용이 0원으로 표시됨. 크레딧 공제 후 금액이라 크레딧을 쓰는 동안 알림이 안 올 수 있음(공식 문서에서 확인 못 함) → 며칠 뒤 Budgets 목록의 사용 비율이 0%에서 움직이는지 확인하고, 계속 0%면 CLOVA Studio 사용량으로 따로 봄
 
+**NCP · CLOVA 비용 운영 (11/27 PM 확인: 이종헌):**
+- **CLOVA Studio API 키:** 테스트 API 키 1개(11/9 발급)를 씁니다. 서비스 앱은 없고, 대회(12/9)까지 서비스 앱을 신청하지 않습니다. 키 값은 어디에도 적지 않습니다(2장).
+- **NCP 예산 알림(보조 수단):** Cost Explorer > Budgets의 예산 「HUFS Quest CLOVA 월 예산」, 25만 원, 월별 고정, 기간 2026-11~2027-01, 20 · 50 · 80 · 100%에 이메일 알림. 크레딧을 뺀 뒤 금액으로 계산되는 것으로 보여(11월 사용 비용 0원 표시) 이 알림만 믿지 않습니다.
+- **주 감시:** 매일 밤 점검 때 My Account > 과금 정보에서 **크레딧 잔액과 전날보다 줄어든 금액**을 기록합니다(담당: 임현규). 하루 1만 원 넘게 줄면 단톡에 공유합니다.
+- **검색창 하루 상한:** 전체 2000회(학생 · 게스트 합계, eval 제외), 학생 1명 50회 · 게스트 IP 1개 150회 · 1분 10회(#108).
+
 **Vercel 로그 보관 한도 및 캐시 수동 비우기 (11/23 추가):**
 - **Vercel Hobby 로그 1시간 보관:** 무료(Hobby) 플랜은 Runtime Logs가 최근 1시간까지만 조회되므로, 밤 5분 점검 시 최근 1시간 내 `/api/ask` 호출이 없으면 실서비스(`/api/ask`)에 테스트 질문 2건을 직접 호출해 실시간 로그(`rpc`, `mode`, `truncated`)를 확인합니다.
 - **답변 캐시 전체 비우기 (`006_answer_cache.sql` 적용 후):** Supabase SQL Editor에서 아래 한 줄을 실행하면 데이터 버전이 갱신되며 기존 캐시가 즉시 비워집니다.
   ```sql
   SELECT public.bump_answer_cache_version(to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'));
+  ```
+
+- **일일 퀘스트 베타 집계(11/27 추가, 개인 식별 정보 없이 숫자만):** Supabase SQL Editor에서 날짜별 스탬프 랠리 완주 수와 일일 퀴즈 목표(5개, 11/27 저녁 10 → 5) 달성 수를 봅니다. 읽기만 하는 조회이고, 결과에 이메일 · user_id는 나오지 않습니다.
+  ```sql
+  SELECT split_part(quest_id, ':', 2) AS kst_date, count(*) AS rally_completed FROM public.quest_log WHERE quest_id LIKE 'stampRally:%' GROUP BY 1 ORDER BY 1;
+  SELECT split_part(quest_id, ':', 2) AS kst_date, count(*) AS daily_quiz_10 FROM public.quest_log WHERE quest_id LIKE 'dailyQuiz:%' GROUP BY 1 ORDER BY 1;
   ```
 
 ## 4. 배포 전 5분 점검
@@ -193,3 +205,6 @@
 | 2026-11-26 | NCP 활용 계획(11/26 종헌 결정): 7장에 공지 흐름(목록 페이지만 자동 확인 → 이슈 → 사람이 본문 복사(`.local/`) → HCX-007 초안 → `noticeEvidence` 근거 검사 → `checked` 없이 Draft PR → 현규 대조 → 종헌 Merge). 1단계는 GitHub Actions(하루 3회, 권한 issues: write만, NCP 키 넣지 않음)로, 11/25 "대회 전 목록 자동 확인 안 함"을 11/26 변경. `checked`가 없으면 tests/deadlines.test.js가 실패해 Merge 불가(Draft PR은 현규 대조 전까지 빨간불이 정상), `checked` 없는 항목은 API가 내보내지 않음(현규 작업 1에서 구현 예정), 공지 본문은 공개 이슈 · Actions로 처리하지 않음(직원 정보 노출 · NCP 키 오남용 위험) | 이종헌 |
 | 2026-11-26 | 7장 공지 흐름 구현 반영(임현규, 작업지시서 11/26 작업 1): 감시 대상 4곳 고정(robots.txt 11/26 확인), Actions 권한(issues: write + checkout용 contents: read), 끄는 방법, `checked` 없는 항목 API 제외 구현, [NOTICE_FLOW.md](NOTICE_FLOW.md) | 임현규 |
 | 2026-11-27 | 검색창 한도 변경(11/27 PM 결정: 이종헌): 전체 하루 상한 500 → 2000, eval 토큰 요청은 Supabase `ask_hit`을 부르지 않아 전체 한도에서 빠짐(인스턴스 메모리 1분 120회 안전장치, 로그 `eval-bypass`). 11/26 밤 eval이 전체 500을 다 써 실서비스 검색창까지 429가 날 수 있었던 문제. 3장 남용 줄 갱신 | 이종헌 |
+| 2026-11-27 | 3장에 일일 퀘스트 베타 집계 SQL 2줄 추가(날짜별 랠리 완주 수 · 일일 퀴즈 목표 달성 수, `quest_log`의 `stampRally:%` · `dailyQuiz:%`, 숫자만) | 이종헌 |
+| 2026-11-27 | 3장에 "NCP · CLOVA 비용 운영"(11/27 PM 확인: 이종헌): CLOVA 테스트 API 키 1개(11/9 발급) · 서비스 앱 12/9까지 신청 안 함, Budgets 「HUFS Quest CLOVA 월 예산」 25만 원 월별(11~1월, 20 · 50 · 80 · 100% 메일, 크레딧 차감 후 금액이라 보조), 주 감시는 밤 점검 때 과금 정보의 크레딧 잔액 · 전날 대비 감소액(임현규, 하루 1만 원 넘으면 단톡), 검색창 하루 상한 정리(#108) | 이종헌 |
+| 2026-11-27 | 3장 검색 흐름 줄에 연락처 검사 로그(`reason: unsupported_contact` · 개수 · 종류) 추가 | 이종헌 |
