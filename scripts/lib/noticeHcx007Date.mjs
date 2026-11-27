@@ -161,6 +161,64 @@ export function validPublishedAt(value) {
   );
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 실제로 있는 날짜일 때만 요일을 돌려준다(2/29 등).
+function weekdayOf(year, month, day) {
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() + 1 !== month ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return "일월화수목금토"[date.getUTCDay()];
+}
+
+// 연도 없는 날짜의 연도를 게시일 기준으로 정한다(11/27 PM 결정).
+// 1) 게시일과 같은 해로 본다.
+// 2) 그 날짜가 게시일보다 30일 넘게 앞서면 다음 해로 본다.
+//    공지는 보통 앞으로 올 마감을 알리기 때문이다.
+//    (12월 게시 → 1월 마감도 이 규칙으로 다음 해가 된다.)
+// 3) 원문 요일이 정한 해와 다르고 다른 후보 해(게시 연도 또는
+//    다음 해)와 맞으면 그 해를 고른다. 둘 다 안 맞으면
+//    2)의 결과를 두고 호출한 쪽이 요일 불일치 메모를 남긴다.
+function yearFromPublishedAt(
+  publishedAt, month, day, weekday
+) {
+  const postedYear = Number(publishedAt.slice(0, 4));
+
+  const posted = Date.UTC(
+    postedYear,
+    Number(publishedAt.slice(5, 7)) - 1,
+    Number(publishedAt.slice(8, 10))
+  );
+
+  const sameYear = Date.UTC(postedYear, month - 1, day);
+
+  const year =
+    posted - sameYear > 30 * DAY_MS
+      ? postedYear + 1
+      : postedYear;
+
+  if (!weekday) return year;
+
+  const other =
+    year === postedYear ? postedYear + 1 : postedYear;
+
+  if (
+    weekdayOf(year, month, day) !== weekday &&
+    weekdayOf(other, month, day) === weekday
+  ) {
+    return other;
+  }
+
+  return year;
+}
+
 // 연도나 시각이 생략된 날짜를 검수용으로 보완한다.
 // 명시된 날짜 및 시각을 임의로 변경하지 않는다.
 function reviewableDate(
@@ -201,15 +259,9 @@ function reviewableDate(
       return null;
     }
 
-    year = Number(publishedAt.slice(0, 4));
-
-    const postedMonth = Number(
-      publishedAt.slice(5, 7)
+    year = yearFromPublishedAt(
+      publishedAt, month, day, weekday
     );
-
-    if (postedMonth === 12 && month === 1) {
-      year++;
-    }
 
     notes.push(
       `연도 추정: 게시일 ${publishedAt} 기준 ${year}년`

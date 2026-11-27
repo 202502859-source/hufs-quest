@@ -1352,3 +1352,153 @@ test("요일 우회 방지: 연도 생략 F02 검수 정책 유지", () => {
     )
   );
 });
+
+// 11/27 연도 추정 규칙 보완(이종헌)
+// 게시일과 같은 해 → 30일 넘게 앞서면 다음 해 → 요일로 확인.
+// weekday 값은 node로 계산해 확인한 값이다(아래 테스트에서 다시 계산).
+const weekdayOfISO = iso =>
+  "일월화수목금토"[
+    new Date(Date.UTC(
+      Number(iso.slice(0, 4)),
+      Number(iso.slice(5, 7)) - 1,
+      Number(iso.slice(8, 10))
+    )).getUTCDay()
+  ];
+
+const yearRolloverCases = [
+  {
+    name: "11월 게시 1월 마감은 다음 해",
+    raw: "~1/8(금)까지",
+    publishedAt: "2026-11-27",
+    expected: "2027-01-08T23:59:00+09:00",
+    weekday: "금", // 2026-01-08은 목요일
+    year: 2027,
+    mismatch: false,
+  },
+  {
+    name: "11월 게시 2월 마감은 다음 해",
+    raw: "2/26(금) 17:00까지",
+    publishedAt: "2026-11-27",
+    expected: "2027-02-26T17:00:00+09:00",
+    weekday: "금", // 2026-02-26은 목요일
+    year: 2027,
+    mismatch: false,
+  },
+  {
+    name: "30일 이내로 앞선 날짜는 게시 연도 유지",
+    raw: "11/20(금)까지",
+    publishedAt: "2026-11-27",
+    expected: "2026-11-20T23:59:00+09:00",
+    weekday: "금", // 7일 전, 2027-11-20은 토요일
+    year: 2026,
+    mismatch: false,
+  },
+  {
+    name: "12월 게시 요일 없는 1월 마감은 다음 해(기존 동작)",
+    raw: "1/5까지",
+    publishedAt: "2026-12-20",
+    expected: "2027-01-05T23:59:00+09:00",
+    weekday: null,
+    year: 2027,
+    mismatch: false,
+  },
+  {
+    name: "같은 달 뒤 날짜는 게시 연도",
+    raw: "3/13(금)까지",
+    publishedAt: "2026-03-02",
+    expected: "2026-03-13T23:59:00+09:00",
+    weekday: "금", // 2027-03-13은 토요일
+    year: 2026,
+    mismatch: false,
+  },
+  {
+    name: "정확히 30일 앞선 날짜는 게시 연도 유지",
+    raw: "10/28까지",
+    publishedAt: "2026-11-27",
+    expected: "2026-10-28T23:59:00+09:00",
+    weekday: null,
+    year: 2026,
+    mismatch: false,
+  },
+  {
+    name: "30일 넘게 앞서도 요일이 게시 연도와 맞으면 게시 연도",
+    raw: "10/23(금)까지",
+    publishedAt: "2026-11-27",
+    // 35일 전이라 2)까지는 2027년이지만
+    // 2027-10-23은 토요일, 2026-10-23은 금요일
+    expected: "2026-10-23T23:59:00+09:00",
+    weekday: "금",
+    year: 2026,
+    mismatch: false,
+  },
+  {
+    name: "요일이 어느 해와도 안 맞으면 날짜 유지 + 요일 불일치",
+    raw: "~1/9(월)까지",
+    publishedAt: "2026-11-27",
+    // 2026-01-09는 금요일, 2027-01-09는 토요일
+    expected: "2027-01-09T23:59:00+09:00",
+    weekday: "토",
+    year: 2027,
+    mismatch: true,
+  },
+];
+
+for (const fixture of yearRolloverCases) {
+  test("연도 추정 규칙: " + fixture.name, () => {
+    const result = extractReviewableDeadline(
+      fixture.raw,
+      fixture.publishedAt
+    );
+
+    assert.ok(result);
+    assert.equal(result.deadline, fixture.expected);
+    assert.equal(result.startsAt, null);
+
+    if (fixture.weekday) {
+      assert.equal(
+        weekdayOfISO(result.deadline),
+        fixture.weekday
+      );
+    }
+
+    assert.ok(
+      result.reviewNotes.includes(
+        `연도 추정: 게시일 ${fixture.publishedAt} ` +
+        `기준 ${fixture.year}년`
+      ),
+      "연도 추정 메모 누락: " +
+        result.reviewNotes.join(" / ")
+    );
+
+    assert.equal(
+      result.reviewNotes.some(
+        note => note.startsWith("요일 불일치")
+      ),
+      fixture.mismatch
+    );
+  });
+}
+
+test("연도 추정 규칙: 앞선 날짜 기준 연도는 그대로", () => {
+  const result = extractReviewableDeadline(
+    "신청 기간: 12/28(월) ~ 1/8(금)",
+    "2026-11-27"
+  );
+
+  assert.ok(result);
+  // 시작일 12/28은 게시 연도, 종료일은 앞선 날짜를 따라 다음 해
+  assert.equal(
+    result.deadline,
+    "2027-01-08T23:59:00+09:00"
+  );
+  assert.ok(
+    result.reviewNotes.includes(
+      "시작일: 연도 추정: 게시일 2026-11-27 기준 2026년"
+    )
+  );
+  assert.ok(
+    result.reviewNotes.includes(
+      "연도 추정: 앞선 날짜 기준 2027년"
+    )
+  );
+});
