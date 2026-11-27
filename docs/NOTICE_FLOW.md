@@ -69,3 +69,25 @@ robots.txt(www · student 같은 규칙)는 `/bbs/*`, `/bbs/*/*/*/artclView.do`,
 ## 도우미 바꿔 끼우기 (11/30, HCX-007)
 
 `scripts/notice-draft.mjs` 맨 위 `EXTRACTOR`만 중혁 님 HCX-007 도우미 경로로 바꿉니다. 도우미 출력에 `=== 공지 추출 JSON 초안 ===`과 `=== shared/deadlines.js 입력용 초안 ===` 구획이 그대로 있으면 나머지는 그대로 동작합니다(`scripts/lib/noticeDraft.mjs` `parseExtractOutput`).
+
+### HCX-007 도우미 연동 안내
+
+신규 도우미 경로는
+`scripts/extract-notice-hcx007.mjs`입니다.
+
+PM 검토 및 Merge 이후 담당자가 기존 `EXTRACTOR`를
+이 경로로 변경합니다. 이번 구현에서는 연결 경로를
+아직 변경하지 않았습니다.
+
+정상 검증 시 기존 두 JSON 출력 구획을 그대로 사용합니다.
+날짜, 시각, 원문 근거가 불명확하면 초안을 출력하지 않고
+폐기 사유 및 종료 코드 1을 반환합니다.
+
+사람이 개인정보를 제거한 공지 원문만 입력합니다.
+자동 검사만으로 모든 개인정보를 찾을 수는 없습니다.
+
+영문 제목과 부서 및 checked는 팀원이 원문 검수 후
+직접 작성합니다. 실제 공지 등록은 별도 검수 후 진행합니다.
+
+검증 결과와 모델별 비교 수치는
+[NCP_USAGE.md](NCP_USAGE.md)를 참고합니다.
