@@ -17,7 +17,7 @@ import { buildingInfo } from "../data/buildingInfo.js";
 import { DAILY_BODY_ALPHA, DAILY_FONT, DAILY_TAB_ALPHA, DAILY_TEXT_ALPHA, DAILY_TEXT_STROKE, HUD_BUTTON, MARGIN, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudSideLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
 import { padLayout, touchSize } from "../ui/firstScreen.js";
 import { addConfetti, addStampMark, addStampSlot } from "../ui/stampMark.js";
-import { drawQuizDot } from "../ui/quizDot.js";
+import { HERE_COLOR, drawQuizDot } from "../ui/quizDot.js";
 
 // 미니맵 · 일일 퀘스트 창 자리는 src/ui/hudLayout.js hudSideLayout(11/27: 오른쪽 위, 미니맵 PC 232px · 휴대폰 194px).
 // 휴대폰 방향키 자리는 src/ui/firstScreen.js padLayout(첫 화면의 사이버관 안내원 화면 x에 맞춤).
@@ -336,7 +336,7 @@ export class HudScene extends Phaser.Scene {
   /*
    * 일일 퀘스트 창(미니맵 바로 아래, 오른쪽 선을 미니맵과 맞춤). 제목 줄을 누르면 접히거나 펴집니다.
    * 접힘: 오른쪽 끝에 붙은 탭 "◀ 일일 퀘스트". 펼침: 오른쪽 선은 그대로, 왼쪽으로 열림(0.2초), 제목 "▶ 일일 퀘스트"(누르면 오른쪽으로 접힘).
-   * 내용: (1) 스탬프 랠리 — 도장 4칸 + "다음: 본관"(완주하면 "완주! +50 EXP") (2) 일일 퀴즈 — "맞춘 정답: 0/10개"(10개면 "완료! 보너스 +50 EXP")
+   * 내용: (1) 스탬프 랠리 — 도장 4칸 + "다음: 본관"(완주하면 "완주! +50 EXP") (2) 일일 퀴즈 — "맞춘 정답: 0/5개"(목표 DAILY_QUIZ_GOAL개면 "완료! 보너스 +50 EXP")
    * 줄을 누르면 상세 창(4곳 체크 목록)이 열리고, 닫으면 미니맵에서 다음 부스가 깜빡입니다.
    */
   renderDailyPanel(layout) {
@@ -538,7 +538,7 @@ export class HudScene extends Phaser.Scene {
     this.drawQuizDots();
 
     this.markerShadow = this.add.rectangle(0, 0, 8 * k, 8 * k, 0x10182a);
-    this.marker = this.add.rectangle(0, 0, 4 * k, 4 * k, 0xffe14d);
+    this.marker = this.add.rectangle(0, 0, 4 * k, 4 * k, HERE_COLOR);
     this.tweens.add({ targets: this.marker, alpha: 0.25, duration: 400, yoyo: true, repeat: -1 });
     this.moveMinimapMarker();
 
