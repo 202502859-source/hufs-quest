@@ -27,6 +27,10 @@ const SRC = {
   doubleMajor: site(11384, "이중전공", "Double Major"),
   minor: site(11385, "부전공", "Minor"),
   registration: site(11377, "수강신청지침", "Course Registration Guide"),
+  handbook2026_2: {
+    name: { ko: "2026학년도 제2학기 서울캠퍼스 수강편람 4쪽", en: "2026 Fall Seoul Campus Course Handbook, p. 4" },
+    url: "https://e-book.hufs.ac.kr/src/viewer/main.php?host=main&site=20260727_sugang_h1",
+  },
   grades: site(11379, "성적규정", "Grading Rules"),
   transfer: site(11388, "전과", "Change of Major"),
   certificate: site(11304, "증명서", "Certificates"),
@@ -245,15 +249,16 @@ export const QUIZ = [
     id: "basket-limit",
     category: "academic",
     question: {
-      ko: "예비수강신청함에는 최대 15강좌까지 담을 수 있다.",
-      en: "You can put up to 15 courses in the pre-registration basket.",
+      ko: "관심강좌(구 예비수강신청함)에는 수강희망과목을 최대 15과목까지 등록할 수 있다.",
+      en: "You can add up to 15 courses to your Courses of Interest list (formerly the pre-registration basket).",
     },
     answer: true,
     explain: {
-      ko: "맞아요. 최대 15강좌를 담을 수 있고, 담은 과목은 수강신청 기간에 꼭 신청으로 처리해야 해요.",
-      en: "Correct. The basket holds up to 15 courses, and you must still register for them during the registration period.",
+      ko: "맞아요. 최대 15과목을 등록할 수 있고, 담은 과목은 사전수강신청 및 수강신청(변경) 기간에 꼭 수강신청으로 처리해야 해요.",
+      en: "Correct. You can add up to 15 courses, and you must still register for them during the early registration or registration (change) period.",
     },
-    source: SRC.registration,
+    // 11/27: 2026-2 수강편람 4쪽 "관심강좌(구 예비수강신청함) … 수강희망과목 최대 15과목 등록"에 맞춰 표현을 고침(숫자는 같음)
+    source: SRC.handbook2026_2,
   },
   {
     id: "drop-limit",

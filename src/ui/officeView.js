@@ -21,13 +21,17 @@ export const hasOfficeInfo = (placeId) => {
   return Boolean(info && isChecked(info));
 };
 
-// 여러 안내원이 가까우면 가장 가까운 하나만 돌려줍니다. places: [{ id, guide: {x, y} | null }]
+// 시설 소개를 여는 자리: 건물 소개 안내원, 스탬프 랠리 대상 4곳은 "시설 안내문" 팻말(11/27)
+export const officeSpot = (place) => place.guide ?? place.sign ?? null;
+
+// 여러 안내원 · 팻말이 가까우면 가장 가까운 하나만 돌려줍니다. places: [{ id, guide: {x, y} | null, sign?: {x, y} | null }]
 export function nearestOfficePlace(places, x, y, range = GUIDE_RANGE, hasInfo = hasOfficeInfo) {
   let best = null;
   let bestDistance = range;
   for (const place of places) {
-    if (!place.guide || !hasInfo(place.id)) continue;
-    const distance = Math.hypot(place.guide.x - x, place.guide.y - y);
+    const spot = officeSpot(place);
+    if (!spot || !hasInfo(place.id)) continue;
+    const distance = Math.hypot(spot.x - x, spot.y - y);
     if (distance < bestDistance) {
       bestDistance = distance;
       best = place;

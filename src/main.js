@@ -8,6 +8,7 @@ import { MockRegScene } from "./scenes/MockRegScene.js";
 import { MapScene } from "./scenes/MapScene.js";
 import { QuestInfoScene } from "./scenes/QuestInfoScene.js";
 import { QuizScene } from "./scenes/QuizScene.js";
+import { BoothScene } from "./scenes/BoothScene.js";
 import { setupViewport, viewportSize } from "./viewport.js";
 
 // 글자가 기본 글꼴로 그려지지 않도록 도트 글꼴을 먼저 불러옵니다. 실패해도 게임은 시작합니다.
@@ -35,7 +36,7 @@ const game = new Phaser.Game({
     default: "arcade",
     arcade: { gravity: { x: 0, y: 0 } },
   },
-  scene: [TitleScene, CampusScene, HudScene, DialogScene, MockRegScene, MapScene, QuestInfoScene, QuizScene],
+  scene: [TitleScene, CampusScene, HudScene, DialogScene, MockRegScene, MapScene, QuestInfoScene, QuizScene, BoothScene],
 });
 
 game.events.once(Phaser.Core.Events.READY, () => setupViewport(game));

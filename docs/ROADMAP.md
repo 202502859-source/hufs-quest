@@ -251,6 +251,7 @@ gantt
 - [ ] 시연 동선 건물 그래픽 생성·교체(`src/gfx/textures.js`). 동선 밖 건물은 지금 그림 유지
 - [x] 마감 임박 공지 화면(`src/ui/deadlineOverlay.js`)을 실제 데이터와 연결 (14일 이내 기준 · `접수 예정` 배지 · `확인 MM.DD` 표기 · `?demoDeadlines=1` 분리)
 - [ ] 퀘스트 목적지·퀴즈 배치를 건물 ID로 연결(이미 `quest.destination`은 ID), 새 퀴즈 배치
+  - 11/27 진행: 일일 퀘스트 PR(`feat/stamp-rally-1127`)에서 **건물 ID에 묶인 문제**를 넣음 — 캠퍼스 스탬프 랠리 4곳(도서관 · 국제학사 및 학생회관 · 본관 · 인문과학관)의 부스 문제는 `shared/stampRally.js`가 건물 ID로 고르고, 부스 · "시설 안내문" 팻말 자리는 그 건물 주 출입구 기준(`src/data/stampRallySpots.js`). 일일 퀴즈(정답 5개 보너스, 11/27 저녁 10 → 5)와 HUD 일일 퀘스트 창도 같이. **남은 것:** '?' O/X 퀴즈 상자 60문항은 여전히 무작위 좌표(건물 필드 없음) — 건물별 배치를 할지는 PM 결정, 부스 문제 후보(건물당 3개)는 PM 검토 후 확정
 - [x] 진행 저장 `VITE_PROGRESS_MODE=real` 전환 후 Preview에서 확인 — 11/27 확인: Vercel Production · Preview 모두 `real`(이종헌). 11/26 Preview에서 행사 · 지도 제보 보상(+20 경험치)이 서버에 저장되는 것 확인
 
 **신중혁 (AI)**

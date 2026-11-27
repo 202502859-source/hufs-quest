@@ -5,7 +5,8 @@
  * - 개인정보: 이메일·토큰·user_id를 로그나 오류 메시지에 남기지 않습니다.
  */
 import { createClient } from "@supabase/supabase-js";
-import { QUIZ_DAILY_CAP, kstToday, levelFromTotalExp } from "../../shared/progressRules.js";
+import { DAILY_QUIZ_GOAL, QUIZ_DAILY_CAP, dailyQuestKey, isDailyQuestRecord, kstToday, levelFromTotalExp } from "../../shared/progressRules.js";
+import { STAMP_RALLY_IDS } from "../../shared/stampRally.js";
 
 const ALLOWED_DOMAIN = "@hufs.ac.kr";
 const RATE_WINDOW_MS = 60_000;
@@ -175,9 +176,9 @@ export async function buildProgress(supabase, userId, email, now = new Date()) {
       .order("completed_at", { ascending: true }),
     supabase
       .from("reward_log")
-      .select("exp")
+      .select("source, ref_id, exp")
       .eq("user_id", userId)
-      .eq("source", "quiz")
+      .in("source", ["quiz", "stamp"])
       .gte("created_at", kstStart)
       .lte("created_at", kstEnd),
   ]);
@@ -194,8 +195,22 @@ export async function buildProgress(supabase, userId, email, now = new Date()) {
   const quizRows = quizRes.data ?? [];
   const answered = quizRows.map((row) => row.question_id);
   const rewarded = quizRows.filter((row) => row.rewarded).map((row) => row.question_id);
-  const todayExp = (rewardRes.data ?? []).reduce((sum, row) => sum + Number(row.exp ?? 0), 0);
-  const completedQuests = (questRes.data ?? []).map((row) => row.quest_id);
+  const todayRows = rewardRes.data ?? [];
+  const todayQuizRows = todayRows.filter((row) => row.source === "quiz");
+  const todayExp = todayQuizRows.reduce((sum, row) => sum + Number(row.exp ?? 0), 0);
+  // 일일 퀴즈 "맞춘 정답 n/10" = 오늘(한국 날짜) 퀴즈로 경험치를 받은 개수
+  const quizCorrect = todayQuizRows.filter((row) => Number(row.exp ?? 0) > 0).length;
+  // 오늘 받은 스탬프(ref_id "YYYY-MM-DD:<buildingId>"), 표시 순서대로
+  const stamped = new Set(
+    todayRows
+      .filter((row) => row.source === "stamp" && String(row.ref_id).startsWith(`${today}:`))
+      .map((row) => String(row.ref_id).slice(today.length + 1)),
+  );
+  const stamps = STAMP_RALLY_IDS.filter((id) => stamped.has(id));
+  // 일일 퀘스트 완료 기록("stampRally:날짜" · "dailyQuiz:날짜", 11/24 이전의 날짜 없는 "stampRally" 포함)은
+  // completedQuests에 싣지 않고 daily로만 알립니다(옛 영구 기록이 새 일일 퀘스트를 "완료"로 보이게 하지 않도록).
+  const questIds = (questRes.data ?? []).map((row) => row.quest_id);
+  const completedQuests = questIds.filter((id) => !isDailyQuestRecord(id));
 
   return {
     level,
@@ -208,6 +223,14 @@ export async function buildProgress(supabase, userId, email, now = new Date()) {
       answered,
       todayExp,
       dailyCap: QUIZ_DAILY_CAP,
+    },
+    daily: {
+      date: today,
+      quizCorrect,
+      quizGoal: DAILY_QUIZ_GOAL,
+      quizBonusDone: questIds.includes(dailyQuestKey("dailyQuiz", today)),
+      stamps,
+      rallyDone: questIds.includes(dailyQuestKey("stampRally", today)),
     },
   };
 }

@@ -85,6 +85,12 @@
   SELECT public.bump_answer_cache_version(to_char(now(), 'YYYY-MM-DD"T"HH24:MI:SS"Z"'));
   ```
 
+- **일일 퀘스트 베타 집계(11/27 추가, 개인 식별 정보 없이 숫자만):** Supabase SQL Editor에서 날짜별 스탬프 랠리 완주 수와 일일 퀴즈 목표(5개, 11/27 저녁 10 → 5) 달성 수를 봅니다. 읽기만 하는 조회이고, 결과에 이메일 · user_id는 나오지 않습니다.
+  ```sql
+  SELECT split_part(quest_id, ':', 2) AS kst_date, count(*) AS rally_completed FROM public.quest_log WHERE quest_id LIKE 'stampRally:%' GROUP BY 1 ORDER BY 1;
+  SELECT split_part(quest_id, ':', 2) AS kst_date, count(*) AS daily_quiz_10 FROM public.quest_log WHERE quest_id LIKE 'dailyQuiz:%' GROUP BY 1 ORDER BY 1;
+  ```
+
 ## 4. 배포 전 5분 점검
 
 입력창·화면 표시·서버 함수·DB를 바꾼 PR은 Merge 전에, 그리고 **12/3(목) 밤 기능 동결 때 전원이 실서비스 전체를** 점검합니다.
@@ -199,8 +205,6 @@
 | 2026-11-26 | NCP 활용 계획(11/26 종헌 결정): 7장에 공지 흐름(목록 페이지만 자동 확인 → 이슈 → 사람이 본문 복사(`.local/`) → HCX-007 초안 → `noticeEvidence` 근거 검사 → `checked` 없이 Draft PR → 현규 대조 → 종헌 Merge). 1단계는 GitHub Actions(하루 3회, 권한 issues: write만, NCP 키 넣지 않음)로, 11/25 "대회 전 목록 자동 확인 안 함"을 11/26 변경. `checked`가 없으면 tests/deadlines.test.js가 실패해 Merge 불가(Draft PR은 현규 대조 전까지 빨간불이 정상), `checked` 없는 항목은 API가 내보내지 않음(현규 작업 1에서 구현 예정), 공지 본문은 공개 이슈 · Actions로 처리하지 않음(직원 정보 노출 · NCP 키 오남용 위험) | 이종헌 |
 | 2026-11-26 | 7장 공지 흐름 구현 반영(임현규, 작업지시서 11/26 작업 1): 감시 대상 4곳 고정(robots.txt 11/26 확인), Actions 권한(issues: write + checkout용 contents: read), 끄는 방법, `checked` 없는 항목 API 제외 구현, [NOTICE_FLOW.md](NOTICE_FLOW.md) | 임현규 |
 | 2026-11-27 | 검색창 한도 변경(11/27 PM 결정: 이종헌): 전체 하루 상한 500 → 2000, eval 토큰 요청은 Supabase `ask_hit`을 부르지 않아 전체 한도에서 빠짐(인스턴스 메모리 1분 120회 안전장치, 로그 `eval-bypass`). 11/26 밤 eval이 전체 500을 다 써 실서비스 검색창까지 429가 날 수 있었던 문제. 3장 남용 줄 갱신 | 이종헌 |
-
+| 2026-11-27 | 3장에 일일 퀘스트 베타 집계 SQL 2줄 추가(날짜별 랠리 완주 수 · 일일 퀴즈 목표 달성 수, `quest_log`의 `stampRally:%` · `dailyQuiz:%`, 숫자만) | 이종헌 |
 | 2026-11-27 | 3장에 "NCP · CLOVA 비용 운영"(11/27 PM 확인: 이종헌): CLOVA 테스트 API 키 1개(11/9 발급) · 서비스 앱 12/9까지 신청 안 함, Budgets 「HUFS Quest CLOVA 월 예산」 25만 원 월별(11~1월, 20 · 50 · 80 · 100% 메일, 크레딧 차감 후 금액이라 보조), 주 감시는 밤 점검 때 과금 정보의 크레딧 잔액 · 전날 대비 감소액(임현규, 하루 1만 원 넘으면 단톡), 검색창 하루 상한 정리(#108) | 이종헌 |
-
 | 2026-11-27 | 3장 검색 흐름 줄에 연락처 검사 로그(`reason: unsupported_contact` · 개수 · 종류) 추가 | 이종헌 |
-
