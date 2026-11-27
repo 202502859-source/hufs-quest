@@ -111,12 +111,13 @@ test("팻말 · 부스 그림은 예전의 80%: 그림 칸 · 충돌 칸도 같�
   assert.equal(BOOTH_TALK.dy, Math.round(14 * 0.8));
   const scene = readFileSync(new URL("../src/scenes/CampusScene.js", import.meta.url), "utf8");
   assert.match(scene, /\.setScale\(texture\.scale \* SIGN_SCALE\)/, "팻말 그림 배율");
-  assert.match(scene, /\.setScale\(BOOTH_SCALE\)/, "부스 그림 배율");
+  assert.match(scene, /BOOTH_SIZE\.h\)\s*\.setScale\(BOOTH_SCALE\)/, "부스 그림 배율");
 });
 
 test("팻말은 문과 같은 외벽에 바짝 붙음(기둥 밑동이 외벽에서 4px 안), 문과 같은 방향, 문에서 16~48px 옆. Minerva Complex만 예외 자리", () => {
   const fronts = BUILDINGS.map(doorFrontOf).filter(Boolean);
   assert.deepEqual(signed.filter((b) => !b.sign.attached).map((b) => b.id), ["minerva"]);
+  assert.equal(WALL_GAP, 2, "기둥 밑동과 외벽 사이");
   for (const b of signed.filter((x) => x.sign.attached)) {
     const raw = byId(b.id);
     const { sign } = b;
