@@ -13,7 +13,8 @@ export const QUIZ_REWARD_EXP = 10;
 export const QUIZ_DAILY_CAP = 100;
 
 // 일일 퀴즈(일일 퀘스트): 오늘(한국 날짜) 경험치를 받은 정답이 DAILY_QUIZ_GOAL개가 되면 하루 한 번 보너스 경험치.
-export const DAILY_QUIZ_GOAL = 10;
+// 11/27 서버 리뷰(임현규): 퀴즈는 문제당 평생 1회만 경험치를 줘서 목표가 10이면 60문항으로 보너스가 1인당 6일뿐 → 5개로 낮춤(문항은 다른 PR에서 100개로 늘림).
+export const DAILY_QUIZ_GOAL = 5;
 export const DAILY_QUIZ_BONUS_EXP = 50;
 
 // 캠퍼스 스탬프 랠리(일일 퀘스트): 오늘 부스 4곳(shared/stampRally.js) 스탬프를 다 모으면 하루 한 번 완주 보상.
@@ -40,7 +41,7 @@ export const MAP_REPORT_REWARD_EXP = 20;
 export const REWARD_QUESTS = ["doubleMajor"];
 
 // 일일 퀘스트: 완료 기록 id에 한국 날짜를 붙여(예: "stampRally:2026-11-27") 하루 한 번, 다음 날 다시 받습니다.
-// 조건(스탬프 4곳 · 정답 10개)은 서버가 직접 확인합니다(api/quest-complete.js).
+// 조건(스탬프 4곳 · 정답 DAILY_QUIZ_GOAL개)은 서버가 직접 확인합니다(api/quest-complete.js).
 export const DAILY_QUESTS = ["stampRally", "dailyQuiz"];
 export const dailyQuestKey = (questId, kstDate) => `${questId}:${kstDate}`;
 // 일일 퀘스트의 완료 기록인지(날짜가 붙은 것 + 11/24 이전의 날짜 없는 옛 기록)

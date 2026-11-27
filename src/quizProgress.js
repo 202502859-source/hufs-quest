@@ -42,14 +42,14 @@ export async function recordAnswer(question, choice) {
   if (isGuest()) {
     if (!local.guestAnswered.includes(question.id)) local.guestAnswered.push(question.id);
     const guestResult = choice === question.answer ? "guest" : "wrong";
-    await afterQuizAnswer(question.id, guestResult); // 일일 퀴즈 "맞춘 정답 n/10"(게스트는 메모리)
+    await afterQuizAnswer(question.id, guestResult); // 일일 퀴즈 "맞춘 정답 n/5"(게스트는 메모리)
     return guestResult;
   }
   try {
     const response = await answerQuiz(question.id, choice);
     applyProgress(response.progress);
     if (response.result === "ok") notifyReward(response.gained); // 퀴즈 창을 닫으면 HUD가 "+10 EXP"를 알립니다.
-    // 일일 퀴즈: 10번째 정답 직후면 보너스를 자동으로 요청합니다(조건은 서버가 다시 확인).
+    // 일일 퀴즈: 목표(DAILY_QUIZ_GOAL)번째 정답 직후면 보너스를 자동으로 요청합니다(조건은 서버가 다시 확인).
     if (response.result === "ok") await afterQuizAnswer(question.id, response.result);
     return response.result;
   } catch (error) {

@@ -71,7 +71,7 @@ test("게스트: 서버 호출 없이 메모리로 스탬프 · 완주, 오답�
   assert.equal((await submitBoothAnswer("cyber", 0, opts)).result, "error", "대상이 아닌 건물");
 });
 
-test("게스트 일일 퀴즈: 처음 맞힌 문제만 세고 10개에서 완료, 서버 호출 없음", async () => {
+test("게스트 일일 퀴즈: 처음 맞힌 문제만 세고 5개(DAILY_QUIZ_GOAL)에서 완료, 서버 호출 없음", async () => {
   const now = asGuest();
   const env = fakeApi(DAY1);
   const opts = { now, api: env.api };
@@ -80,8 +80,10 @@ test("게스트 일일 퀴즈: 처음 맞힌 문제만 세고 10개에서 완료
   await afterQuizAnswer(QUIZ[0].id, "guest", opts);
   await afterQuizAnswer(QUIZ[0].id, "guest", opts);
   assert.equal(session.daily.quizCorrect, 1, "같은 문제는 한 번만");
-  for (let i = 1; i < 12; i++) await afterQuizAnswer(QUIZ[i].id, "guest", opts);
-  assert.deepEqual([session.daily.quizCorrect, session.daily.quizBonusDone], [10, true]);
+  for (let i = 1; i < 4; i++) await afterQuizAnswer(QUIZ[i].id, "guest", opts);
+  assert.deepEqual([session.daily.quizCorrect, session.daily.quizBonusDone], [4, false], "4개에서는 아직");
+  for (let i = 4; i < 12; i++) await afterQuizAnswer(QUIZ[i].id, "guest", opts);
+  assert.deepEqual([session.daily.quizCorrect, session.daily.quizBonusDone], [5, true]);
   assert.deepEqual([session.exp, session.level], [0, 1]);
   assert.deepEqual(env.calls, []);
 });
@@ -96,7 +98,7 @@ test("자정 넘김(시간 주입): 게스트는 스탬프 · 일일 퀴즈 카�
   assert.equal(await refreshDailyIfNewDay({ now: new Date("2026-11-27T14:59:59Z"), api: env.api }), false, "아직 같은 날");
   const after = new Date("2026-11-27T15:00:30Z"); // 한국 시간 11/28 00:00:30
   assert.equal(await refreshDailyIfNewDay({ now: after, api: env.api }), true);
-  assert.deepEqual(session.daily, { date: "2026-11-28", quizCorrect: 0, quizGoal: 10, quizBonusDone: false, stamps: [], rallyDone: false });
+  assert.deepEqual(session.daily, { date: "2026-11-28", quizCorrect: 0, quizGoal: 5, quizBonusDone: false, stamps: [], rallyDone: false });
   await afterQuizAnswer(QUIZ[0].id, "guest", { now: after, api: env.api });
   assert.equal(session.daily.quizCorrect, 1, "새 날에는 같은 문제도 다시 셈");
   assert.deepEqual(env.calls, []);
@@ -124,21 +126,21 @@ test("재학생: 부스 답은 서버로, 4번째 스탬프 직후 자동으로 
   assert.equal(env.calls.filter((c) => c === "completeQuest").length, 1, "이미 완주했으면 다시 요청하지 않음");
 });
 
-test("재학생 일일 퀴즈: 10번째 정답 직후에만 보너스를 자동 요청(하루 한 번)", async () => {
+test("재학생 일일 퀴즈: 5번째(DAILY_QUIZ_GOAL) 정답 직후에만 보너스를 자동 요청(하루 한 번)", async () => {
   const env = fakeApi(DAY1);
   asStudent(env);
   const opts = { now: env.now(), api: env.api };
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 7; i++) {
     const response = env.server.answerQuiz({ questionId: QUIZ[i].id, choice: QUIZ[i].answer });
     applyProgress(response.progress);
     const bonus = await afterQuizAnswer(QUIZ[i].id, response.result, opts);
-    assert.equal(bonus, i === 9, `${i + 1}번째`);
+    assert.equal(bonus, i === 4, `${i + 1}번째`);
   }
-  assert.deepEqual(env.calls, ["completeQuest"]);
-  assert.deepEqual([session.daily.quizCorrect, session.daily.quizBonusDone], [10, true]);
+  assert.deepEqual(env.calls, ["completeQuest"], "6 · 7번째 정답에서는 다시 요청하지 않음");
+  assert.deepEqual([session.daily.quizCorrect, session.daily.quizBonusDone], [7, true]);
   assert.equal(session.pendingReward.label, "dailyQuizBonus");
   assert.equal(session.pendingReward.exp, 50);
-  assert.equal(await afterQuizAnswer(QUIZ[9].id, "already", opts), false);
+  assert.equal(await afterQuizAnswer(QUIZ[4].id, "already", opts), false);
   assert.deepEqual(env.calls, ["completeQuest"], "보너스는 다시 요청하지 않음");
 });
 

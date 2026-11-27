@@ -91,7 +91,7 @@ export async function retryRallyComplete({ api = realApi } = {}) {
 /*
  * O/X 퀴즈 답을 기록한 직후(src/quizProgress.js)에 부릅니다. result는 recordAnswer의 결과입니다.
  * - 게스트: 처음 맞힌 문제면 오늘 정답 수를 1 올립니다(메모리).
- * - 재학생: 정답 수는 서버 응답으로 이미 반영돼 있습니다. 10번째 정답 직후면 보너스를 자동으로 요청합니다.
+ * - 재학생: 정답 수는 서버 응답으로 이미 반영돼 있습니다. 목표(DAILY_QUIZ_GOAL)번째 정답 직후면 보너스를 자동으로 요청합니다.
  * 보너스를 새로 받았으면 true.
  */
 export async function afterQuizAnswer(questionId, result, { now = new Date(), api = realApi } = {}) {

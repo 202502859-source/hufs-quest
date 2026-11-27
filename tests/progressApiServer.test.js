@@ -51,7 +51,7 @@ test("재학생 진행 조회 · 출석 · 퀴즈 · 퀘스트 전체 흐름 및
     points: 0,
     completedQuests: [],
     quiz: { rewarded: [], answered: [], todayExp: 0, dailyCap: QUIZ_DAILY_CAP },
-    daily: { date: kstToday(), quizCorrect: 0, quizGoal: 10, quizBonusDone: false, stamps: [], rallyDone: false },
+    daily: { date: kstToday(), quizCorrect: 0, quizGoal: 5, quizBonusDone: false, stamps: [], rallyDone: false },
   });
 
   // 2. 출석 보상 (1회 ok -> 2회 already)

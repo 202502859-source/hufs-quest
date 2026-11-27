@@ -76,16 +76,17 @@ test("기존 O/X 퀴즈 요청은 그대로 동작(오답 · 정답 · 중복 ·
   assert.equal((await s.quiz({ questionId: q.id, choice: "O" })).statusCode, 400);
 });
 
-test("일일 퀴즈: 하루 10문제(경험치 100)까지 지급, 11번째는 cap. 보너스는 10개 미만이면 400, 10개면 50, 두 번째는 already", async () => {
+test("일일 퀴즈: 보너스는 5개(DAILY_QUIZ_GOAL) 미만이면 400, 5개면 50, 두 번째는 already. 하루 10문제(경험치 100)까지 지급, 11번째는 cap", async () => {
   const s = setup();
   assert.equal(QUIZ_DAILY_CAP, 100);
-  assert.equal(DAILY_QUIZ_GOAL, 10);
-  for (let i = 0; i < 9; i++) assert.equal((await s.quiz({ questionId: QUIZ[i].id, choice: QUIZ[i].answer })).body.result, "ok");
+  assert.equal(DAILY_QUIZ_GOAL, 5, "11/27 서버 리뷰: 10 → 5");
+  for (let i = 0; i < 4; i++) assert.equal((await s.quiz({ questionId: QUIZ[i].id, choice: QUIZ[i].answer })).body.result, "ok");
   const early = await s.quest({ questId: "dailyQuiz" });
-  assert.equal(early.statusCode, 400, "9개에서는 보너스 없음");
+  assert.equal(early.statusCode, 400, "4개에서는 보너스 없음");
 
-  const tenth = await s.quiz({ questionId: QUIZ[9].id, choice: QUIZ[9].answer });
-  assert.deepEqual([tenth.body.result, tenth.body.progress.daily.quizCorrect, tenth.body.progress.quiz.todayExp], ["ok", 10, 100]);
+  const fifth = await s.quiz({ questionId: QUIZ[4].id, choice: QUIZ[4].answer });
+  assert.deepEqual([fifth.body.result, fifth.body.progress.daily.quizCorrect, fifth.body.progress.daily.quizGoal, fifth.body.progress.quiz.todayExp], ["ok", 5, 5, 50]);
+  for (let i = 5; i < 10; i++) assert.equal((await s.quiz({ questionId: QUIZ[i].id, choice: QUIZ[i].answer })).body.result, "ok");
   const eleventh = await s.quiz({ questionId: QUIZ[10].id, choice: QUIZ[10].answer });
   assert.equal(eleventh.body.result, "cap");
   assert.equal(eleventh.body.progress.daily.quizCorrect, 10);

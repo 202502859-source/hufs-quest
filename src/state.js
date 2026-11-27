@@ -464,8 +464,8 @@ const ALL_QUESTS = [
     daily: true,
     name: { ko: "일일 퀴즈", en: "Daily Quiz" },
     description: {
-      ko: "맵의 '?' 퀴즈 상자에서 하루에 정답 10개를 맞혀요.",
-      en: "Get 10 correct answers a day from the '?' quiz boxes on the map.",
+      ko: `맵의 '?' 퀴즈 상자에서 하루에 정답 ${DAILY_QUIZ_GOAL}개를 맞혀요.`,
+      en: `Get ${DAILY_QUIZ_GOAL} correct answers a day from the '?' quiz boxes on the map.`,
     },
   },
   {

@@ -42,7 +42,7 @@ export function createQuestOverlay(game, onClose) {
     body.append(list, line(t("rallyReward", STAMP_RALLY_REWARD), "ho-muted"));
 
     body.append(heading(quiz.name[lang]));
-    body.append(line(t("dailyQuizCount", { n: daily.quizCorrect, goal: daily.quizGoal })));
+    body.append(line(t("dailyQuizCount", { n: Math.min(daily.quizCorrect, daily.quizGoal), goal: daily.quizGoal })));
     body.append(line(t("dailyQuizDetail", { goal: DAILY_QUIZ_GOAL, exp: DAILY_QUIZ_BONUS_EXP }), "ho-muted"));
   };
   overlay = createHudOverlay(game, { closeKey: "deadlineClose", render }, onClose);

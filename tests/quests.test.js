@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { DAILY_QUEST_LIST, QUEST_LIST, activeQuests, applyProgress, session, t, setLang } from "../src/state.js";
-import { DAILY_QUESTS, REWARD_QUESTS } from "../shared/progressRules.js";
+import { DAILY_QUESTS, DAILY_QUIZ_GOAL, REWARD_QUESTS } from "../shared/progressRules.js";
 
 const progress = (completedQuests, daily) => ({
   level: 1,
@@ -38,7 +38,7 @@ test("서버가 보낸 완료 기록에 화면 목록에 없는 퀘스트 id가 
 test("daily가 없는 옛 응답은 0으로, 있으면 그대로 session.daily에 들어감", () => {
   applyProgress(progress([]));
   assert.deepEqual([session.daily.quizCorrect, session.daily.stamps, session.daily.rallyDone], [0, [], false]);
-  const daily = { date: "2026-11-27", quizCorrect: 3, quizGoal: 10, quizBonusDone: false, stamps: ["library", "union"], rallyDone: false };
+  const daily = { date: "2026-11-27", quizCorrect: 3, quizGoal: 5, quizBonusDone: false, stamps: ["library", "union"], rallyDone: false };
   applyProgress(progress([], daily));
   assert.deepEqual(session.daily, daily);
 });
@@ -53,7 +53,7 @@ test("문구(한/영): 일일 퀘스트 창 · 부스 · 팻말", () => {
     return [ko, en];
   };
   assert.deepEqual(both("dailyTitle"), ["일일 퀘스트", "Daily Quests"]);
-  assert.deepEqual(both("dailyQuizCount", { n: 0, goal: 10 }), ["맞춘 정답: 0/10개", "Correct today: 0/10"]);
+  assert.deepEqual(both("dailyQuizCount", { n: 0, goal: DAILY_QUIZ_GOAL }), ["맞춘 정답: 0/5개", "Correct today: 0/5"]);
   assert.deepEqual(both("dailyQuizDone", { exp: 50 }), ["완료! 보너스 +50 EXP", "Done! Bonus +50 EXP"]);
   assert.equal(both("dailyRallyNext", { place: "본관" })[0], "다음: 본관");
   assert.equal(both("dailyRallyDone", { exp: 50 })[0], "완주! +50 EXP");

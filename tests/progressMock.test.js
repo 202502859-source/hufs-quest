@@ -25,7 +25,7 @@ test("새 계정은 Lv.1 · 경험치 0 · 포인트 0, 응답 모양이 문서�
     points: 0,
     completedQuests: [],
     quiz: { rewarded: [], answered: [], todayExp: 0, dailyCap: 100 },
-    daily: { date: progress.daily.date, quizCorrect: 0, quizGoal: 10, quizBonusDone: false, stamps: [], rallyDone: false },
+    daily: { date: progress.daily.date, quizCorrect: 0, quizGoal: 5, quizBonusDone: false, stamps: [], rallyDone: false },
   });
 });
 
