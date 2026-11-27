@@ -6,7 +6,7 @@ import { QUIZ, QUIZ_CATEGORIES } from "../src/data/quiz.js";
 
 const TOTAL = 100;
 const BY_CATEGORY = { academic: 45, hufs: 25, life: 30 };
-// 2026-11-27 이전부터 있던 문제 중 학교 밖 출처(대학저널)를 쓰는 3개. 기존 문제는 바꾸지 않기로 해 예외로 둡니다.
+// 기존 문제, 외부 출처 유지(11/27 종헌 결정). 대학저널(dhnews.co.kr) 출처 3문항만 예외입니다.
 // 새 문제는 여기에 더하지 않습니다(학교 공식 도메인만).
 const LEGACY_EXTERNAL = { slogan: "dhnews.co.kr", "festival-name": "dhnews.co.kr", "festival-origin": "dhnews.co.kr" };
 const isOfficialHost = (hostname) => /(^|\.)hufs\.ac\.kr$/.test(hostname);
@@ -57,8 +57,17 @@ test("퀴즈: 출처 주소는 학교 공식 도메인(hufs.ac.kr과 그 하위)
     }
     assert.ok(isOfficialHost(url.hostname), `${q.id}: 공식 도메인이 아님 ${q.source.url}`);
   }
+  // 11/27 종헌 대조로 수강편람 쪽수를 출처로 단 4문항: 실제 데이터가 e-book 주소로 이 검사를 통과하는지
+  const HANDBOOK_PAGES = { "bachelor-master-gpa": 86, "transfer-year-limit": 84, "late-double-major-ninth": 82, "convergence-ai-minor": 54 };
+  for (const [id, page] of Object.entries(HANDBOOK_PAGES)) {
+    const q = QUIZ.find((x) => x.id === id);
+    assert.equal(new URL(q.source.url).hostname, "e-book.hufs.ac.kr", `${id}: 수강편람 출처`);
+    assert.match(q.source.name.ko, new RegExp(`수강편람 ${page}쪽$`), `${id}: 쪽수(ko)`);
+    assert.match(q.source.name.en, new RegExp(`p\\. ${page}$`), `${id}: 쪽수(en)`);
+  }
   assert.equal(isOfficialHost("www.hufs.ac.kr"), true);
   assert.equal(isOfficialHost("lib.hufs.ac.kr"), true);
+  assert.equal(isOfficialHost("e-book.hufs.ac.kr"), true, "수강편람 e-book도 학교 하위 도메인");
   assert.equal(isOfficialHost("hufs.ac.kr.example.com"), false, "뒤에 다른 도메인이 붙은 주소는 공식이 아님");
   assert.equal(isOfficialHost("nothufs.ac.kr"), false, "hufs.ac.kr로 끝나기만 하는 다른 도메인은 공식이 아님");
 });

@@ -63,7 +63,6 @@ const SRC = {
   // ── 2026-11-27 추가 40문제용 출처(모두 학교 공식 홈페이지) ──
   courseEval: site(12647, "강의평가 및 결과 공개", "Course Evaluation"),
   teaching: site(11398, "교직과정 이수예정자 선발", "Teacher Certification Track"),
-  convergence: site(11254, "융합전공", "Convergence Majors"),
   history: site(11123, "역사", "History"),
   timeline: site(11124, "연표", "Timeline"),
   mascotSymbol: site(11133, "상징", "University Symbol"),
@@ -78,6 +77,12 @@ const SRC = {
   software: site(11338, "S/W", "Software"),
   email: site(11340, "e-mail 서비스", "E-mail Service"),
   counseling: site(11300, "학생상담", "Student Counseling"),
+  // 2026-2 서울캠퍼스 수강편람(e-book). 쪽수만 받아 출처를 만듭니다. 예: SRC.handbook2026_2b(86)
+  // 11/27 종헌 대조에서 쪽을 확인한 문제에 씁니다(docs/quiz-100-check.md "종헌 대조" 칸).
+  handbook2026_2b: (page) => ({
+    name: { ko: `2026학년도 제2학기 서울캠퍼스 수강편람 ${page}쪽`, en: `2026 Fall Seoul Campus Course Handbook, p. ${page}` },
+    url: "https://e-book.hufs.ac.kr/src/viewer/main.php?host=main&site=20260818_sugang_h1",
+  }),
 };
 
 export const QUIZ = [
@@ -1053,7 +1058,7 @@ export const QUIZ = [
       ko: "맞아요. 2026학년도 전과부터 학년 제한이 폐지되어 1개 학기 이상 이수자가 신청할 수 있어요. 학점·평점 기준은 그대로예요.",
       en: "Correct. The year-level limit was removed from 2026, so students with one or more semesters can apply. Credit and GPA requirements still apply.",
     },
-    source: SRC.transfer,
+    source: SRC.handbook2026_2b(84),
   },
   {
     id: "late-double-major-ninth",
@@ -1065,9 +1070,9 @@ export const QUIZ = [
     answer: true,
     explain: {
       ko: "맞아요. 8학기까지 이중전공에 해당하는 학점을 모두 완료했어도 9학기 이수가 필수예요(수강신청과 등록 필요).",
-      en: "Correct. Even with all double major credits done by the 8th semester, a 9th semester (with registration and tuition) is mandatory.",
+      en: "Correct. Even with all double major credits done by the 8th semester, a 9th semester (course registration and enrollment are required) is mandatory.",
     },
-    source: SRC.doubleMajor,
+    source: SRC.handbook2026_2b(82),
   },
   {
     id: "convergence-ai-minor",
@@ -1078,10 +1083,10 @@ export const QUIZ = [
     },
     answer: false,
     explain: {
-      ko: "융합전공은 이중전공으로만 이수할 수 있어요. 부전공으로도 이수할 수 있는 융합전공은 국가리더전공과 데이터사이언스전공뿐이에요.",
-      en: "Convergence majors can only be taken as a double major. Only the National Leader and Data Science majors can also be taken as a minor.",
+      ko: "융합전공은 이중전공으로만 이수할 수 있어요. 부전공으로도 이수할 수 있는 융합전공은 국가리더전공과 데이터사이언스전공뿐이에요. 참고로 2026-2 수강편람 기준 AI융합전공은 신규신청을 받지 않아요.",
+      en: "Convergence majors can only be taken as a double major. Only the National Leader and Data Science majors can also be taken as a minor. Note that, per the 2026 Fall course handbook, the AI Convergence major is not accepting new applications.",
     },
-    source: SRC.convergence,
+    source: SRC.handbook2026_2b(54),
   },
   {
     id: "teaching-apply-once",
@@ -1123,7 +1128,7 @@ export const QUIZ = [
       ko: "3학년 1학기(5학기)까지 정해진 학점 이상을 취득하고 총 평점평균이 3.50 이상이어야 해요.",
       en: "You need the required credits by your 5th semester and an overall GPA of 3.50 or higher.",
     },
-    source: SRC.bachelorMaster,
+    source: SRC.handbook2026_2b(86),
   },
   {
     id: "credit-carryover",
