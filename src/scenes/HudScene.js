@@ -14,7 +14,7 @@ import { DAILY_QUIZ_BONUS_EXP, EVENT_REPORT_REWARD_EXP, STAMP_RALLY_REWARD } fro
 import { STAMP_RALLY_STOPS } from "../../shared/stampRally.js";
 import { STAMP_TOTAL, dailyState, nextStop, refreshDailyIfNewDay, retryRallyComplete } from "../dailyQuests.js";
 import { buildingInfo } from "../data/buildingInfo.js";
-import { DAILY_FONT, HUD_BUTTON, MARGIN, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudSideLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
+import { DAILY_BODY_ALPHA, DAILY_FONT, DAILY_TAB_ALPHA, DAILY_TEXT_ALPHA, DAILY_TEXT_STROKE, HUD_BUTTON, MARGIN, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudSideLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
 import { padLayout, touchSize } from "../ui/firstScreen.js";
 import { addConfetti, addStampMark, addStampSlot } from "../ui/stampMark.js";
 
@@ -360,17 +360,23 @@ export class HudScene extends Phaser.Scene {
     }
 
     // 펼친 창: 오른쪽 선을 기준점으로 왼쪽으로 열리도록, 컨테이너를 오른쪽 끝에 두고 안쪽 그림을 왼쪽(−w)에 그립니다(scaleX).
+    // 제목 탭은 불투명, 그 아래 본문 바탕만 반투명(DAILY_BODY_ALPHA) — 뒤의 맵이 비쳐 보입니다. 글자 · 도장은 불투명 그대로.
     const body = this.add.container(right, y);
     const g = this.add.graphics();
-    drawPanel(g, -w, 0, w, h, { border: COLOR.line });
-    g.fillStyle(COLOR.line, 1).fillRect(-w + 6, tabH - 1, w - 12, 1);
+    const bodyH = h - tabH;
+    g.fillStyle(COLOR.shadow, DAILY_BODY_ALPHA).fillRect(-w + 4, tabH + 4, w, bodyH);
+    g.fillStyle(COLOR.line, DAILY_BODY_ALPHA).fillRect(-w, tabH, w, bodyH - 4).fillRect(-w + 4, tabH, w - 8, bodyH);
+    g.fillStyle(COLOR.fill, DAILY_BODY_ALPHA).fillRect(-w + 4, tabH, w - 8, bodyH - 4);
+    drawPanel(g, -w, 0, w, tabH, { border: COLOR.line, alpha: DAILY_TAB_ALPHA });
     body.add(g);
+    // 맵 위에서도 읽히게 본문 글자에 1px 어두운 테두리(Phaser strokeThickness는 안팎 합이라 2배)
+    const stroke = { stroke: DAILY_TEXT_STROKE.color, strokeThickness: DAILY_TEXT_STROKE.px * 2 };
     const put = (px, py, text, style) => {
-      const label = addLabel(this, px - w, py, text, style);
+      const label = addLabel(this, px - w, py, text, { ...stroke, ...style }).setAlpha(DAILY_TEXT_ALPHA);
       body.add(label);
       return label;
     };
-    put(10, tabH / 2, `▶ ${t("dailyTitle")}`, { size: DAILY_FONT.title, color: "#f2c94c" }).setOrigin(0, 0.5);
+    put(10, tabH / 2, `▶ ${t("dailyTitle")}`, { size: DAILY_FONT.title, color: "#f2c94c", strokeThickness: 0 }).setOrigin(0, 0.5);
     const tabZone = this.add.zone(x, y, w, tabH).setOrigin(0).setInteractive({ useHandCursor: true });
     tabZone.on("pointerdown", () => this.toggleDailyPanel());
     const guest = isGuest();

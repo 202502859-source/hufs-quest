@@ -3,6 +3,7 @@
  * - 왼쪽 위: 상태창(레벨 · 포인트 / 게스트 안내). 그대로.
  * - 오른쪽 위: 미니맵(오른쪽 선 = 화면 폭 − MARGIN, 위쪽 = 검색창 · KO/EN 버튼 아래 끝 + 8px),
  *   그 바로 아래(사이 DAILY_GAP) 일일 퀘스트 창(오른쪽 선을 미니맵과 맞춤, 펼치면 오른쪽 선은 그대로 두고 왼쪽으로 열림).
+ *   펼친 창은 제목 탭만 불투명하고 본문 바탕은 반투명(DAILY_BODY_ALPHA), 글자 · 도장은 불투명 + 어두운 테두리.
  *   PC · 휴대폰 모두 일일 퀘스트 창은 낮고 넓은 모양(도장 4칸을 글자 옆에) — 오른쪽 아래 버튼 줄(V · N)과 겹치지 않게.
  * - 오른쪽 아래: 버튼 줄(행사 V · 마감 공지 N). 휴대폰의 방향키 자리는 src/ui/firstScreen.js(첫 화면 기준)가 정합니다.
  * 검색창 숫자는 src/ui/searchBarLayout.js, 첫 화면 카메라 오프셋 · 방향키는 src/ui/firstScreen.js.
@@ -23,22 +24,35 @@ export const LANG_BUTTONS = { w: 44, h: 32, gap: 4 };
 // 터치 버튼이 실제 화면에서 최소 이 크기(css px)가 되도록 게임 안 크기를 키웁니다(48px + 여유).
 export const MIN_TOUCH_PX = 52;
 
-// 미니맵 가로(px, 세로는 맵 비율대로). 11/27: 20% 축소(PC 264 → 211, 휴대폰 220 → 176) 뒤 10% 키움(211 → 232, 176 → 194).
-// dot: 점 · 위치 표시 배율, label: 건물 이름표 글자(8px, 읽히는 최소 크기).
-export const MINIMAP = { pc: { width: 232, dot: 1.2, label: 8 }, touch: { width: 194, dot: 1, label: 8 } };
+// 미니맵 가로(px, 세로는 맵 비율대로). 11/27: 20% 축소(PC 264 → 211, 휴대폰 220 → 176) → 10% 키움(232 · 194)
+// → 오후 Preview를 보고 7% 줄임(232 → 216, 194 → 180). dot: 점 · 위치 표시 배율, label: 건물 이름표 글자(8px, 읽히는 최소 크기).
+export const MINIMAP = { pc: { width: 216, dot: 1.2, label: 8 }, touch: { width: 180, dot: 1, label: 8 } };
 export const MINIMAP_PAD = 8; // 지도 둘레 여백
 export const MINIMAP_FOOT = 36; // 지도 + 아래 "전체 지도 (M)" 줄까지의 덧높이(예전 40)
 export const MINIMAP_BUTTON_FONT = 12; // "전체 지도 (M)" (예전 13)
 export const HUD_TOP_GAP = 8; // 검색창 · KO/EN 버튼 아래 끝과 미니맵 사이
 
-export const DAILY_GAP = 5; // 미니맵과 일일 퀘스트 창 사이
+// 11/27 오후: 일일 퀘스트 창을 7% 줄임(DAILY_SHRINK). 예전 값(BEFORE)에 배율을 곱해 반올림합니다.
+// 글자는 최대 1px만 줄이고 10px 밑으로는 내리지 않습니다.
+export const DAILY_SHRINK = 0.93;
+const shrink = (v) => Math.round(v * DAILY_SHRINK);
+const shrinkFont = (v) => Math.max(10, v - 1, shrink(v));
+export const DAILY_BEFORE = { gap: 5, font: { title: 13, row: 12, small: 11, note: 10 }, stamp: { pc: { radius: 17, gap: 10 }, touch: { radius: 13, gap: 5 } }, textCol: 96, tabH: { pc: 22, touch: 20 }, pad: 8 };
+export const DAILY_GAP = shrink(DAILY_BEFORE.gap); // 미니맵과 일일 퀘스트 창 사이
 // 글자 크기(px). HUD의 작은 글자(12~13px: EXP · 게스트 안내 · 전체 지도 · 버튼 단축키)에 맞췄습니다.
-export const DAILY_FONT = { title: 13, row: 12, small: 11, note: 10 };
-// 도장 칸: PC는 약칭이 읽히는 크기(반지름 17), 휴대폰은 작게(반지름 13, 도장 안에는 약칭 첫 글자)
-export const DAILY_STAMP = { pc: { radius: 17, gap: 10 }, touch: { radius: 13, gap: 5 } };
+export const DAILY_FONT = Object.fromEntries(Object.entries(DAILY_BEFORE.font).map(([k, v]) => [k, shrinkFont(v)]));
+// 도장 칸: PC는 약칭이 읽히는 크기(반지름 17 → 16), 휴대폰은 작게(13 → 12, 도장 안에는 약칭 첫 글자)
+export const DAILY_STAMP = Object.fromEntries(Object.entries(DAILY_BEFORE.stamp).map(([k, v]) => [k, { radius: shrink(v.radius), gap: shrink(v.gap) }]));
 export const DAILY_STAMP_COUNT = 4;
-const DAILY_TEXT_COL = 96; // 도장 왼쪽 글자 칸("스탬프 랠리" · "다음: 학생회관") 폭
-const TAB_H = { pc: 22, touch: 20 };
+const DAILY_TEXT_COL = shrink(DAILY_BEFORE.textCol); // 도장 왼쪽 글자 칸("스탬프 랠리" · "다음: 학생회관") 폭
+const TAB_H = { pc: shrink(DAILY_BEFORE.tabH.pc), touch: shrink(DAILY_BEFORE.tabH.touch) };
+const DAILY_PAD = shrink(DAILY_BEFORE.pad); // 창 안쪽 좌우 여백
+// 펼친 창 모양: 제목 탭("▶ 일일 퀘스트")은 불투명, 그 아래 본문 바탕만 반투명(뒤의 맵이 비쳐 보이게).
+// 본문 글자 · 도장은 불투명 그대로이고, 맵 위에서도 읽히게 글자에 1px 어두운 테두리(stroke)를 넣습니다.
+export const DAILY_BODY_ALPHA = 0.55;
+export const DAILY_TAB_ALPHA = 1;
+export const DAILY_TEXT_ALPHA = 1;
+export const DAILY_TEXT_STROKE = { color: "#0a1020", px: 1 };
 
 // KO/EN 버튼 사각형(그림자 제외)
 export const langButtonsRect = (W) => {
@@ -69,21 +83,22 @@ export function dailyPanelSize({ touch, guest, collapsed, minimapPanelWidth, tab
   const stampsW = DAILY_STAMP_COUNT * stamp.radius * 2 + (DAILY_STAMP_COUNT - 1) * stamp.gap;
   // 글자 한 줄의 실제 높이(Galmuri11은 글자 크기보다 줄이 조금 높음)
   const LH = { row: DAILY_FONT.row + 4, small: DAILY_FONT.small + 3, note: DAILY_FONT.note + 3 };
-  const noteH = guest ? LH.note + 3 : 0;
+  const noteH = guest ? LH.note + 1 : 0;
   // 미니맵보다 넓어야 하면 왼쪽으로 더 나갑니다(오른쪽 선은 미니맵과 같음).
-  const w = Math.max(minimapPanelWidth, 8 + DAILY_TEXT_COL + 12 + stampsW + 10);
+  const pad = DAILY_PAD;
+  const w = Math.max(minimapPanelWidth, pad + DAILY_TEXT_COL + shrink(12) + stampsW + pad + 2);
   const y0 = tabH + 4;
   const rallyH = Math.max(LH.row + LH.small, stamp.radius * 2 + 2);
   const quizY = y0 + rallyH + 3;
   const rows = {
-    rallyLabel: { x: 8, y: y0 },
-    next: { x: 8, y: y0 + LH.row },
-    stamps: { x: w - 10 - stampsW + stamp.radius, y: y0 + rallyH / 2, ...stamp },
+    rallyLabel: { x: pad, y: y0 },
+    next: { x: pad, y: y0 + LH.row },
+    stamps: { x: w - pad - 2 - stampsW + stamp.radius, y: y0 + rallyH / 2, ...stamp },
     rallyZone: { y: tabH, h: quizY - 1 - tabH },
-    quizLabel: { x: 8, y: quizY },
-    quizCount: { x: w - 8, y: quizY + 1, alignRight: true },
+    quizLabel: { x: pad, y: quizY },
+    quizCount: { x: w - pad, y: quizY + 1, alignRight: true },
     quizZone: { y: quizY - 1, h: LH.row + 2 },
-    note: guest ? { x: 8, y: quizY + LH.row + 2 } : null,
+    note: guest ? { x: pad, y: quizY + LH.row + 2 } : null,
     shortNext: true, // "다음: 학생회관"처럼 약칭으로(도장 옆 칸이 좁음)
   };
   return { w, h: quizY + LH.row + 5 + noteH, tabH, rows };
