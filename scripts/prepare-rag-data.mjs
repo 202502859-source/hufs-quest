@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 
 import { buildMetadata } from "./lib/ragMetadata.mjs";
-import { splitDoubleMajor } from "./lib/ragSplit.mjs";
+import { splitRagChunk } from "./lib/ragSplit.mjs";
 
 const source = new URL("../data/chunks.json", import.meta.url);
 const target = new URL(
@@ -70,13 +70,14 @@ assert.equal(
 
 // 원문 세분화 및 메타데이터 연결
 const next = combined
-  .flatMap(splitDoubleMajor)
+  .flatMap(splitRagChunk)
   .map(chunk => ({
     ...chunk,
     ...buildMetadata(chunk)
   }));
 
-assert.equal(next.length, 532);
+// 이중전공 세분화 +7, 수강신청지침(11377-02) 세분화 +1(11/26 C17)
+assert.equal(next.length, 533);
 
 assert.equal(
   new Set(next.map(c => c.id)).size,
