@@ -238,17 +238,53 @@ test("정상 공지 초안 생성 및 checked 제외", () => {
   assert.equal(Object.hasOwn(result.draft, "checked"), false);
 });
 
-for (const [name, raw, expected] of dateCases.slice(1, 4)) {
-  test("초안 폐기: " + name, () => {
+const updatedDraftCases = [
+  {
+    name: "F02 연도 및 시각 보완",
+    raw: dateCases[1][1],
+    expected: "2026-12-05T23:59:00+09:00",
+    notes: ["연도 추정", "시각 없음", "요일 불일치"],
+  },
+  {
+    name: "F03 복수 마감",
+    raw: dateCases[2][1],
+    expected: "2026-12-04T18:00:00+09:00",
+    notes: ["복수 마감", "1차 마감:"],
+  },
+  {
+    name: "F04 시각 보완",
+    raw: dateCases[3][1],
+    expected: "2026-11-30T23:59:00+09:00",
+    notes: ["시각 없음 → 23:59로 둠"],
+  },
+];
+
+for (const fixture of updatedDraftCases) {
+  test("검수용 초안 생성: " + fixture.name, () => {
+    const extracted = structuredClone(EXTRACTED);
+
+    extracted.deadline = {
+      value: null,
+      evidence: null,
+    };
+
     const result = validateHcx007Draft(
-      HEADER + "\n" + raw,
-      EXTRACTED,
-      URL_OK
+      HEADER + "\n" + fixture.raw,
+      extracted,
+      URL_OK,
+      { publishedAt: "2026-11-27" }
     );
 
-    assert.equal(expected, null);
-    assert.equal(result.ok, false);
-    assert.equal(result.draft, null);
+    assert.equal(result.ok, true, result.reason);
+    assert.equal(result.draft.deadline, fixture.expected);
+    assert.equal(Object.hasOwn(result.draft, "checked"), false);
+
+    for (const note of fixture.notes) {
+      assert.ok(
+        result.reviewNotes.some(value => value.includes(note)),
+        "검수 메모 누락: " + note
+      );
+    }
   });
 }
 
@@ -591,4 +627,728 @@ test("분류 누락은 null 처리 후 최종 초안에서 차단", () => {
 
   assert.equal(result.ok, false);
   assert.equal(result.draft, null);
+});
+
+import {
+  validPublishedAt,
+  extractReviewableDeadline
+} from "./noticeHcx007Date.mjs";
+
+const POSTED_AT = "2026-11-27";
+
+const reviewableCases = [
+  {
+    name: "F01 정상 마감",
+    raw: DEADLINE_LINE,
+    expected: DEADLINE,
+    notes: [],
+  },
+  {
+    name: "F02 연도 및 시각 보완",
+    raw: "신청 기간: ~12/5(금)",
+    expected: "2026-12-05T23:59:00+09:00",
+    notes: [
+      "연도 추정",
+      "시각 없음 → 23:59로 둠",
+      "요일 불일치",
+    ],
+  },
+  {
+    name: "F03 마지막 차수 마감",
+    raw: "1차 마감: 2026.11.30.(월) 17:00\n" +
+      "2차 마감: 2026.12.04.(금) 18:00",
+    expected: "2026-12-04T18:00:00+09:00",
+    notes: [
+      "복수 마감",
+      "1차 마감: 2026-11-30T17:00:00+09:00",
+    ],
+  },
+  {
+    name: "F04 시각 보완",
+    raw: "신청 마감: 2026.11.30.(월)까지",
+    expected: "2026-11-30T23:59:00+09:00",
+    notes: ["시각 없음 → 23:59로 둠"],
+  },
+  {
+    name: "날짜만 있는 신청 기간",
+    raw: "신청기간: 2026.11.28. ~ 12.04.",
+    expected: "2026-12-04T23:59:00+09:00",
+    notes: [
+      "시작 시각 없음",
+      "시각 없음 → 23:59로 둠",
+    ],
+  },
+  {
+    name: "명시된 시각이 있는 기간",
+    raw: "신청기간: 2026.11.24.(화) 09:00 ~ 11.27.(금) 17:00",
+    expected: "2026-11-27T17:00:00+09:00",
+    startsAt: "2026-11-24T09:00:00+09:00",
+    notes: [],
+  },
+  {
+    name: "12월 게시 1월 마감",
+    raw: "신청 마감: 1/5",
+    publishedAt: "2026-12-27",
+    expected: "2027-01-05T23:59:00+09:00",
+    notes: ["연도 추정"],
+  },
+  {
+    name: "한글 오후 시각",
+    raw: "신청 마감: 2026년 11월 30일 오후 5시",
+    expected: DEADLINE,
+    notes: [],
+  },
+];
+
+for (const fixture of reviewableCases) {
+  test("검수용 날짜 보완: " + fixture.name, () => {
+    const result = extractReviewableDeadline(
+      fixture.raw,
+      fixture.publishedAt ?? POSTED_AT
+    );
+
+    assert.ok(result);
+    assert.equal(
+      result.deadline,
+      fixture.expected
+    );
+
+    assert.equal(
+      result.startsAt,
+      fixture.startsAt ?? null
+    );
+
+    assert.ok(
+      fixture.raw.includes(result.evidence)
+    );
+
+    for (const note of fixture.notes) {
+      assert.ok(
+        result.reviewNotes.some(
+          value => value.includes(note)
+        ),
+        "검수 메모 누락: " + note
+      );
+    }
+  });
+}
+
+test("게시일 없이 연도 추정 금지", () => {
+  assert.equal(
+    extractReviewableDeadline(
+      "신청 마감: 12/5"
+    ),
+    null
+  );
+});
+
+test("연도 명시 시 게시일 없이 처리 가능", () => {
+  assert.equal(
+    extractReviewableDeadline(
+      "신청 마감: 2026.11.30."
+    ).deadline,
+    "2026-11-30T23:59:00+09:00"
+  );
+});
+
+test("게시일 형식과 실제 날짜 검증", () => {
+  assert.equal(validPublishedAt(POSTED_AT), true);
+  assert.equal(validPublishedAt("2026-02-30"), false);
+  assert.equal(validPublishedAt("2026-13-01"), false);
+  assert.equal(validPublishedAt("26-11-27"), false);
+  assert.equal(validPublishedAt(null), false);
+});
+
+const invalidReviewableDates = [
+  ["날짜 없음", "신청 마감: 추후 공지"],
+  ["존재하지 않는 날짜", "신청 마감: 2026.11.31."],
+  ["잘못된 시각", "신청 마감: 2026.11.30. 25:00"],
+  ["잘못된 분", "신청 마감: 2026.11.30. 17:60"],
+  ["명시 연도 요일 오류", "신청 마감: 2026.11.30.(화)"],
+  ["다른 일정", "결과 발표: 2026.12.05."],
+  ["시작일만 존재", "신청 시작: 2026.11.30."],
+  [
+    "복수 차수 중 일부 날짜 없음",
+    "1차 마감: 2026.11.30.\n2차 마감: 추후 공지"
+  ],
+  [
+    "차수 없는 별도 마감",
+    "신청 마감: 2026.11.30.\n" +
+      "서류 제출 마감: 2026.12.04."
+  ],
+];
+
+for (const [name, raw] of invalidReviewableDates) {
+  test("검수용 날짜 차단: " + name, () => {
+    assert.equal(
+      extractReviewableDeadline(raw, POSTED_AT),
+      null
+    );
+  });
+}
+
+test("검수용 날짜: 해석 불가능한 별도 마감 무시 금지", () => {
+  assert.equal(
+    extractReviewableDeadline(
+      "신청 마감: 2026.11.30. 17:00\n" +
+      "서류 제출 마감: 추후 공지",
+      POSTED_AT
+    ),
+    null
+  );
+});
+
+test("검수용 날짜: 별도 마감의 잘못된 시각 차단", () => {
+  assert.equal(
+    extractReviewableDeadline(
+      "신청 마감: 2026.11.30. 17:00\n" +
+      "서류 제출 마감: 2026.12.04. 25:00",
+      POSTED_AT
+    ),
+    null
+  );
+});
+
+test("검수용 날짜: 차수와 날짜 순서 충돌 차단", () => {
+  assert.equal(
+    extractReviewableDeadline(
+      "1차 마감: 2026.12.04. 18:00\n" +
+      "2차 마감: 2026.11.30. 17:00",
+      POSTED_AT
+    ),
+    null
+  );
+});
+
+test("검수용 날짜: 게시일과 무관한 명시 연도 보존", () => {
+  const result = extractReviewableDeadline(
+    "신청 마감: 2027.01.05. 17:00",
+    POSTED_AT
+  );
+
+  assert.ok(result);
+
+  assert.equal(
+    result.deadline,
+    "2027-01-05T17:00:00+09:00"
+  );
+
+  assert.deepEqual(result.reviewNotes, []);
+});
+
+test("검수용 날짜: 원문 문장 순서와 관계없이 차수 처리", () => {
+  const result = extractReviewableDeadline(
+    "2차 마감: 2026.12.04. 18:00\n" +
+    "1차 마감: 2026.11.30. 17:00",
+    POSTED_AT
+  );
+
+  assert.ok(result);
+
+  assert.equal(
+    result.deadline,
+    "2026-12-04T18:00:00+09:00"
+  );
+
+  assert.ok(
+    result.reviewNotes.includes("복수 마감")
+  );
+});
+
+test("검수용 날짜: 명시 시각에는 23:59 보완 금지", () => {
+  const result = extractReviewableDeadline(
+    "신청 마감: 2026.11.30. 09:30",
+    POSTED_AT
+  );
+
+  assert.ok(result);
+
+  assert.equal(
+    result.deadline,
+    "2026-11-30T09:30:00+09:00"
+  );
+
+  assert.deepEqual(result.reviewNotes, []);
+});
+
+
+test("날짜 보완 초안: 개인정보 포함 원문 폐기", () => {
+  const result = validateHcx007Draft(
+    RAW + "\n문의: test@example.invalid",
+    EXTRACTED,
+    URL_OK
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+  assert.match(result.reason, /개인정보/);
+});
+
+test("날짜 보완 초안: 날짜 없는 공지 폐기", () => {
+  const result = validateHcx007Draft(
+    HEADER + "\n신청 마감: 추후 공지",
+    EXTRACTED,
+    URL_OK,
+    { publishedAt: POSTED_AT }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+});
+
+test("날짜 보완 초안: 잘못된 게시일 차단", () => {
+  const result = validateHcx007Draft(
+    RAW,
+    EXTRACTED,
+    URL_OK,
+    { publishedAt: "2026-02-30" }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+});
+
+test("날짜 보완 초안: 보완된 날짜도 원문 제목 검증 유지", () => {
+  const extracted = structuredClone(EXTRACTED);
+  extracted.title.value = "원문에 없는 제목";
+
+  const result = validateHcx007Draft(
+    HEADER + "\n신청 마감: 2026.11.30.",
+    extracted,
+    URL_OK
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+});
+
+test("날짜 보완 초안: 불명확한 별도 마감 우회 금지", () => {
+  const result = validateHcx007Draft(
+    RAW + "\n서류 제출 마감: 추후 공지",
+    EXTRACTED,
+    URL_OK
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+});
+
+test("날짜 보완 초안: 정상 날짜는 검수 메모 없음", () => {
+  const result = validateHcx007Draft(
+    RAW,
+    EXTRACTED,
+    URL_OK
+  );
+
+  assert.equal(result.ok, true, result.reason);
+  assert.deepEqual(result.reviewNotes, []);
+});
+
+
+test("게시일 CLI: 입력 게시일을 검증 함수에 전달", async () => {
+  const raw = HEADER + "\n신청 기간: ~12/5(금)";
+
+  const output = await runNoticeHcx007(
+    ["fixture.txt", URL_OK, "--published-at", POSTED_AT],
+    {
+      read: async () => raw,
+      extract: async (text, url, options) => {
+        assert.equal(text, raw);
+        assert.equal(url, URL_OK);
+        assert.equal(options.publishedAt, POSTED_AT);
+
+        return validateHcx007Draft(
+          text, EXTRACTED, url, options
+        );
+      },
+    }
+  );
+
+  const parsed = parseExtractOutput(output);
+
+  assert.equal(
+    parsed.draft.deadline,
+    "2026-12-05T23:59:00+09:00"
+  );
+
+  assert.match(output, /=== 검수 메모 ===/);
+  assert.match(output, /연도 추정/);
+  assert.match(output, /시각 없음 → 23:59로 둠/);
+  assert.match(output, /요일 불일치/);
+});
+
+test("게시일 CLI: 잘못된 날짜는 모델 호출 전에 차단", async () => {
+  let calls = 0;
+
+  await assert.rejects(
+    () => runNoticeHcx007(
+      ["fixture.txt", URL_OK, "--published-at", "2026-02-30"],
+      {
+        read: async () => RAW,
+        extract: async () => {
+          calls++;
+        },
+      }
+    ),
+    /게시일 형식 또는 날짜 오류/
+  );
+
+  assert.equal(calls, 0);
+});
+
+test("게시일 CLI: 게시일 생략 시 기존 호출 호환", async () => {
+  const output = await runNoticeHcx007(
+    ["fixture.txt", URL_OK],
+    {
+      read: async () => RAW,
+      extract: async (raw, url, options) => {
+        assert.equal(options.publishedAt, null);
+
+        return validateHcx007Draft(
+          raw, EXTRACTED, url, options
+        );
+      },
+    }
+  );
+
+  assert.equal(
+    parseExtractOutput(output).draft.deadline,
+    DEADLINE
+  );
+});
+
+test("게시일 CLI: 연도 추정에 필요한 게시일 누락 차단", async () => {
+  await assert.rejects(
+    () => runNoticeHcx007(
+      ["fixture.txt", URL_OK],
+      {
+        read: async () =>
+          HEADER + "\n신청 기간: ~12/5(금)",
+        extract: async (raw, url, options) =>
+          validateHcx007Draft(
+            raw, EXTRACTED, url, options
+          ),
+      }
+    ),
+    /공지 초안 폐기/
+  );
+});
+
+test("게시일 CLI: 검수 메모와 실제 공지 데이터 분리", () => {
+  const result = validateHcx007Draft(
+    HEADER + "\n신청 마감: 2026.11.30.",
+    EXTRACTED,
+    URL_OK
+  );
+
+  assert.equal(result.ok, true, result.reason);
+
+  const output = formatHcx007Output(result);
+  const parsed = parseExtractOutput(output);
+
+  assert.match(output, /"reviewNotes":/);
+  assert.match(output, /시각 없음 → 23:59로 둠/);
+
+  assert.equal(
+    Object.hasOwn(parsed.draft, "reviewNotes"),
+    false
+  );
+
+  assert.equal(
+    Object.hasOwn(parsed.draft, "checked"),
+    false
+  );
+
+  const { entry } = buildDeadlineEntry(
+    parsed.draft, URL_OK
+  );
+
+  assert.equal(
+    Object.hasOwn(entry, "reviewNotes"),
+    false
+  );
+
+  assert.equal(
+    Object.hasOwn(entry, "checked"),
+    false
+  );
+});
+
+test("게시일 CLI: 잘못된 게시일 오류 안내", () => {
+  assert.equal(
+    formatNoticeError(
+      new Error("게시일 형식 또는 날짜 오류")
+    ),
+    "게시일은 실제 날짜를 YYYY-MM-DD 형식으로 입력하세요."
+  );
+});
+
+
+test("검수 연동: 출력 파서에서 검수 메모 유지", () => {
+  const result = validateHcx007Draft(
+    HEADER + "\n신청 기간: ~12/5(금)",
+    EXTRACTED,
+    URL_OK,
+    { publishedAt: POSTED_AT }
+  );
+
+  assert.equal(result.ok, true, result.reason);
+
+  const parsed = parseExtractOutput(
+    formatHcx007Output(result)
+  );
+
+  assert.deepEqual(
+    parsed.reviewNotes,
+    result.reviewNotes
+  );
+
+  assert.deepEqual(parsed.draft, result.draft);
+
+  assert.equal(
+    Object.hasOwn(parsed.draft, "reviewNotes"),
+    false
+  );
+});
+
+test("검수 연동: 기존 HCX-005 출력 호환", () => {
+  const output = [
+    "=== 공지 추출 JSON 초안 ===",
+    JSON.stringify({ evidence: {} }),
+    "=== shared/deadlines.js 입력용 초안 ===",
+    JSON.stringify({
+      deadline: DEADLINE
+    }),
+  ].join("\n");
+
+  const parsed = parseExtractOutput(output);
+
+  assert.deepEqual(parsed.reviewNotes, []);
+  assert.equal(parsed.draft.deadline, DEADLINE);
+});
+
+test("검수 연동: 잘못된 검수 메모 형식 차단", () => {
+  for (const reviewNotes of [
+    "잘못된 형식",
+    [123],
+    ["첫째 줄\n둘째 줄"],
+    [""]
+  ]) {
+    const output = [
+      "=== 공지 추출 JSON 초안 ===",
+      JSON.stringify({
+        evidence: {},
+        reviewNotes
+      }),
+      "=== shared/deadlines.js 입력용 초안 ===",
+      JSON.stringify({
+        deadline: DEADLINE
+      }),
+    ].join("\n");
+
+    assert.throws(
+      () => parseExtractOutput(output),
+      /검수 메모 형식 오류/
+    );
+  }
+});
+
+test("검수 연동: 실제 notice:draft dry-run 문서에 메모 보존", async () => {
+  const {
+    mkdtemp, writeFile, readFile, rm
+  } = await import("node:fs/promises");
+
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const { spawnSync } = await import("node:child_process");
+
+  const dir = await mkdtemp(
+    join(tmpdir(), "hcx007-review-")
+  );
+
+  try {
+    const result = validateHcx007Draft(
+      HEADER + "\n신청 기간: ~12/5(금)",
+      EXTRACTED,
+      URL_OK,
+      { publishedAt: POSTED_AT }
+    );
+
+    assert.equal(result.ok, true, result.reason);
+
+    const outputFile = join(dir, "fixture-output.txt");
+
+    await writeFile(
+      outputFile,
+      formatHcx007Output(result)
+    );
+
+    const cli = fileURLToPath(
+      new URL("../notice-draft.mjs", import.meta.url)
+    );
+
+    const run = spawnSync(
+      process.execPath,
+      [
+        cli,
+        "fixture.txt",
+        URL_OK,
+        "--published-at",
+        POSTED_AT,
+        "--from-output",
+        outputFile,
+        "--dry-run",
+      ],
+      {
+        cwd: dir,
+        encoding: "utf8"
+      }
+    );
+
+    assert.equal(run.status, 0, run.stderr);
+
+    const note = await readFile(
+      join(dir, ".local", "notice-draft-999001.md"),
+      "utf8"
+    );
+
+    for (const expected of result.reviewNotes) {
+      assert.ok(
+        run.stdout.includes(expected),
+        "터미널 검수 메모 누락"
+      );
+
+      assert.ok(
+        note.includes(expected),
+        "로컬 검수 문서 메모 누락"
+      );
+    }
+
+    assert.match(note, /2026-12-05T23:59:00\+09:00/);
+    assert.match(note, /checked/);
+    assert.match(note, /원문 근거/);
+    assert.match(run.stdout, /--dry-run/);
+
+  } finally {
+    // 이 테스트가 직접 만든 임시 디렉터리만 정리한다.
+    await rm(dir, {
+      recursive: true,
+      force: true
+    });
+  }
+});
+
+
+test("요일 우회 방지: S08 신청 시작일 요일 오류", () => {
+  const line =
+    "신청기간: 2026.11.24.(월) 09:00 ~ " +
+    "2026.11.30.(월) 17:00";
+
+  const extracted = structuredClone(EXTRACTED);
+
+  extracted.startsAt = {
+    value: "2026-11-24T09:00:00+09:00",
+    evidence: line,
+  };
+
+  extracted.deadline = {
+    value: DEADLINE,
+    evidence: line,
+  };
+
+  const result = validateHcx007Draft(
+    HEADER + "\n" + line,
+    extracted,
+    URL_OK,
+    { publishedAt: POSTED_AT }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+  assert.equal(result.reason, "명시 날짜와 요일 불일치");
+});
+
+test("요일 우회 방지: 명시된 마감일 요일 오류", () => {
+  const line =
+    "신청기간: 2026.11.24.(화) 09:00 ~ " +
+    "2026.11.30.(화) 17:00";
+
+  const extracted = structuredClone(EXTRACTED);
+
+  extracted.startsAt = {
+    value: "2026-11-24T09:00:00+09:00",
+    evidence: line,
+  };
+
+  extracted.deadline = {
+    value: DEADLINE,
+    evidence: line,
+  };
+
+  const result = validateHcx007Draft(
+    HEADER + "\n" + line,
+    extracted,
+    URL_OK,
+    { publishedAt: POSTED_AT }
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+  assert.equal(result.reason, "명시 날짜와 요일 불일치");
+});
+
+test("요일 우회 방지: 정상 신청 기간 유지", () => {
+  const line =
+    "신청기간: 2026.11.24.(화) 09:00 ~ " +
+    "2026.11.30.(월) 17:00";
+
+  const extracted = structuredClone(EXTRACTED);
+
+  extracted.startsAt = {
+    value: "2026-11-24T09:00:00+09:00",
+    evidence: line,
+  };
+
+  extracted.deadline = {
+    value: DEADLINE,
+    evidence: line,
+  };
+
+  const result = validateHcx007Draft(
+    HEADER + "\n" + line,
+    extracted,
+    URL_OK,
+    { publishedAt: POSTED_AT }
+  );
+
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(result.draft.deadline, DEADLINE);
+  assert.equal(
+    result.draft.startsAt,
+    extracted.startsAt.value
+  );
+  assert.deepEqual(result.reviewNotes, []);
+});
+
+test("요일 우회 방지: 연도 생략 F02 검수 정책 유지", () => {
+  const result = validateHcx007Draft(
+    HEADER + "\n신청 기간: ~12/5(금)",
+    EXTRACTED,
+    URL_OK,
+    { publishedAt: POSTED_AT }
+  );
+
+  assert.equal(result.ok, true, result.reason);
+
+  assert.equal(
+    result.draft.deadline,
+    "2026-12-05T23:59:00+09:00"
+  );
+
+  assert.ok(
+    result.reviewNotes.some(
+      note => note.includes("요일 불일치")
+    )
+  );
 });

@@ -13,11 +13,15 @@ import {
 
 import {
   hasMultipleRounds,
-  extractStandaloneDeadline
+  extractStandaloneDeadline,
+  extractReviewableDeadline,
+  validPublishedAt,
+  hasInvalidExplicitWeekday
 } from "./noticeHcx007Date.mjs";
 
 import {
-  requestNoticeHcx007
+  requestNoticeHcx007,
+  hasPrivateNoticeInfo
 } from "./noticeHcx007.mjs";
 
 import {
@@ -69,10 +73,19 @@ function findVerifiedPeriod(raw) {
 export function validateHcx007Draft(
   raw,
   extracted,
-  sourceUrl
+  sourceUrl,
+  { publishedAt = null } = {}
 ) {
   if (typeof raw !== "string" || !raw.trim()) {
     return reject("공지 원문이 비어 있음");
+  }
+
+  if (hasPrivateNoticeInfo(raw)) {
+    return reject("개인정보 의심 표현: 원문 정리 후 다시 실행");
+  }
+
+  if (publishedAt !== null && !validPublishedAt(publishedAt)) {
+    return reject("게시일 형식 또는 날짜 오류");
   }
 
   let article;
@@ -89,7 +102,29 @@ export function validateHcx007Draft(
     return reject("유효한 학교 공지 원문 주소가 필요함");
   }
 
-  if (hasMultipleRounds(raw)) {
+  // 기존 날짜 파서로 우회하기 전에
+  // 명시된 연도와 요일의 일치 여부를 확인한다.
+  if (hasInvalidExplicitWeekday(raw)) {
+    return reject("명시 날짜와 요일 불일치");
+  }
+
+  const reviewable = extractReviewableDeadline(
+    raw, publishedAt
+  );
+
+  const strictPeriod = findVerifiedPeriod(raw);
+
+  // 종헌 요청: 시각·연도 보완과 복수 차수는
+  // 원문 기반 검수용 초안으로 처리한다.
+  const reviewMode = Boolean(
+    reviewable &&
+    (
+      reviewable.reviewNotes.length > 0 ||
+      !strictPeriod
+    )
+  );
+
+  if (hasMultipleRounds(raw) && !reviewMode) {
     return reject("복수 차수 마감: 적용 대상 확인 필요");
   }
 
@@ -100,11 +135,23 @@ export function validateHcx007Draft(
     /(?:\d{1,2}\s*[./월-]\s*\d{1,2}|\d{1,2}:\d{2})/.test(line)
   );
 
-  if (deadlineLines.length > 1) {
+  if (deadlineLines.length > 1 && !reviewMode) {
     return reject("복수 마감 문장: 원문 확인 필요");
   }
 
-  const period = findVerifiedPeriod(raw);
+  const period = reviewMode
+    ? reviewable
+    : strictPeriod;
+
+  // 신규 날짜 함수가 해석할 수 없는 별도 마감이
+  // 존재하면 기존 단독 마감 파서로 우회하지 않는다.
+  const explicitDeadlineLines = raw.split(/\r?\n/).filter(line =>
+    /^(?:[•*-]\s*)?(?:\d+\s*차\s*)?(?:(?:신청|접수|제출|서류\s*제출)\s*)?(?:마감(?:일시|일)?|기한|종료)\s*[:：]/.test(line.trim())
+  );
+
+  if (explicitDeadlineLines.length > 1 && !reviewable) {
+    return reject("복수 마감 문장: 원문 확인 필요");
+  }
 
   if (!period) {
     return reject("마감 날짜 또는 시각을 확정할 수 없음");
@@ -116,17 +163,18 @@ export function validateHcx007Draft(
     period.startsAt == null &&
     raw.split(/\r?\n/).some(line =>
       /(?:신청|접수)\s*(?:시작|개시)|시작일/.test(line) &&
-      /\d{1,2}:\d{2}|\d{1,2}\s*시/.test(line)
+      /\d{1,2}:\d{2}|\d{1,2}\s*시|\d{1,2}\s*[./월-]\s*\d{1,2}/.test(line)
     )
   ) {
     return reject("시작 일시가 별도로 명시됨: 원문 확인 필요");
   }
 
-  if (extracted?.deadline?.value !== period.deadline) {
+  if (!reviewMode && extracted?.deadline?.value !== period.deadline) {
     return reject("AI 마감 일시와 원문 마감 일시 불일치");
   }
 
   if (
+    !reviewMode &&
     (extracted?.startsAt?.value ?? null) !==
     (period.startsAt ?? null)
   ) {
@@ -145,11 +193,35 @@ export function validateHcx007Draft(
     extracted
   );
 
+  // 보완 날짜는 AI의 추정값을 사용하지 않는다.
+  // 독립적인 원문 파서 결과로만 확정한다.
+  if (reviewMode) {
+    if (
+      !period.evidence ||
+      !raw.includes(period.evidence)
+    ) {
+      return reject("마감 일시 원문 근거 확인 실패");
+    }
+
+    attached.deadline = {
+      value: period.deadline,
+      evidence: period.evidence,
+    };
+
+    attached.startsAt = {
+      value: period.startsAt ?? null,
+      evidence: period.startsAt
+        ? period.evidence
+        : null,
+    };
+  }
+
   // 단독 마감은 신규 날짜 검증 함수의
   // 정확한 원문 근거를 사용한다.
   const standalone = extractStandaloneDeadline(raw);
 
   if (
+    !reviewMode &&
     standalone &&
     standalone.deadline === period.deadline &&
     period.startsAt === null
@@ -182,7 +254,7 @@ export function validateHcx007Draft(
     return reject("공지 분류 확인 실패");
   }
 
-  if (period.startsAt !== null) {
+  if (period.startsAt !== null && !reviewMode) {
     if (result.startsAt !== period.startsAt) {
       return reject("시작 일시 원문 검증 실패");
     }
@@ -210,18 +282,32 @@ export function validateHcx007Draft(
 
   if (
     result.deadline !== period.deadline &&
-    !standaloneVerified
+    !standaloneVerified &&
+    !reviewMode
   ) {
     return reject("마감 일시 최종 검증 실패");
   }
 
-  const issues = result.issues.filter(issue =>
-    !(
-      standaloneVerified &&
+  const issues = result.issues.filter(issue => {
+    if (
+      (standaloneVerified || reviewMode) &&
       issue ===
       "deadline: 날짜 형식 또는 원문 근거 확인 필요"
-    )
-  );
+    ) {
+      return false;
+    }
+
+    if (
+      reviewMode &&
+      period.startsAt &&
+      issue ===
+      "startsAt: 날짜 형식 또는 원문 근거 확인 필요"
+    ) {
+      return false;
+    }
+
+    return true;
+  });
 
   if (issues.length > 0) {
     return reject(issues.join(" / "));
@@ -229,7 +315,10 @@ export function validateHcx007Draft(
 
   if (
     period.startsAt &&
-    !raw.includes(result.evidence.startsAt)
+    (
+      !result.evidence.startsAt ||
+      !raw.includes(result.evidence.startsAt)
+    )
   ) {
     return reject("시작 일시 원문 근거 확인 실패");
   }
@@ -267,6 +356,9 @@ export function validateHcx007Draft(
     reason: null,
     draft,
     evidence,
+    reviewNotes: reviewMode
+      ? [...period.reviewNotes]
+      : [],
   };
 }
 
@@ -283,7 +375,8 @@ export async function extractHcx007Draft(
   const verified = validateHcx007Draft(
     raw,
     response.extracted,
-    sourceUrl
+    sourceUrl,
+    { publishedAt: options.publishedAt ?? null }
   );
 
   return {
