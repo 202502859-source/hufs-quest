@@ -168,9 +168,9 @@ test("?mock=already 계정: 퀴즈·퀘스트·출석 모두 already, 숫자가 
   const { progress } = server.getProgress();
   assert.equal(progress.quiz.rewarded.length, QUIZ.length);
   assert.equal(progress.quiz.todayExp, 0);
-  assert.equal(progress.level, 11); // 60문제 600 + 퀘스트 2개 20 = 620 → Lv.11 시작 누적 550
-  assert.equal(progress.exp, 70);
-  assert.equal(progress.expMax, 110);
+  assert.equal(progress.level, 14); // 100문제 1000 + 퀘스트 2개 20 = 1020 → Lv.14 시작 누적 910
+  assert.equal(progress.exp, 110);
+  assert.equal(progress.expMax, 140);
   assert.equal(progress.points, 25); // 퀘스트 2개 20 + 출석 5
   const q = QUIZ[0];
   assert.equal(server.answerQuiz({ questionId: q.id, choice: right(q) }).result, "already");

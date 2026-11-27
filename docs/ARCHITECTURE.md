@@ -12,7 +12,7 @@ flowchart LR
     subgraph game["게임 화면 · src/ (Phaser)"]
         explore["캠퍼스 탐험<br/>맵 이동 · 미니맵 · 정문 기둥 · 현수막"]
         search["빠른 검색창<br/>공식 문서 근거 답변 · 출처 수집일"]
-        quiz["O/X 퀴즈<br/>60문항 · 경험치"]
+        quiz["O/X 퀴즈<br/>100문항 · 경험치"]
         notice["마감 임박 공지<br/>D-day 정렬"]
         events["학교 행사 표<br/>14일 안 · 팀 손 입력 · 학생 제보 배지 · 앱 제보 폼"]
         mapInfo["건물 정보 · 맵 기준일<br/>buildingInfo.js · 형식·화면 완료, 내용 입력 중"]

@@ -1,4 +1,5 @@
-// 맵 곳곳의 '?' 퀴즈 상자에서 나오는 O/X 문제 60개입니다.
+// 맵 곳곳의 '?' 퀴즈 상자에서 나오는 O/X 문제 100개입니다(O 50 · X 50, 학사 45 · 외대 상식 25 · 학교생활 30).
+// 2026-11-27에 40문제를 더했습니다. 새 문제의 근거 원문은 docs/quiz-100-check.md 표에 있습니다.
 // 모든 문제는 출처(source)의 원문과 대조해 만들었습니다(2026-11 기준).
 // 학교 제도·시설 정보는 바뀔 수 있으니, 바뀌면 source.url의 원문을 다시 확인하고 고쳐 주세요.
 //
@@ -59,6 +60,24 @@ const SRC = {
     name: { ko: "대학저널 – 한국외대 가을축제 'QUINQUATRIA: LIGHT UP' (2022)", en: "Daehak Journal – HUFS festival 'QUINQUATRIA: LIGHT UP' (2022)" },
     url: "https://dhnews.co.kr/news/view/179524878683285",
   },
+  // ── 2026-11-27 추가 40문제용 출처(모두 학교 공식 홈페이지) ──
+  courseEval: site(12647, "강의평가 및 결과 공개", "Course Evaluation"),
+  teaching: site(11398, "교직과정 이수예정자 선발", "Teacher Certification Track"),
+  convergence: site(11254, "융합전공", "Convergence Majors"),
+  history: site(11123, "역사", "History"),
+  timeline: site(11124, "연표", "Timeline"),
+  mascotSymbol: site(11133, "상징", "University Symbol"),
+  character: site(11137, "캐릭터", "Mascot Character"),
+  talent: site(11120, "인재상", "Ideal Graduate"),
+  competency: site(11121, "핵심역량", "Core Competencies"),
+  rotc: site(11294, "학군단(ROTC)", "ROTC"),
+  reserve: site(11296, "예비군", "Reserve Forces"),
+  globalHall: site(11314, "GLOBAL HALL(서울)", "Global Hall (Seoul)"),
+  internship: site(11303, "현장실습", "Internships"),
+  eduroam: site(11334, "Eduroam(에듀롬) 사용안내", "Eduroam Guide"),
+  software: site(11338, "S/W", "Software"),
+  email: site(11340, "e-mail 서비스", "E-mail Service"),
+  counseling: site(11300, "학생상담", "Student Counseling"),
 };
 
 export const QUIZ = [
@@ -906,5 +925,572 @@ export const QUIZ = [
       en: "Correct. You study one semester abroad as a visiting student; HUFS tuition is covered by a scholarship, but you pay the foreign university's tuition.",
     },
     source: SRC.exchange,
+  },
+
+  // ═════════════ 2026-11-27 추가 40문제 (근거 원문: docs/quiz-100-check.md) ═════════════
+  // ───────────── 학사 추가 (15) ─────────────
+  {
+    id: "warning-no-course-registration",
+    category: "academic",
+    question: {
+      ko: "등록을 하고도 정당한 사유 없이 수강신청을 하지 않으면 학사경고를 받는다.",
+      en: "If you pay tuition but do not register for any courses without a valid reason, you receive an academic warning.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 평점평균이 1.75 미만일 때뿐 아니라, 등록을 하고도 정당한 사유 없이 수강신청을 하지 않은 학생도 학사경고를 받아요.",
+      en: "Correct. Besides a GPA below 1.75, enrolling but not registering for courses without a valid reason also results in an academic warning.",
+    },
+    source: SRC.warning,
+  },
+  {
+    id: "warning-extra-semester",
+    category: "academic",
+    question: {
+      ko: "수업연한(4년)을 넘겨 등록한 학생도 평점평균이 1.75 미만이면 학사경고를 받는다.",
+      en: "Students enrolled beyond the standard four years still receive an academic warning if their GPA falls below 1.75.",
+    },
+    answer: false,
+    explain: {
+      ko: "수업연한(4년)을 초과하여 등록한 학생은 학사경고 대상에서 제외돼요.",
+      en: "Students enrolled beyond the standard four years are exempt from academic warnings.",
+    },
+    source: SRC.warning,
+  },
+  {
+    id: "gpa-truncate",
+    category: "academic",
+    question: {
+      ko: "평점평균을 계산할 때는 소수점 셋째 자리에서 반올림한다.",
+      en: "When calculating GPA, the third decimal place is rounded.",
+    },
+    answer: false,
+    explain: {
+      ko: "반올림하지 않아요. 평점평균을 계산할 때 소수점 셋째 자리 이하는 절사(버림)해요.",
+      en: "It is not rounded. Everything from the third decimal place onward is dropped (truncated).",
+    },
+    source: SRC.warning,
+  },
+  {
+    id: "grade-aplus-score",
+    category: "academic",
+    question: {
+      ko: "100점 기준으로 90점 이상이면 A+를 받는다.",
+      en: "On a 100-point scale, a score of 90 or above earns an A+.",
+    },
+    answer: false,
+    explain: {
+      ko: "A+는 95~100점이에요. 90~94점은 A0예요.",
+      en: "An A+ requires 95–100 points. A score of 90–94 is an A0.",
+    },
+    source: SRC.grades,
+  },
+  {
+    id: "seasonal-min-enrollment",
+    category: "academic",
+    question: {
+      ko: "계절학기 교과목은 수강신청 인원이 20명 이상이면 개설된다.",
+      en: "A summer or winter session course opens as long as at least 20 students sign up.",
+    },
+    answer: false,
+    explain: {
+      ko: "계절학기에서는 수강신청 인원이 30명 미만인 교과목은 개설하지 않아요.",
+      en: "Seasonal session courses with fewer than 30 students signed up are not offered.",
+    },
+    source: SRC.seasonal,
+  },
+  {
+    id: "readmission-wait-grades",
+    category: "academic",
+    question: {
+      ko: "학업성적 불량으로 제적되면 제적 학기를 포함해 1개 학기만 지나도 재입학을 신청할 수 있다.",
+      en: "A student dismissed for poor grades can apply for readmission after just one semester, counting the semester of dismissal.",
+    },
+    answer: false,
+    explain: {
+      ko: "학업성적 불량·징계로 제적되면 제적된 학기를 포함해 2개 학기 이상 지나야 해요. 1개 학기는 미등록 제적·자퇴 등의 기준이에요.",
+      en: "Students dismissed for poor grades or discipline must wait at least two semesters, counting the semester of dismissal.",
+    },
+    source: SRC.readmission,
+  },
+  {
+    id: "readmission-records",
+    category: "academic",
+    question: {
+      ko: "재입학이 허가되면 제적 전의 성적과 학사경고 기록은 그대로 유효하다.",
+      en: "After readmission, your grades and academic warnings from before the dismissal remain valid.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 재입학이 허가되면 제적 전의 성적, 등록, 휴학, 학사경고, 제한조치 등이 계속 유효해요.",
+      en: "Correct. Grades, enrollment, leave, academic warnings and restrictions from before the dismissal all carry over.",
+    },
+    source: SRC.readmission,
+  },
+  {
+    id: "transfer-education",
+    category: "academic",
+    question: {
+      ko: "비사범대학 학생도 사범대학의 학과로 전과할 수 있다.",
+      en: "Students outside the College of Education can transfer into one of its departments.",
+    },
+    answer: false,
+    explain: {
+      ko: "비사범대학 학생은 사범대학의 학과로 전과할 수 없어요.",
+      en: "Students outside the College of Education cannot transfer into its departments.",
+    },
+    source: SRC.transfer,
+  },
+  {
+    id: "transfer-year-limit",
+    category: "academic",
+    question: {
+      ko: "2026학년도 전과부터는 1개 학기 이상 이수했다면 학년 제한 없이 전과를 신청할 수 있다.",
+      en: "From the 2026 transfer round, anyone who has completed at least one semester can apply regardless of year level.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 2026학년도 전과부터 학년 제한이 폐지되어 1개 학기 이상 이수자가 신청할 수 있어요. 학점·평점 기준은 그대로예요.",
+      en: "Correct. The year-level limit was removed from 2026, so students with one or more semesters can apply. Credit and GPA requirements still apply.",
+    },
+    source: SRC.transfer,
+  },
+  {
+    id: "late-double-major-ninth",
+    category: "academic",
+    question: {
+      ko: "후기 이중전공은 8학기까지 필요한 학점을 모두 채웠더라도 9학기를 반드시 이수해야 한다.",
+      en: "In the late double major track, you must enroll in a 9th semester even if you finished all required credits by the 8th.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 8학기까지 이중전공에 해당하는 학점을 모두 완료했어도 9학기 이수가 필수예요(수강신청과 등록 필요).",
+      en: "Correct. Even with all double major credits done by the 8th semester, a 9th semester (with registration and tuition) is mandatory.",
+    },
+    source: SRC.doubleMajor,
+  },
+  {
+    id: "convergence-ai-minor",
+    category: "academic",
+    question: {
+      ko: "AI융합전공은 부전공으로도 이수할 수 있다.",
+      en: "The AI Convergence major can also be taken as a minor.",
+    },
+    answer: false,
+    explain: {
+      ko: "융합전공은 이중전공으로만 이수할 수 있어요. 부전공으로도 이수할 수 있는 융합전공은 국가리더전공과 데이터사이언스전공뿐이에요.",
+      en: "Convergence majors can only be taken as a double major. Only the National Leader and Data Science majors can also be taken as a minor.",
+    },
+    source: SRC.convergence,
+  },
+  {
+    id: "teaching-apply-once",
+    category: "academic",
+    question: {
+      ko: "비사범대 학생은 교직과정 이수예정자 선발에서 떨어져도 다음 해에 다시 신청할 수 있다.",
+      en: "Students outside the College of Education who miss out on the teaching track can apply again the next year.",
+    },
+    answer: false,
+    explain: {
+      ko: "비사범대 교직과정 이수예정자 선발은 재학 중 1회만 신청할 수 있어요.",
+      en: "You can apply for the teacher certification track only once during your studies.",
+    },
+    source: SRC.teaching,
+  },
+  {
+    id: "course-eval-twice",
+    category: "academic",
+    question: {
+      ko: "강의평가는 학기 말에 한 번만 실시한다.",
+      en: "Course evaluations are conducted only once, at the end of the semester.",
+    },
+    answer: false,
+    explain: {
+      ko: "강의평가는 중간평가와 기말평가로 나누어 한 학기에 두 번 실시해요.",
+      en: "Course evaluations are conducted twice a semester: a midterm evaluation and a final evaluation.",
+    },
+    source: SRC.courseEval,
+  },
+  {
+    id: "bachelor-master-gpa",
+    category: "academic",
+    question: {
+      ko: "학·석사 연계과정은 총 평점평균이 3.00 이상이면 지원할 수 있다.",
+      en: "You can apply for the combined bachelor's-master's program with an overall GPA of 3.00 or higher.",
+    },
+    answer: false,
+    explain: {
+      ko: "3학년 1학기(5학기)까지 정해진 학점 이상을 취득하고 총 평점평균이 3.50 이상이어야 해요.",
+      en: "You need the required credits by your 5th semester and an overall GPA of 3.50 or higher.",
+    },
+    source: SRC.bachelorMaster,
+  },
+  {
+    id: "credit-carryover",
+    category: "academic",
+    question: {
+      ko: "수강학점 이월은 1학기에 다 쓰지 않은 수강학점을 같은 해 2학기에 이월해 신청하는 제도다.",
+      en: "Credit carryover lets you use course credits you did not take in the spring semester in the fall semester of the same year.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 1학기에 최대 수강학점까지 듣지 않은 학점은 같은 해 2학기로 이월돼요. 적용 대상과 이월 학점은 수강편람을 확인하세요.",
+      en: "Correct. Credits left unused in spring carry over to the fall of the same year. See the course handbook for eligibility and limits.",
+    },
+    source: SRC.registration,
+  },
+
+  // ───────────── 외대 상식 추가 (15) ─────────────
+  {
+    id: "opening-place",
+    category: "hufs",
+    question: {
+      ko: "한국외대는 1954년에 지금의 이문동 캠퍼스에서 개교했다.",
+      en: "HUFS opened in 1954 on its present-day Imun-dong campus.",
+    },
+    answer: false,
+    explain: {
+      ko: "1954년 4월 20일 서울 종로2가 영보빌딩에서 개교했어요. 이문동으로는 1957년에 교사를 새로 지어 옮겼어요.",
+      en: "It opened on April 20, 1954 in the Yeongbo Building in Jongno 2-ga, Seoul, and moved to a new building in Imun-dong in 1957.",
+    },
+    source: SRC.history,
+  },
+  {
+    id: "first-departments",
+    category: "hufs",
+    question: {
+      ko: "한국외대가 개교할 때 처음 설치한 학과 가운데 일본어과가 있었다.",
+      en: "Japanese was one of the departments HUFS started with when it opened.",
+    },
+    answer: false,
+    explain: {
+      ko: "처음 설치된 학과는 영어과, 불어과, 중국어과, 독일어과, 러시아어과였어요. 이듬해에 서반아어과가 더해졌어요.",
+      en: "The first departments were English, French, Chinese, German and Russian. Spanish was added the following year.",
+    },
+    source: SRC.history,
+  },
+  {
+    id: "first-graduates",
+    category: "hufs",
+    question: {
+      ko: "한국외대의 첫 졸업생은 개교 이듬해인 1955년에 나왔다.",
+      en: "HUFS produced its first graduates in 1955, the year after it opened.",
+    },
+    answer: false,
+    explain: {
+      ko: "첫 졸업생(133명)은 1958년에 배출됐어요.",
+      en: "The first graduating class (133 students) finished in 1958.",
+    },
+    source: SRC.history,
+  },
+  {
+    id: "university-status-1980",
+    category: "hufs",
+    question: {
+      ko: "한국외대는 1990년에 종합대학교로 승격됐다.",
+      en: "HUFS was upgraded from a college to a full university in 1990.",
+    },
+    answer: false,
+    explain: {
+      ko: "1980년 10월 2일 문교부에서 종합대학교 승격 인가를 받았어요.",
+      en: "It received approval to become a full university on October 2, 1980.",
+    },
+    source: SRC.history,
+  },
+  {
+    id: "campus-merge-2014",
+    category: "hufs",
+    question: {
+      ko: "서울캠퍼스와 글로벌캠퍼스는 2004년부터 통합 운영되고 있다.",
+      en: "The Seoul and Global campuses have been run as one integrated university since 2004.",
+    },
+    answer: false,
+    explain: {
+      ko: "교육부의 본·분교 통합 승인을 받아 2014년 3월 1일부터 서울캠퍼스와 글로벌캠퍼스를 통합 운영했어요.",
+      en: "After the Ministry of Education approved merging the main and branch campuses, they have been run together since March 1, 2014.",
+    },
+    source: SRC.history,
+  },
+  {
+    id: "founder-private",
+    category: "hufs",
+    question: {
+      ko: "한국외대는 정부가 세운 국립대학으로 출발했다.",
+      en: "HUFS began as a national university established by the government.",
+    },
+    answer: false,
+    explain: {
+      ko: "창립자 김흥배 박사가 재산을 희사해 학교법인 동원육영회를 세우고 설립한 사립대학이에요.",
+      en: "It is a private university: founder Dr. Kim Heung-bae donated his fortune to set up the Dongwon Educational Foundation, which established the school.",
+    },
+    source: SRC.history,
+  },
+  {
+    id: "symbol-owl",
+    category: "hufs",
+    question: {
+      ko: "한국외대의 상징은 지혜의 여신 미네르바와 독수리를 조합한 것이다.",
+      en: "The HUFS symbol combines Minerva, the goddess of wisdom, with an eagle.",
+    },
+    answer: false,
+    explain: {
+      ko: "고대 로마 신화 속 지혜의 여신 미네르바와 부엉이의 조합이에요.",
+      en: "It combines Minerva, the Roman goddess of wisdom, with an owl.",
+    },
+    source: SRC.mascotSymbol,
+  },
+  {
+    id: "core-competencies-six",
+    category: "hufs",
+    question: {
+      ko: "한국외대는 인재상을 구현하기 위한 핵심역량을 4가지로 정해 두었다.",
+      en: "HUFS has defined four core competencies for realizing its ideal graduate.",
+    },
+    answer: false,
+    explain: {
+      ko: "6대 핵심역량이에요. 자기주도적 학습, 지식·정보·기술활용, 세계 시민, 의사소통, 창의·혁신, 대인관계 역량이에요.",
+      en: "There are six: self-directed learning, knowledge and technology use, global citizenship, communication, creativity and innovation, and interpersonal skills.",
+    },
+    source: SRC.competency,
+  },
+  {
+    id: "ai-college-2024",
+    category: "hufs",
+    question: {
+      ko: "AI융합대학은 2020학년도에 설립됐다.",
+      en: "The College of AI Convergence was established in the 2020 academic year.",
+    },
+    answer: false,
+    explain: {
+      ko: "2024학년도부터 양 캠퍼스 통합 단과대학으로 AI융합대학을 설립했어요.",
+      en: "It was established from the 2024 academic year as a college spanning both campuses.",
+    },
+    source: SRC.timeline,
+  },
+  {
+    id: "enrollment-campus",
+    category: "hufs",
+    question: {
+      ko: "한국외대 재학생 수는 글로벌캠퍼스가 서울캠퍼스보다 많다.",
+      en: "The Global Campus has more enrolled students than the Seoul Campus.",
+    },
+    answer: false,
+    explain: {
+      ko: "2025년 4월 1일 기준 재학생은 서울캠퍼스 12,291명, 글로벌캠퍼스 7,357명으로 서울캠퍼스가 더 많아요.",
+      en: "As of April 1, 2025, Seoul Campus had 12,291 students and the Global Campus 7,357.",
+    },
+    source: SRC.facts,
+  },
+  {
+    id: "mascot-boo",
+    category: "hufs",
+    question: {
+      ko: "한국외대 마스코트 캐릭터의 이름은 '부(Boo)'이다.",
+      en: "The HUFS mascot character is named 'Boo'.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 알을 깨고 나온 아기 부엉이 '부(Boo)'가 한국외대의 마스코트예요.",
+      en: "Correct. 'Boo', a baby owl hatched from an egg, is the HUFS mascot.",
+    },
+    source: SRC.character,
+  },
+  {
+    id: "president-13th",
+    category: "hufs",
+    question: {
+      ko: "2026년 3월에 한국외대 제13대 총장이 취임했다.",
+      en: "The 13th president of HUFS took office in March 2026.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 2026년 3월 1일에 제13대 총장이 취임했어요.",
+      en: "Correct. The 13th president took office on March 1, 2026.",
+    },
+    source: SRC.history,
+  },
+  {
+    id: "emblem-globe-lines",
+    category: "hufs",
+    question: {
+      ko: "한국외대의 현재 교표에는 지구의 위도와 경도선이 들어 있다.",
+      en: "The current HUFS emblem includes the lines of latitude and longitude of the globe.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 지구의 위도와 경도선을 넣어 글로벌의 의지를 구체적으로 표현했어요.",
+      en: "Correct. The latitude and longitude lines express the university's global ambition.",
+    },
+    source: SRC.symbol,
+  },
+  {
+    id: "ideal-graduate",
+    category: "hufs",
+    question: {
+      ko: "한국외대의 인재상은 '미래시대를 선도하는 글로벌 창의융합 인재'이다.",
+      en: "HUFS describes its ideal graduate as 'a global, creative, convergent talent who leads the future'.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 진리·평화·창조의 창학정신에 바탕을 둔 '미래시대를 선도하는 글로벌 창의융합 인재'가 인재상이에요.",
+      en: "Correct. Built on the founding ideals of Truth, Peace and Creation, this is the university's stated ideal graduate.",
+    },
+    source: SRC.talent,
+  },
+  {
+    id: "foreign-faculty",
+    category: "hufs",
+    question: {
+      ko: "서울캠퍼스의 전임교원 가운데 외국인 교원은 100명이 넘는다.",
+      en: "More than 100 of the full-time faculty members at Seoul Campus are international.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 2025년 4월 1일 기준 서울캠퍼스 전임교원 357명 가운데 외국인이 114명이에요.",
+      en: "Correct. As of April 1, 2025, 114 of the 357 full-time faculty at Seoul Campus were international.",
+    },
+    source: SRC.facts,
+  },
+
+  // ───────────── 학교생활 추가 (10) ─────────────
+  {
+    id: "club-aegis",
+    category: "life",
+    question: {
+      ko: "'아이기스'는 한국외대 서울캠퍼스의 응원단이다.",
+      en: "'Aegis' is the cheerleading squad of HUFS Seoul Campus.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 아이기스는 '미네르바 여신의 방패'라는 뜻을 내건 서울캠퍼스 응원단이에요.",
+      en: "Correct. Aegis, named after 'the shield of the goddess Minerva', is the Seoul Campus cheer squad.",
+    },
+    source: SRC.clubs,
+  },
+  {
+    id: "club-howl",
+    category: "life",
+    question: {
+      ko: "'하울'은 여러 악기를 연주하는 밴드 동아리다.",
+      en: "'Howl' is a band club that plays a range of instruments.",
+    },
+    answer: false,
+    explain: {
+      ko: "하울은 악기 없이 노래하는 아카펠라 동아리예요.",
+      en: "Howl is an a cappella club that sings without instruments.",
+    },
+    source: SRC.clubs,
+  },
+  {
+    id: "rotc-two-years",
+    category: "life",
+    question: {
+      ko: "학군사관(ROTC) 후보생은 4년 동안 군사교육을 받는다.",
+      en: "ROTC cadets receive four years of military training.",
+    },
+    answer: false,
+    explain: {
+      ko: "학군사관은 대학 재학생 가운데 우수자를 선발해 2년간 군사교육을 하는 과정이에요.",
+      en: "ROTC selects outstanding students and gives them two years of military training.",
+    },
+    source: SRC.rotc,
+  },
+  {
+    id: "reserve-transfer-out",
+    category: "life",
+    question: {
+      ko: "휴학하면 대학 직장예비군 전출을 본인이 따로 신청해야 한다.",
+      en: "When you take a leave of absence, you must apply separately to be transferred out of the university reserve forces unit.",
+    },
+    answer: false,
+    explain: {
+      ko: "휴학·졸업 등으로 인한 예비군 전출은 학적변동과 동시에 자동 처리되어 별도 신청이 없어요.",
+      en: "Transfers out for a leave of absence, graduation and the like are handled automatically with the status change. No application is needed.",
+    },
+    source: SRC.reserve,
+  },
+  {
+    id: "global-hall-selection",
+    category: "life",
+    question: {
+      ko: "글로벌홀 기숙사는 직전 학기 성적이 높은 순서로 입사자를 선발한다.",
+      en: "The Global Hall dormitory selects residents in order of their previous semester's grades.",
+    },
+    answer: false,
+    explain: {
+      ko: "글로벌홀은 지역 쿼터제로 선발하고, 쿼터별로 경쟁이 생기면 추첨으로 뽑아요.",
+      en: "Global Hall uses regional quotas, and when a quota is oversubscribed residents are chosen by lottery.",
+    },
+    source: SRC.globalHall,
+  },
+  {
+    id: "internship-credit-year",
+    category: "life",
+    question: {
+      ko: "현장실습(인턴십) 학점 인정은 1학년부터 받을 수 있다.",
+      en: "First-year students can already receive academic credit for internships.",
+    },
+    answer: false,
+    explain: {
+      ko: "현장실습 학점 인정은 3~4학년 대상이에요.",
+      en: "Internship credit is available to third- and fourth-year students.",
+    },
+    source: SRC.internship,
+  },
+  {
+    id: "alumni-mail-signup",
+    category: "life",
+    question: {
+      ko: "졸업생도 HUFS 메일 계정을 새로 만들 수 있다.",
+      en: "Graduates can sign up for a new HUFS e-mail account.",
+    },
+    answer: false,
+    explain: {
+      ko: "졸업생은 신규 가입이 안 돼요. 재학 중에 만든 메일은 졸업 후 졸업생 신분으로 바뀌어 계속 쓸 수 있어요.",
+      en: "Graduates cannot create a new account. An account made while enrolled switches to alumni status after graduation and keeps working.",
+    },
+    source: SRC.email,
+  },
+  {
+    id: "eduroam-visit",
+    category: "life",
+    question: {
+      ko: "한국외대 구성원은 eduroam에 가입한 다른 대학을 방문하면 그곳의 무선 랜을 무료로 쓸 수 있다.",
+      en: "HUFS members can use the Wi-Fi for free when visiting another university that has joined eduroam.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 무선 네트워크 'eduroam'을 고르고 학교 계정으로 인증하면 방문 기관의 무선 랜을 무료로 쓸 수 있어요.",
+      en: "Correct. Select the 'eduroam' network and sign in with your HUFS account to use the host institution's Wi-Fi for free.",
+    },
+    source: SRC.eduroam,
+  },
+  {
+    id: "office365-personal",
+    category: "life",
+    question: {
+      ko: "한국외대 학생은 Office 365를 개인용으로 사용할 수 있다.",
+      en: "HUFS students can use Office 365 for personal use.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. Office 365는 외대 구성원(교수·학생·직원)이 개인사용 할 수 있는 소프트웨어예요.",
+      en: "Correct. Office 365 is available for personal use by HUFS members: faculty, students and staff.",
+    },
+    source: SRC.software,
+  },
+  {
+    id: "counseling-tests",
+    category: "life",
+    question: {
+      ko: "학생상담센터에서는 성격이나 직업적성과 관련된 심리검사를 받을 수 있다.",
+      en: "At the Student Counseling Center, you can take psychological tests on personality and career aptitude.",
+    },
+    answer: true,
+    explain: {
+      ko: "맞아요. 학생상담센터는 심리검사(성격, 직업적성 관련) 실시와 해석, 개인·집단 상담 등을 해요.",
+      en: "Correct. The center offers psychological testing (personality and career aptitude) with interpretation, plus individual and group counseling.",
+    },
+    source: SRC.counseling,
   },
 ];

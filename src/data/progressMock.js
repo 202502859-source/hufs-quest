@@ -27,7 +27,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
  * seed: 강제로 재현할 상황 (주소의 ?mock=값)
  *   없음      새 계정 Lv.1 · 경험치 0 · 포인트 0
  *   "cap"     오늘 이미 퀴즈 5문제를 맞혀 하루 상한(50)에 도달한 계정 → 정답을 골라도 cap
- *   "already" 60문제 모두 예전에 보상을 받았고, 퀘스트 2개 완료, 오늘 출석도 받은 계정 → already
+ *   "already" 100문제 모두 예전에 보상을 받았고, 퀘스트 2개 완료, 오늘 출석도 받은 계정 → already
  * 꾸민 응답이 아니라 "그런 상태의 계정"으로 시작하므로 응답끼리 숫자가 항상 맞습니다.
  */
 export function createMockServer({ now = () => new Date(), seed = null, questions = QUIZ } = {}) {
