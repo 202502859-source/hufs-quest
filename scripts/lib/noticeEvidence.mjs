@@ -120,6 +120,20 @@ if (field === "title") {
   return null;
 }
 
+// 공백만 다른 근거는 원문의 실제 문자열로 복원한다.
+// 누락된 문자나 숫자는 임의로 보완하지 않는다.
+function restoreWhitespaceEvidence(raw, quote) {
+  if (typeof quote !== "string" || !quote.trim()) return null;
+
+  const normalize = text => text.trim().replace(/[ \t]+/g, " ");
+
+  const matches = raw.split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => normalize(line) === normalize(quote));
+
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export function attachNoticeEvidence(raw, extracted) {
   const result = structuredClone(extracted);
 
@@ -135,6 +149,16 @@ export function attachNoticeEvidence(raw, extracted) {
       typeof entry.evidence === "string" && entry.evidence.length > 0 &&
       raw.includes(entry.evidence)
     ) continue;
+
+    // 날짜와 개인정보 검증 조건은 기존대로 유지한다.
+    if (field === "dept") {
+      const restored = restoreWhitespaceEvidence(raw, entry.evidence);
+
+      if (restored && restored.includes(entry.value)) {
+        entry.evidence = restored;
+        continue;
+      }
+    }
 
     let evidence = null;
 

@@ -1502,3 +1502,62 @@ test("연도 추정 규칙: 앞선 날짜 기준 연도는 그대로", () => {
     )
   );
 });
+
+
+test("부서 근거의 연속 공백 차이는 실제 원문으로 복원", () => {
+  const signature = "2026.  11. 학생지원팀";
+  const raw = RAW.replace("담당 부서: 학생지원팀", signature);
+  const extracted = structuredClone(EXTRACTED);
+
+  extracted.dept.evidence = "2026. 11. 학생지원팀";
+
+  const result = validateHcx007Draft(raw, extracted, URL_OK);
+
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(result.evidence.dept, signature);
+  assert.ok(raw.includes(result.evidence.dept));
+});
+
+test("부서 근거의 누락된 숫자는 공백 정규화로 승인하지 않음", () => {
+  const signature = "2026.  11. 학생지원팀";
+  const raw = RAW.replace("담당 부서: 학생지원팀", signature);
+  const extracted = structuredClone(EXTRACTED);
+
+  extracted.dept.evidence = "2026. 학생지원팀";
+
+  const result = validateHcx007Draft(raw, extracted, URL_OK);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+});
+
+test("원문에서 짧은 부서명만 정확하게 인용", () => {
+  const raw = RAW.replace(
+    "담당 부서: 학생지원팀",
+    "2026.  11. 학생지원팀"
+  );
+  const extracted = structuredClone(EXTRACTED);
+
+  extracted.dept.evidence = "학생지원팀";
+
+  const result = validateHcx007Draft(raw, extracted, URL_OK);
+
+  assert.equal(result.ok, true, result.reason);
+  assert.equal(result.evidence.dept, "학생지원팀");
+});
+
+test("공백 복원으로 원문에 없는 부서를 승인하지 않음", () => {
+  const raw = RAW.replace(
+    "담당 부서: 학생지원팀",
+    "2026.  11. 학생지원팀"
+  );
+  const extracted = structuredClone(EXTRACTED);
+
+  extracted.dept.value = "교무처";
+  extracted.dept.evidence = "2026. 11. 교무처";
+
+  const result = validateHcx007Draft(raw, extracted, URL_OK);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.draft, null);
+});
