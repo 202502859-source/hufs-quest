@@ -17,6 +17,7 @@ import { buildingInfo } from "../data/buildingInfo.js";
 import { DAILY_BODY_ALPHA, DAILY_FONT, DAILY_TAB_ALPHA, DAILY_TEXT_ALPHA, DAILY_TEXT_STROKE, HUD_BUTTON, MARGIN, MINIMAP_BUTTON_FONT, MINIMAP_PAD, hudSideLayout, loadDailyCollapsed, saveDailyCollapsed } from "../ui/hudLayout.js";
 import { padLayout, touchSize } from "../ui/firstScreen.js";
 import { addConfetti, addStampMark, addStampSlot } from "../ui/stampMark.js";
+import { drawQuizDot } from "../ui/quizDot.js";
 
 // 미니맵 · 일일 퀘스트 창 자리는 src/ui/hudLayout.js hudSideLayout(11/27: 오른쪽 위, 미니맵 PC 232px · 휴대폰 194px).
 // 휴대폰 방향키 자리는 src/ui/firstScreen.js padLayout(첫 화면의 사이버관 안내원 화면 x에 맞춤).
@@ -30,7 +31,6 @@ const DAILY_TOAST = { stamp: 14, complete: 16 }; // 스탬프 획득 · 완주 �
 const PAD_ALPHA = 0.55;
 const REWARD_TOAST_MS = 2500;
 const PLANNER_LINE_GAP = 4;
-const QUIZ_DOT_COLOR = 0xff9f1c; // 내 위치(노란 점)와 구분되는 주황색
 // 오른쪽 아래 아이콘 버튼 줄(퀘스트 · 행사 · 마감 공지). PC는 아이콘 아래에 단축키를 쓰므로 바닥 여백이 더 큽니다.
 
 // 게임 화면 위에 고정으로 그리는 정보 화면입니다. 카메라 확대의 영향을 받지 않습니다.
@@ -533,7 +533,7 @@ export class HudScene extends Phaser.Scene {
       });
     this.boothBlink = this.add.rectangle(0, 0, 12 * k, 12 * k).setStrokeStyle(2, 0xffe14d).setVisible(false);
 
-    // 퀴즈 상자 위치(주황 점). 상자가 풀리고 다시 생길 때마다 매 프레임 다시 그립니다.
+    // 퀴즈 상자 위치(샛노란 작은 원, 깜빡이지 않음). 상자가 풀리고 다시 생길 때마다 매 프레임 다시 그립니다.
     this.quizDots = this.add.graphics();
     this.drawQuizDots();
 
@@ -592,8 +592,7 @@ export class HudScene extends Phaser.Scene {
     this.quizDots.clear();
     boxes.forEach((box) => {
       const { x, y } = this.toMini(box.x, box.y);
-      this.quizDots.fillStyle(0x10182a, 1).fillRect(x - 2 * k, y - 2 * k, 6 * k, 6 * k);
-      this.quizDots.fillStyle(QUIZ_DOT_COLOR, 1).fillRect(x - 1 * k, y - 1 * k, 4 * k, 4 * k);
+      drawQuizDot(this.quizDots, x, y, k); // 작은 샛노란 원(정지 표시, src/ui/quizDot.js)
     });
   }
 

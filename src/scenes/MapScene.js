@@ -4,6 +4,7 @@ import { WORLD, findPlace } from "../data/world.js";
 import { getLang, t } from "../state.js";
 import { nearestPlace, overviewInfo, overviewTexture, placeName, trackedDestination } from "../ui/campusMap.js";
 import { addButton, addLabel, addShade, centerLayout, drawPanel } from "../ui/widgets.js";
+import { QUIZ_DOT, drawQuizDot } from "../ui/quizDot.js";
 
 const MAP = { x: 92, y: 60 };
 const MAP_BOX = { width: 440, height: 450 }; // 지도 그림이 들어갈 칸. 지도 그림 1px을 정수배로 키워 넣습니다(v1 88×90 → 5배, v2 410×383 → 1배)
@@ -113,14 +114,15 @@ export class MapScene extends Phaser.Scene {
     return tag;
   }
 
-  // 지금 맵에 있는 퀴즈 상자들을 작은 '?' 상자 그림으로 표시합니다.
+  // 지금 맵에 있는 퀴즈 상자들을 미니맵과 같은 모양 · 색(샛노란 작은 원, src/ui/quizDot.js)으로 표시합니다.
   drawQuizBoxes() {
     const boxes = this.scene.get("Campus").quizBoxes?.boxes ?? [];
+    const g = this.add.graphics();
     boxes.forEach((box) => {
       const { x, y } = this.toMap(box.x, box.y);
-      this.add.image(x, y, "quiz-box").setScale(0.8);
+      drawQuizDot(g, x, y, QUIZ_DOT.fullMapK);
     });
-    this.add.image(INFO.x + 7, 232, "quiz-box");
+    drawQuizDot(g, INFO.x + 7, 232, QUIZ_DOT.fullMapK);
     addLabel(this, INFO.x + 22, 224, `${t("quizMapLegend")} ${boxes.length}`, { size: 14, color: "#f2c94c" });
   }
 
