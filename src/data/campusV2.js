@@ -359,7 +359,7 @@ export const DOOR_ART_BASE = {
   right: { x0: -5, x1: 0, y0: -5, y1: 2 },
   left: { x0: 0, x1: 5, y0: -5, y1: 2 },
 };
-export const DOOR_ART_SCALE = 1;
+export const DOOR_ART_SCALE = 1.5; // 11/27 오후: 출입문 그림을 1.5배로(7×8 → 11×12, 옆면 6×8 → 9×12)
 const scaleOut = (v) => Math.sign(v) * Math.round(Math.abs(v) * DOOR_ART_SCALE);
 // 문 그림 범위(문 자리 기준, 양 끝 포함)
 export const doorArtOffsets = (face, fixed = true) => {

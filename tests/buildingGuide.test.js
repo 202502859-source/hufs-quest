@@ -22,6 +22,8 @@ import {
   toWorld,
 } from "../src/data/campusV2.js";
 import { DOOR_OVERRIDES } from "../src/data/campusV2Data.js";
+import { DOOR_ART_BASE, DOOR_ART_SCALE, doorArtOffsets, doorArtRect } from "../src/data/campusV2.js";
+import { PALETTE, paintRegion } from "../src/gfx/campusV2Paint.js";
 import { WORLD } from "../src/data/world.js";
 import { readFileSync } from "node:fs";
 import { GUIDE_NEAR_LABEL, guideSpotOf } from "../src/data/guides.js";
@@ -131,4 +133,41 @@ test("문구: [Enter] 시설 소개 · [터치] 시설 소개, 안내원 글자 
   assert.equal(`${t("officeKeyHintTouch")} ${t("officePrompt")}`, "[Tap] Facility guide");
   assert.equal(t("guideLabel"), "Building Guide");
   setLang("ko");
+});
+
+test("출입문 그림 1.5배(11/27 오후): 그림 칸만 커지고(아래 · 위 7×8 → 11×12, 옆 6×8 → 9×12) 문 자리 · 문 앞 칸은 그대로, 실제로 그렇게 칠해짐", () => {
+  assert.equal(DOOR_ART_SCALE, 1.5);
+  const size = (o) => [o.x1 - o.x0 + 1, o.y1 - o.y0 + 1];
+  for (const [face, base] of Object.entries(DOOR_ART_BASE)) {
+    const [bw, bh] = size(base);
+    const [w, h] = size(doorArtOffsets(face));
+    assert.ok(Math.abs(w - bw * 1.5) <= 1 && Math.abs(h - bh * 1.5) <= 1, `${face}: ${bw}×${bh} → ${w}×${h}`);
+  }
+  assert.deepEqual(size(doorArtOffsets("down")), [11, 12]);
+  assert.deepEqual(size(doorArtOffsets("right")), [9, 12]);
+  // 문 자리 · 문 앞 칸(충돌 · 맵)은 그대로: 11/27 오전 값
+  const main = byId("main");
+  assert.deepEqual([doorOf(main).x, doorOf(main).y, doorFrontOf(main).x, doorFrontOf(main).y], [1046, 532, 1046, 534]);
+  const library = byId("library");
+  assert.deepEqual([doorOf(library).x, doorOf(library).y, doorFrontOf(library).x, doorFrontOf(library).y], [618, 1002, 626, 998]);
+  // 칠해진 문 색 픽셀이 문 그림 칸 안에만 있고, 예전 크기(7×8 = 56)보다 많음
+  const hex = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)].join(",");
+  const doorColors = new Set([hex(PALETTE.door), hex(PALETTE.doorFrame)]);
+  for (const b of [main, byId("humanities"), byId("cyber")]) {
+    const r = doorArtRect(b);
+    const pad = 6;
+    const x0 = r.x0 - pad, y0 = r.y0 - pad, w = r.x1 - r.x0 + pad * 2, h = r.y1 - r.y0 + pad * 2;
+    const px = paintRegion(x0, y0, w, h);
+    let inside = 0;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const o = (y * w + x) * 4;
+        if (!doorColors.has(`${px[o]},${px[o + 1]},${px[o + 2]}`)) continue;
+        const wx = x0 + x, wy = y0 + y;
+        assert.ok(wx >= r.x0 && wx < r.x1 && wy >= r.y0 && wy < r.y1, `${b.id}: 문 색이 문 그림 칸 밖 (${wx}, ${wy})`);
+        inside += 1;
+      }
+    }
+    assert.ok(inside > 56 && inside <= 11 * 12, `${b.id}: 문 픽셀 ${inside}개`);
+  }
 });
