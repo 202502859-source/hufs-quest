@@ -10,7 +10,7 @@
  *   --from-output FILE  AI를 부르지 않고, 저장해 둔 도우미 출력(FILE)을 씀(시험용)
  *
  * 하는 일
- *  1. 공지 추출 도우미(scripts/extract-notice.mjs)를 실행합니다. .env의 CLOVA_API_KEY는 node가 읽기만 합니다(이 파일은 키를 다루지 않음).
+ *  1. 공지 추출 도우미(scripts/extract-notice-hcx007.mjs)를 실행합니다. .env의 CLOVA_API_KEY는 node가 읽기만 합니다(이 파일은 키를 다루지 않음).
  *     도우미는 원문 근거 검사(noticeEvidence)를 거친 값만 초안에 남깁니다. 중혁 님 HCX-007 도우미로 바뀌면 EXTRACTOR만 바꿉니다.
  *  2. 새 브랜치 data/notice-<글번호>(origin/main 기준)에서 shared/deadlines.js 끝에 항목을 넣습니다. checked는 비워 둡니다.
  *  3. 커밋 · push 후 gh로 Draft PR을 만듭니다(gh가 없으면 PR 만들기 주소를 출력).
@@ -22,7 +22,7 @@ import { parseExtractOutput, parseArticleUrl, buildDeadlineEntry, insertDeadline
 
 import { validPublishedAt } from "./lib/noticeHcx007Date.mjs";
 
-const EXTRACTOR = "scripts/extract-notice.mjs"; // 지금 도우미(HCX-005). HCX-007 도우미가 Merge되면 여기만 바꿈
+const EXTRACTOR = "scripts/extract-notice-hcx007.mjs"; // HCX-007 도우미 (PR #116, 11/30 전환)
 const DEADLINES_FILE = "shared/deadlines.js";
 
 const argv = process.argv.slice(2);
