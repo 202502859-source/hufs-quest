@@ -133,6 +133,104 @@ test("mergeDocs: 유사도가 없는 조각(키워드 검색)도 순서를 지�
   assert.deepEqual(mergeDocs([kw, vec]).map((d) => d.title), ["k1", "k2", "v1"]);
 });
 
+// ── mergeDocs: 형제 조각(시험용 DB, id 끝 "-a" · "-b")은 한 자리 ──
+// 조각 id를 가진 문서(url은 페이지, text는 id마다 다름)
+const chunk = (id, similarity) => ({ id, title: id, url: `https://www.hufs.ac.kr/hufs/${id.split("-")[0]}/subview.do`, text: `${id} 본문`, similarity });
+
+test("siblingKey: 끝이 -소문자 한 글자면 그걸 뗀 값, 아니면 null", async () => {
+  const { siblingKey } = await import("../api/_lib/decompose.js");
+  assert.equal(siblingKey({ id: "11384-11-a" }), "11384-11");
+  assert.equal(siblingKey({ id: "11384-11-b" }), "11384-11");
+  assert.equal(siblingKey({ id: "11384-06" }), null);
+  assert.equal(siblingKey({ id: "sugang2026-2-02" }), null);
+  assert.equal(siblingKey({ id: "kb:abc" }), null);
+  assert.equal(siblingKey({ id: null }), null);
+  assert.equal(siblingKey({}), null);
+});
+
+test("mergeDocs: 형제 조각은 한 자리(11/26 C10 재현) — 하위 질문 1개, 후보 5개에서 11384-06이 들어감", () => {
+  const list = [chunk("11384-09", 0.6), chunk("11384-11-a", 0.585), chunk("11388-07", 0.573), chunk("11384-11-b", 0.561), chunk("11384-06", 0.557)];
+  const ids = mergeDocs([list]).map((d) => d.id);
+  assert.ok(ids.includes("11384-06"), `11384-06이 빠짐: ${ids}`);
+  // 형제는 처음 나온 조각 바로 뒤에 같이, 자리는 4개(11384-09 · 11384-11 묶음 · 11388-07 · 11384-06)
+  assert.deepEqual(ids, ["11384-09", "11384-11-a", "11384-11-b", "11388-07", "11384-06"]);
+});
+
+test("mergeDocs: 형제는 한 묶음에서 최대 3개까지 같이 넣음(뽑힌 조각 + 3개)", async () => {
+  const { MAX_SIBLINGS } = await import("../api/_lib/decompose.js");
+  assert.equal(MAX_SIBLINGS, 3);
+  const list = [chunk("1-1-a", 0.9), chunk("1-1-b", 0.89), chunk("1-1-c", 0.88), chunk("1-1-d", 0.87), chunk("1-1-e", 0.86), chunk("2-1", 0.5)];
+  assert.deepEqual(mergeDocs([list]).map((d) => d.id), ["1-1-a", "1-1-b", "1-1-c", "1-1-d", "2-1"]);
+});
+
+test("mergeDocs: 하위 질문이 둘이면 형제 키 기준으로 몫 · 남는 자리를 셈", () => {
+  const a = [chunk("10-1-a", 0.9), chunk("10-1-b", 0.88), chunk("10-2", 0.8), chunk("10-3", 0.7), chunk("10-4", 0.6)];
+  const b = [chunk("20-1", 0.85), chunk("20-2", 0.75), chunk("20-3", 0.65), chunk("10-1-b", 0.88)];
+  const ids = mergeDocs([a, b]).map((d) => d.id);
+  // 자리 6개: a 몫(10-1 묶음 · 10-2 · 10-3), b 몫(20-1 · 20-2 · 20-3). 10-1-b는 b에 다시 나와도 같은 자리
+  assert.deepEqual(ids, ["10-1-a", "10-1-b", "10-2", "10-3", "20-1", "20-2", "20-3"]);
+});
+
+test("mergeDocs: 형제 id가 없으면(실서비스 DB) 예전 계산과 결과가 완전히 같음", () => {
+  // 형제 처리를 넣기 전의 mergeDocs(11/26 main)를 그대로 옮긴 기준 구현
+  const docKey = (d) => `${d?.url ?? ""}\n${d?.text ?? ""}`;
+  const sim = (d) => (typeof d?.similarity === "number" ? d.similarity : 0);
+  function shareOfOld(list, pageCap, count) {
+    const docs = list.filter(Boolean);
+    const chosen = new Set();
+    const perPage = new Map();
+    for (const d of docs) {
+      if (chosen.size >= count) break;
+      const page = d.url ?? "";
+      if ((perPage.get(page) ?? 0) >= pageCap) continue;
+      perPage.set(page, (perPage.get(page) ?? 0) + 1);
+      chosen.add(d);
+    }
+    for (const d of docs) {
+      if (chosen.size >= count) break;
+      chosen.add(d);
+    }
+    return docs.filter((d) => chosen.has(d));
+  }
+  function mergeDocsOld(lists, { perQuery = 3, max = 6, pageCap = 2 } = {}) {
+    const safe = (Array.isArray(lists) ? lists : []).map((l) => (Array.isArray(l) ? l : []));
+    const limit = safe.length <= 1 ? Math.min(max, 4) : max;
+    if (limit <= 0) return [];
+    const candidates = new Map();
+    safe.forEach((list, queryIndex) => list.forEach((d, rank) => {
+      if (!d) return;
+      const k = docKey(d);
+      if (!candidates.has(k)) candidates.set(k, { doc: d, queryIndex, rank });
+    }));
+    const picked = new Map();
+    safe.forEach((list) => shareOfOld(list, safe.length > 1 ? pageCap : Infinity, perQuery).forEach((d) => {
+      if (picked.size >= limit) return;
+      const k = docKey(d);
+      if (!picked.has(k)) picked.set(k, candidates.get(k));
+    }));
+    const rest = [...candidates.entries()].filter(([k]) => !picked.has(k)).sort(([, a], [, b]) => sim(b.doc) - sim(a.doc) || a.queryIndex - b.queryIndex || a.rank - b.rank);
+    for (const [k, e] of rest) {
+      if (picked.size >= limit) break;
+      picked.set(k, e);
+    }
+    return [...picked.values()].sort((a, b) => a.queryIndex - b.queryIndex || a.rank - b.rank).map((e) => e.doc);
+  }
+  // 실서비스 형태 id(숫자로 끝남) · kb: 키워드 id · id 없음 · 같은 페이지 여러 조각 · 유사도 없음 · 중복 조각을 섞은 무작위 입력
+  let seed = 7;
+  const rand = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+  const ids = ["11384-06", "11384-09", "11384-11", "11388-07", "11377-02", "11377-05", "11390-01", "11391-02", "kb:3", null];
+  for (let round = 0; round < 300; round++) {
+    const lists = Array.from({ length: 1 + Math.floor(rand() * 3) }, () =>
+      Array.from({ length: Math.floor(rand() * 8) }, () => {
+        const id = ids[Math.floor(rand() * ids.length)];
+        const page = ["11384", "11377", "11390"][Math.floor(rand() * 3)];
+        return { id, title: String(id), url: `https://www.hufs.ac.kr/hufs/${page}/subview.do`, text: `${id} 본문`, ...(rand() < 0.8 ? { similarity: Math.round(rand() * 100) / 100 } : {}) };
+      }),
+    );
+    assert.deepEqual(mergeDocs(lists), mergeDocsOld(lists), `round ${round}`);
+  }
+});
+
 // ── api/ask.js 연결: 하위 질문 2개 동시 검색 · 한쪽 실패 시 그쪽만 키워드 · RPC 허용 목록 · 로그에 질문 없음 ──
 test("ask.js: 하위 질문별 동시 벡터 검색, 한쪽만 실패하면 그쪽만 키워드 검색, 로그에는 개수만", async () => {
   const ENV = { ASK_IP_SALT: "test-salt", SUPABASE_URL: "https://db.example.test", SUPABASE_SERVICE_KEY: "test-service-key", CLOVA_API_KEY: "test-clova-key" };

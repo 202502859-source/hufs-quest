@@ -64,7 +64,7 @@ let chunks = rawChunks;
 
 if (advanced) {
   try {
-    chunks = validateAdvancedChunks(rawChunks, 532);
+    chunks = validateAdvancedChunks(rawChunks, 533); // 11/26: 11377-02 → -a · -b(+1)
   } catch (error) {
     console.error("개선 데이터 검증 실패:", error.message);
     process.exit(1);

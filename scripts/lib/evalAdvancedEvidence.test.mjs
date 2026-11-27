@@ -74,7 +74,7 @@ test("대체 근거 하나만 검색해도 전체 근거 확보", () => {
   const pairs = [
     ["C03", "11360-02", "sugang2026-2-05"],
     ["C15", "11377-01", "sugang2026-2-03"],
-    ["C16", "11377-02", "sugang2026-2-05"],
+    ["C16", "11377-02-a", "sugang2026-2-05"],
     ["C19", "11377-04", "sugang2026-2-09"],
     ["C20", "11377-05", "sugang2026-2-11"]
   ];
@@ -277,4 +277,29 @@ test("출처가 없으면 불인정", () => {
     hasAdvancedSource(find("C15"), [], "advanced"),
     false
   );
+});
+
+// ── 11/26: 11377-02 → -a · -b ──
+test("C17: 개선 데이터에서는 11377-02-b(본인 신청 · 성적 불인정)를 근거로 인정, -a · 이전 부모 id는 불인정", () => {
+  assert.deepEqual(evidenceGroups(find("C17"), "advanced"), [["11377-02-b"]]);
+  assert.equal(grade("C17", "advanced", "11377-02-b").allHitAt6, true);
+  assert.equal(grade("C17", "advanced", "11377-02").hitAt6, false);
+  assert.equal(grade("C17", "advanced", "11377-02-a").hitAt6, false);
+  // 기존 데이터 평가는 그대로
+  assert.deepEqual(evidenceGroups(find("C17"), "original"), [["11377-02"]]);
+});
+
+test("C16: 기존 그룹의 11377-02를 11377-02-a(예시 줄 \"5∼6회는 3학년\")로 바꿈", () => {
+  assert.deepEqual(evidenceGroups(find("C16"), "advanced"), [["sugang2026-2-05", "11377-02-a"]]);
+  assert.equal(grade("C16", "advanced", "11377-02-a").allHitAt6, true);
+  assert.equal(grade("C16", "advanced", "11377-02-b").hitAt6, false);
+});
+
+test("근거 id가 11377-02인 공개 문항은 모두(C16 · C17) 개선 데이터 대체 근거가 있음", () => {
+  const ids = CORE_1126.filter(c => c.evidenceIds.includes("11377-02")).map(c => c.id);
+  assert.deepEqual(ids, ["C16", "C17"]);
+  for (const id of ids) {
+    const flat = evidenceGroups(find(id), "advanced").flat();
+    assert.ok(flat.some(x => x.startsWith("11377-02-")), id);
+  }
 });

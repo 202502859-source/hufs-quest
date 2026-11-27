@@ -2,11 +2,12 @@ import Phaser from "phaser";
 import { TILE_SIZE } from "../gfx/textures.js";
 import { buildCampusLayers } from "../data/campus.js";
 import { WORLD, findPlace } from "../data/world.js";
-import { feetOverlap } from "../data/campusV2.js";
+import { feetOverlap, gateRects } from "../data/campusV2.js";
+import { addCampusGate } from "../gfx/campusGate.js";
 import { guideTextRect } from "../data/guides.js";
 import { GuidePrompt } from "../ui/guidePrompt.js";
 import { addCampusV2Ground, stats as campusStats } from "../gfx/campusV2Texture.js";
-import { placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
+import { liftClear, placeBuildingLabel, splitTwoLines } from "../data/buildingLabels.js";
 import { isTouchDevice } from "../device.js";
 import { QuizBoxes } from "../quizBoxes.js";
 import { nextQuestion } from "../quizProgress.js";
@@ -58,6 +59,8 @@ export class CampusScene extends Phaser.Scene {
       solidLayer.setCollisionByExclusion([-1]);
     } else {
       addCampusV2Ground(this);
+      // 정문 기둥 한 쌍 · 현수막(v2 전용, 맵 텍스처 밖에 따로 세운 그림). 깊이는 받침 바닥 기준이라 캐릭터 · 안내원 · 퀴즈 상자와 앞뒤로 겹칩니다.
+      addCampusGate(this);
     }
     const worldWidth = WORLD.width;
     const worldHeight = WORLD.height;
@@ -564,16 +567,19 @@ export class CampusScene extends Phaser.Scene {
       tag.setFontSize(Math.round(NAME_TAG_FONT * scale)).setText(lines === 2 ? twoLine : name);
       return { w: tag.width, h: tag.height };
     };
-    // 건물 소개 안내원 아래 글자 칸은 피합니다(지붕 가장자리에 걸칠 때 겹치지 않게).
-    // 팻말(판)과 부스(지붕 · 이름표) 칸도 피합니다.
+    // 건물 소개 안내원 아래 글자 칸, 정문 기둥 · 현수막 그림(이름표는 땅 높이라 정문 그림에 가려짐 — 정문안내실),
+    // 스탬프 랠리 팻말(판)과 부스(지붕 · 이름표) 칸을 피합니다.
+    const gate = gateRects().map((r) => ({ x0: r.x, y0: r.y, x1: r.x + r.w, y1: r.y + r.h }));
     const avoid = [
       ...WORLD.buildings.filter((b) => b.guide).map((b) => guideTextRect(b.guide)),
+      ...gate,
       ...WORLD.buildings.filter((b) => b.sign).map((b) => ({ x0: b.sign.x - 28, x1: b.sign.x + 28, y0: b.sign.y - 24, y1: b.sign.y + 8 })),
       ...WORLD.buildings.filter((b) => b.booth).map((b) => ({ x0: b.booth.x - 34, x1: b.booth.x + 34, y0: b.booth.y - 52, y1: b.booth.y + 8 })),
     ];
     const spot = placeBuildingLabel(place, measure, avoid);
-    measure(spot.scale, spot.lines);
-    tag.setPosition(spot.x, spot.y);
+    const { w, h } = measure(spot.scale, spot.lines);
+    // 지붕 가운데 대안 자리가 정문 그림에 가리면(정문안내실) 이름표만 위로 올립니다.
+    tag.setPosition(spot.x, liftClear(spot.x, spot.y, w, h, gate));
   }
 
   stopPlayer() {
