@@ -10,7 +10,8 @@ import { existsSync } from "node:fs";
 import { createHash } from "node:crypto";
 
 import {
-  structureCalendar
+  structureCalendar,
+  CALENDAR_CHUNK_ID
 } from "./lib/calendarPage.mjs";
 
 const args = process.argv.slice(2);
@@ -42,7 +43,7 @@ const chunks = JSON.parse(original);
 const result = structureCalendar(chunks);
 
 const sourceChunks = chunks
-  .filter(c => /^11360-\d{2}$/.test(c.id))
+  .filter(c => CALENDAR_CHUNK_ID.test(c.id)) // 11/27~ 다른 학년도 화면 조각(11360-YYYY-NN)도 포함
   .sort((a, b) => a.id.localeCompare(b.id));
 
 const sourceHash = createHash("sha256")
@@ -51,6 +52,7 @@ const sourceHash = createHash("sha256")
 
 const data = {
   academicYear: result.academicYear,
+  academicYears: result.academicYears,
   sourceHash,
   items: result.items
 };
@@ -66,7 +68,7 @@ const content = [
   ""
 ].join("\n");
 
-console.log("학년도:", data.academicYear);
+console.log("학년도:", data.academicYears.join(", "));
 console.log("원문 학사일정 조각:", sourceChunks.length);
 console.log("구조화 일정 행:", data.items.length);
 console.log("학사일정 원문 SHA-256:", sourceHash);

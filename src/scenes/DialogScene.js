@@ -15,6 +15,9 @@ const TEXT_LEFT = 120;
 const TEXT_WIDTH = ANSWER_BOX.x + ANSWER_BOX.w - 28 - TEXT_LEFT;
 const NOTICE_Y = ANSWER_BOX.y + ANSWER_BOX.h - 34;
 const CLOSE_BUTTON = { w: 110, h: 40 };
+// 학사일정 바로 찾기(C03): 다른 학기 버튼은 이전/다음 쪽 버튼 줄의 오른쪽(닫기 버튼 왼쪽까지), 기준 학기 안내는 그 아래 작은 글씨
+const ALT_BUTTON = { x: TEXT_LEFT + 312, y: ANSWER_BOX.y + ANSWER_BOX.h - 100, w: 178, h: 32, gap: 8 };
+const TERM_NOTE = { y: ANSWER_BOX.y + ANSWER_BOX.h - 60, w: ANSWER_BOX.w - 28 - CLOSE_BUTTON.w - 20 - TEXT_LEFT + ANSWER_BOX.x };
 const MAX_SOURCES = 3;
 const MAX_TITLE = 38;
 const AI_LOOK = "npc-4";
@@ -332,12 +335,36 @@ export class DialogScene extends Phaser.Scene {
     }
   }
 
+  // 학사일정 바로 찾기(C03): 어느 학기 기준으로 답했는지(작은 글씨)와 다른 학기 버튼(최대 2개).
+  // 버튼을 누르면 그 학기를 붙인 질문(서버가 만든 alternatives[].question)으로 다시 묻습니다. 글자는 Phaser 텍스트로만 넣습니다.
+  addTermControls(result, lang) {
+    const alternatives = Array.isArray(result.alternatives) ? result.alternatives.slice(0, 2) : [];
+    if (result.termBasis?.label && result.mode !== "clarify") {
+      const label = lang === "en" ? result.termBasis.labelEn || result.termBasis.label : result.termBasis.label;
+      this.answerObjects.push(this.add.text(TEXT_LEFT, TERM_NOTE.y, t("aiTermBasis", { label }), {
+        fontFamily: FONT, fontSize: "12px", color: "#9fd0ff", wordWrap: { width: TERM_NOTE.w, useAdvancedWrap: true }, maxLines: 1,
+      }));
+    }
+    alternatives.forEach((alt, i) => {
+      if (!alt?.question) return;
+      const label = lang === "en" ? String(alt.labelEn || alt.label).replace(/\s*\((?:1st|2nd) semester\)$/, "") : alt.label;
+      const x = ALT_BUTTON.x + i * (ALT_BUTTON.w + ALT_BUTTON.gap);
+      const button = addButton(this, x, ALT_BUTTON.y, ALT_BUTTON.w, ALT_BUTTON.h, t("aiAltTerm", { label }), () => this.openAnswer(alt.question, this.onClose), { size: 12, border: COLOR.line });
+      // 버튼 폭을 넘으면 글자를 줄이고, 그래도 넘으면 학기 이름만 씁니다(휴대폰 가로 화면에서도 넘치지 않게).
+      if (button.text.width > ALT_BUTTON.w - 10) button.text.setFontSize(11);
+      if (button.text.width > ALT_BUTTON.w - 10) button.text.setText(label);
+      [button.g, button.text, button.zone].forEach((o) => this.answerObjects.push(o));
+    });
+  }
+
   showResult(question, result, lang) {
     this.stopLoading();
     const messages = {
       none: t("aiNotFound"),
       busy: t("aiBusy"),
       limit: t("aiDailyLimit"),
+      // 학사일정 바로 찾기가 어느 학기인지 정하지 못하면 답 없이 학기 버튼만 옵니다(서버 mode "clarify").
+      clarify: t("aiWhichSemester"),
     };
     let text = messages[result.mode] || result.answer || t("aiNotFound");
     if (result.mode === "evidence" || result.mode === "local") text = `${t("aiEvidenceOnly")}\n${text}`;
@@ -377,6 +404,8 @@ export class DialogScene extends Phaser.Scene {
         this.sourceObjects.push(link);
       });
     }
+
+    this.addTermControls(result, lang);
 
     this.showAnswerPage();
     // 11/24: 이중전공 질문으로 이중전공 퀘스트를 완료하던 기능은 퀘스트 삭제와 함께 뺐습니다.

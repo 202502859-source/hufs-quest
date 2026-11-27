@@ -28,7 +28,8 @@ const originals = JSON.parse(
 );
 
 assert.ok(Array.isArray(originals));
-assert.equal(originals.length, 510);
+// 11/27 2027학년도 학사일정 조각 4개(11360-2027-01~04) 추가로 510 → 514
+assert.equal(originals.length, 514);
 
 assert.equal(
   new Set(originals.map(c => c.id)).size,
@@ -61,7 +62,7 @@ for (const chunk of manual) {
 
 const combined = [...originals, ...manual];
 
-assert.equal(combined.length, 525);
+assert.equal(combined.length, 529);
 assert.equal(
   new Set(combined.map(c => c.id)).size,
   combined.length,
@@ -76,8 +77,8 @@ const next = combined
     ...buildMetadata(chunk)
   }));
 
-// 이중전공 세분화 +7, 수강신청지침(11377-02) 세분화 +1(11/26 C17)
-assert.equal(next.length, 533);
+  // 2027 calendar +4, 11377-02 split +1
+assert.equal(next.length, 537);
 
 assert.equal(
   new Set(next.map(c => c.id)).size,

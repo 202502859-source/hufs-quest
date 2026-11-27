@@ -45,6 +45,8 @@ import { todayContext, ungroundedDates } from "../shared/academicDate.js";
 import { unsupportedContacts } from "./_lib/contactGuard.js";
 import { parseQueries, fallbackQuery, mergeDocs, evidenceDocs } from "./_lib/decompose.js";
 import { stripListNumbers, dropInvalidCitations, trimTruncated, isRefusalAnswer } from "./_lib/answerFormat.js";
+import { routeCalendar, calendarNote, answerHasRouteDate, isUnavailableCalendarTerm } from "../shared/calendarRoute.js";
+import { kstToday } from "../shared/progressRules.js";
 
 const CLOVA_BASE = "https://clovastudio.stream.ntruss.com";
 const CHAT_URL = `${CLOVA_BASE}/v3/chat-completions/HCX-005`;
@@ -239,7 +241,7 @@ function usageOf(data) {
   };
 }
 
-async function generate(question, lang, docs, subQueries = [], now = new Date()) {
+async function generate(question, lang, docs, subQueries = [], now = new Date(), note = "") {
   const label = lang === "en" ? "Sources" : "자료";
   const evidence = docs.map((d, i) => `[${i + 1}] ${d.title}\n${d.text}`).join("\n\n");
   // 하위 질문 목록(검색어 정리 결과)을 함께 넘겨, 둘이면 각각 따로 답하게 합니다.
@@ -248,7 +250,7 @@ async function generate(question, lang, docs, subQueries = [], now = new Date())
   const messages = [
     // 오늘 날짜 · 현재 학기는 서버에서 한국 시간으로 계산해 넘깁니다('이번 학기' 해석용).
     { role: "system", content: `${SYSTEM[lang]} ${todayContext(now, lang)}` },
-    { role: "user", content: `[${label}]\n${evidence}${subBlock}\n\n[${lang === "en" ? "Question" : "질문"}]\n${question}` },
+    { role: "user", content: `[${label}]\n${evidence}${subBlock}\n\n[${lang === "en" ? "Question" : "질문"}]\n${question}${note ? `\n\n${note}` : ""}` },
   ];
   if (!process.env.CLOVA_API_KEY) throw new Error("CLOVA_API_KEY missing");
   const data = await postJson(
@@ -357,7 +359,14 @@ export default async function handler(req, res) {
 
   const started = Date.now();
   const evalMode = isEvalRequest(req, process.env.ASK_EVAL_TOKEN);
-  const useCache = canUseAnswerCache({ evalMode, question });
+  // 학사일정 바로 찾기(C03, 11/27): 날짜 질문이면 맞는 학기의 일정 줄을 찾아 둡니다(오늘 한국 날짜 기준, 네트워크 없음).
+  // 일반 질문은 기존 검색을 유지하고, 미수집 학년도의 정규학기 개강·종강 질문은 별도 차단합니다.
+  const today = kstToday();
+  const calendarRoute = routeCalendar(question, { today });
+  const unavailableCalendarTerm = !calendarRoute &&
+    isUnavailableCalendarTerm(question, { today });
+  const useCache = !calendarRoute && !unavailableCalendarTerm &&
+    canUseAnswerCache({ evalMode, question });
   const cacheKey = useCache ? buildCacheKey(question, lang) : null;
 
   // 캐시를 쓸 수 있는 일반 질문은 1차 메모리 1분 제한만 먼저 확인하고 캐시를 조회합니다.
@@ -387,6 +396,31 @@ export default async function handler(req, res) {
     res.setHeader("Retry-After", String(limit.retryAfter));
     return res.status(429).json({ error: "too many requests", reason: limit.reason, retryAfter: limit.retryAfter });
   }
+  // 미수집 학년도의 개강·종강 질문은 사용량 제한 확인 후 AI 호출 없이 처리합니다.
+  if (unavailableCalendarTerm) {
+    console.log(JSON.stringify({
+      mode: "none",
+      reason: "calendar_unavailable",
+      cacheHit: false,
+      lang,
+      ...limitLog,
+      ms: Date.now() - started,
+    }));
+    return res.status(200).json({ mode: "none", answer: null, sources: [] });
+  }
+  // 어느 학기인지 하나를 못 정하면(방식 A) 학기 버튼만 돌려줍니다.
+  if (calendarRoute?.clarify) {
+    console.log(JSON.stringify({ mode: "clarify", cacheHit: false, calendar: "clarify", calendarTopic: calendarRoute.topic, lang, ...limitLog, ms: Date.now() - started }));
+    return res.status(200).json({ mode: "clarify", clarify: true, answer: null, sources: [], alternatives: calendarRoute.alternatives });
+  }
+  // 학기를 정했으면 응답에 기준 학기(질문에 연도가 없을 때만)와 다른 학기 버튼을 붙입니다.
+  const calendarExtra = calendarRoute
+    ? {
+        ...(calendarRoute.termBasis ? { termBasis: calendarRoute.termBasis } : {}),
+        ...(calendarRoute.alternatives.length ? { alternatives: calendarRoute.alternatives } : {}),
+      }
+    : {};
+  const calendarLog = calendarRoute ? { calendar: "route", calendarTopic: calendarRoute.topic, calendarSemester: calendarRoute.semester } : {};
   // 검색에는 정리한 검색어를 쓰고, 답변 생성에는 학생의 원래 질문을 씁니다.
   const { queries, format: rewriteFormat, usage: rewriteUsage } = await rewriteQuery(question);
   // 검색어 정리 호출의 토큰 수 · 종료 이유. 질문과 검색어 내용은 로그에 남기지 않습니다.
@@ -421,6 +455,8 @@ export default async function handler(req, res) {
     retrieval = "keyword";
     docs = keywordSearch(rewritten ? `${question} ${searchTexts.join(" ")}` : question, lang);
   }
+  // 학사일정 바로 찾기로 찾은 일정 줄을 근거 1순위로 넣습니다. 나머지 검색 결과는 그 뒤에 그대로 둡니다.
+  if (calendarRoute) docs = [calendarRoute.doc, ...docs];
   // 하위 질문 개수 · 하위 질문별 근거 수 · RPC 이름만 남깁니다. 질문 · 검색어 내용은 로그에 남기지 않습니다.
   // subQueryIds: 하위 질문마다, 최종 근거(docs)에 들어간 그 하위 질문 검색 결과의 조각 id(어떤 근거가 잘렸는지 진단용).
   const finalDocs = new Set(docs);
@@ -445,32 +481,38 @@ export default async function handler(req, res) {
     : {};
 
   if (!docs.length) {
-    console.log(JSON.stringify({ mode: "none", cacheHit: false, retrieval, rewritten, ...searchLog, ...limitLog, ...rewriteLog, ms: Date.now() - started }));
-    return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
+    console.log(JSON.stringify({ mode: "none", cacheHit: false, retrieval, rewritten, ...searchLog, ...limitLog, ...calendarLog, ...rewriteLog, ms: Date.now() - started }));
+    return res.status(200).json({ mode: "none", answer: null, sources: [], ...calendarExtra, ...evalDebug });
   }
 
   // 출력 토큰 상한을 정하려고 답변 언어 · 글자 수 · 토큰 수만 로그에 남깁니다. 질문과 답변 내용은 남기지 않습니다.
   // 답변 생성 쪽 이름(promptTokens 등)에는 접두어가 없고, 검색어 정리 쪽은 rewrite로 시작합니다.
   let usage = {};
   try {
-    const result = await generate(question, lang, docs, queries || []);
+    // 학사일정 바로 찾기를 한 질문에만 "[1]의 그 학기 날짜로 답하라"는 한 줄을 덧붙입니다(다른 질문의 지시문은 그대로).
+    const result = await generate(question, lang, docs, queries || [], new Date(), calendarNote(calendarRoute, lang));
     // droppedCitations: 넘긴 자료 수를 넘어 지운 인용 번호 개수(모든 로그에 함께 남김)
     // truncated: 출력 토큰 상한에 걸려 끝난 문장까지만 남겼는지(모든 로그에 함께 남김)
     usage = { maxTokens: ANSWER_MAX_TOKENS, ...result.usage, chars: result.answer.length, droppedCitations: result.droppedCitations, truncated: result.truncated };
     const { answer } = result;
+    // 학사일정 바로 찾기를 했는데 답에 그 일정의 날짜(월 · 일)가 하나도 없으면(다른 학기 자료로 답하거나 "공개되지 않았다"고 함)
+    // 숫자 검사와 똑같이 원문 보여 주기로 넘깁니다. 원문 맨 앞이 그 학기 일정 줄입니다. 로그 reason "calendar_mismatch".
+    if (calendarRoute && !answerHasRouteDate(answer, calendarRoute)) {
+      throw Object.assign(new Error("answer has no calendar date"), { calendarMismatch: true });
+    }
     // 근거 번호 없이 "자료에 없다"고만 하는 답은 내보내지 않습니다. 이런 답에 근거에 없는 부서 · 앱 이름이 섞여도(11/26 셔틀버스)
     // 사용자는 "찾지 못함"만 보게 됩니다. 숫자 검사보다 먼저 보고, 답 내용은 로그에 남기지 않으며 답변 캐시에도 저장하지 않습니다.
     if (isRefusalAnswer(answer)) {
-      console.log(JSON.stringify({ mode: "none", reason: "refusal", cacheHit: false, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
-      return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
+      console.log(JSON.stringify({ mode: "none", reason: "refusal", cacheHit: false, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+      return res.status(200).json({ mode: "none", answer: null, sources: [], ...calendarExtra, ...evalDebug });
     }
     // 근거 조각 어디에도 없는 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)를 말하면
     // (예: 2026학년도 일정만 있는데 "2027년 3월 2일", "2027학년도 1학기 개강은 3월 2일") 원문도 보여 주지 않고 "찾지 못함"으로 답합니다.
     const ungrounded = ungroundedDates(answer, docs);
     if (ungrounded.length) {
       const reason = ungrounded.some((x) => x.includes("-")) ? "ungrounded-date" : "ungrounded-year";
-      console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
-      return res.status(200).json({ mode: "none", answer: null, sources: [], ...evalDebug });
+      console.log(JSON.stringify({ mode: "guard", cacheHit: false, reason, retrieval, docs: docs.length, ...searchLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+      return res.status(200).json({ mode: "none", answer: null, sources: [], ...calendarExtra, ...evalDebug });
     }
     // 근거 조각에도 질문에도 없는 이메일 · 전화번호 · 인터넷 주소가 있으면 숫자 검사와 똑같이 근거 원문을 대신 보여 줍니다(11/27).
     const contacts = unsupportedContacts(answer, docs, question);
@@ -483,11 +525,11 @@ export default async function handler(req, res) {
     }
     const collectedDates = await fetchCollectedDates(docs, rpc);
     const sources = citedSources(answer, docs, collectedDates);
-    console.log(JSON.stringify({ mode: "ai", cacheHit: false, retrieval, rewritten, docs: docs.length, ...searchLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "ai", cacheHit: false, retrieval, rewritten, docs: docs.length, ...searchLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     if (useCache && shouldCacheAnswer({ mode: "ai", truncated: result.truncated })) {
       await setAnswerCache({ cacheKey, lang, answer, sources });
     }
-    return res.status(200).json({ mode: "ai", answer, sources, ...evalDebug });
+    return res.status(200).json({ mode: "ai", answer, sources, ...calendarExtra, ...evalDebug });
   } catch (err) {
     console.error("generation failed:", err.message);
     if (err.usage) usage = { maxTokens: ANSWER_MAX_TOKENS, ...err.usage };
@@ -496,7 +538,9 @@ export default async function handler(req, res) {
     // 시기 표현(월 이름 · 상순 등)은 개수만 남깁니다.
     const unsupportedLog = err.unsupported
       ? { unsupportedNumbers: err.unsupported.numbers.slice(0, 5), unsupportedTimeWords: err.unsupported.timeWords.length }
-      : {};
+      : err.calendarMismatch
+        ? { reason: "calendar_mismatch" }
+        : {};
     // 연락처 검사에 걸렸으면 이유와 종류별 개수만 남깁니다. 연락처 값 · 답 내용은 남기지 않습니다.
     const contactLog = err.unsupportedContact
       ? {
@@ -507,13 +551,17 @@ export default async function handler(req, res) {
       : {};
     // AI 연결이 안 되면 근거 원문을 그대로 보여 줍니다. 추측한 답은 만들지 않습니다.
     // 하위 질문이 둘이면 각 하위 질문의 1등 근거를 하나씩, 하나면 앞의 2개를 보여 줍니다.
-    const top = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
+    // 학사일정 바로 찾기 근거가 있으면 원문 보여 주기에도 그 일정 줄을 맨 앞에 둡니다.
+    const searched = evidenceDocs(perQuery.map((r) => r.docs), docs, 2);
+    // 바로 찾기 날짜와 다르게 답했으면(calendar_mismatch) 헷갈리는 다른 학기 자료는 빼고 그 일정 줄만 보여 줍니다.
+    const top = calendarRoute ? [calendarRoute.doc, ...searched].slice(0, err.calendarMismatch ? 1 : 2) : searched;
     const collectedDates = await fetchCollectedDates(top, rpc);
-    console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, ...contactLog, lang, ...limitLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
+    console.log(JSON.stringify({ mode: "evidence", cacheHit: false, retrieval, docs: docs.length, ...searchLog, ...unsupportedLog, ...contactLog, lang, ...limitLog, ...calendarLog, ...rewriteLog, ...usage, ms: Date.now() - started }));
     return res.status(200).json({
       mode: "evidence",
       answer: top.map((d) => d.text).join("\n"),
       sources: citedSources("", top, collectedDates),
+      ...calendarExtra,
       ...evalDebug,
     });
   }

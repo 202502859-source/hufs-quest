@@ -6,7 +6,9 @@ const TIMEOUT_MS = 25_000;
 
 /*
  * 상단 검색창의 질문을 서버(api/ask.js)에 보냅니다.
- * 돌려받는 값: { mode: "ai" | "evidence" | "local" | "none" | "busy" | "limit", answer, sources: [{ title, url }] }
+ * 돌려받는 값: { mode: "ai" | "evidence" | "local" | "none" | "busy" | "limit" | "clarify", answer, sources: [{ title, url }] }
+ * - 날짜 질문(학사일정 바로 찾기, 11/27~)이면 termBasis: { label, labelEn } · alternatives: [{ label, labelEn, question }]가 더 올 수 있고,
+ *   clarify면 answer 없이 alternatives만 옵니다(어느 학기인지 되묻기).
  * - busy: 1분 한도에 걸림(잠시 후 다시) · limit: 오늘 한도(학생 계정 · 게스트 IP 하루 또는 서비스 전체 하루)에 걸림
  * - 로컬 개발 서버(npm run dev)에는 서버 함수가 없어서, 그때는 브라우저 안의 지식 베이스에서 근거 원문만 찾아 보여 줍니다.
  */

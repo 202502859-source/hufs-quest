@@ -136,21 +136,22 @@ test("ask.js: 근거에 없는 날짜 답변은 mode none, 로그 mode guard · 
       return res;
     };
 
-    reply = "2027년 1학기 개강일은 2027년 3월 2일입니다. [1]";
-    const blocked = await call("2027년 1학기 개강일이 언제야?", "203.0.113.70");
+    // 복합 질문은 일반 검색을 유지하므로, 기존 날짜·연도 검증을 이 경로에서 검사합니다.
+    reply = "2028년 1학기 개강일은 2028년 3월 2일입니다. [1]";
+    const blocked = await call("2028년 1학기 개강일과 장소를 알려줘", "203.0.113.70");
     assert.deepEqual(blocked.body, { mode: "none", answer: null, sources: [] });
     const guard = logs.map((l) => JSON.parse(l)).find((l) => l.mode === "guard");
     assert.equal(guard?.reason, "ungrounded-date");
     assert.match(systemPrompt, /오늘은 \d{4}-\d{2}-\d{2}\([일월화수목금토]\), \d{4}학년도 (제1학기|여름방학|제2학기|겨울방학)입니다\./);
-    assert.equal(/개강일이|2027년 3월/.test(logs.join("\n")), false); // 질문 · 답변 내용은 로그에 없음
+    assert.equal(/개강일이|2028년 3월/.test(logs.join("\n")), false); // 질문 · 답변 내용은 로그에 없음
 
     reply = "2026학년도 1학기 개강일은 2026년 3월 2일입니다. [1]";
     const ok = await call("2026년 1학기 개강일이 언제야?", "203.0.113.71");
     assert.equal(ok.body.mode, "ai");
     assert.equal(ok.body.answer, reply);
 
-    reply = "2027학년도 1학기 개강은 3월 2일입니다. [1]";
-    const yearOnly = await call("2027학년도 개강일 알려줘", "203.0.113.72");
+    reply = "2028학년도 1학기 개강은 3월 2일입니다. [1]";
+    const yearOnly = await call("2028학년도 개강일과 장소를 알려줘", "203.0.113.72");
     assert.equal(yearOnly.body.mode, "none");
     assert.equal(logs.map((l) => JSON.parse(l)).filter((l) => l.mode === "guard").at(-1)?.reason, "ungrounded-year");
   } finally {

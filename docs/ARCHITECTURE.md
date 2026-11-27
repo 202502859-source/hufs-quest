@@ -22,8 +22,10 @@ flowchart LR
     end
 
     rules["진행 규칙<br/>shared/progressRules.js · 서버와 화면이 같이 씀"]
+        rallyBank["부스 문제 은행<br/>shared/stampRally.js · 서버와 화면이 같이 씀"]
+    calRoute["학사일정 바로 찾기<br/>shared/calendarRoute.js · 날짜 질문 학기 고르기<br/>shared/academicCalendar.js 2026 · 2027학년도"]
+    calRoute["학사일정 바로 찾기<br/>shared/calendarRoute.js · 날짜 질문 학기 고르기<br/>shared/academicCalendar.js 2026 · 2027학년도"]
     rallyBank["부스 문제 은행<br/>shared/stampRally.js · 서버와 화면이 같이 씀"]
-
     subgraph server["서버 함수 · api/ (Vercel)"]
         ask["ask.js<br/>질문 쪼개기 · 하위 질문별 동시 검색 · 답변 생성 · 날짜 근거 검사"]
         sourceDates["sourceDates.js<br/>조각 수집일 조회 · 한국 날짜 변환"]
@@ -73,6 +75,7 @@ flowchart LR
     rules --> newApi
     explore --> mapInfo
     ask --> limiter
+    ask --> calRoute
     limiter --> userDb
     ask --> clova
     ask --> vector
@@ -88,7 +91,7 @@ flowchart LR
     classDef todo fill:#FAECE7,stroke:#993C1D,color:#712B13,stroke-dasharray:5 3
 
     class search,ask,deadlines,clova,vector,collect,supaAuth done
-    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice,mapReport,daily,rallyBank partial
+    class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice,mapReport,daily,rallyBank,calRoute partial
 ```
 
 | 색 | 상태 |
@@ -105,7 +108,7 @@ flowchart LR
 
 ```
 class search,ask,deadlines,clova,vector,collect,supaAuth done      ← 동작 중
-class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice,mapReport partial    ← 일부 구현(행사는 화면 · 서버 완료, 데이터 입력 전. 행사 제보는 서버 · 화면 완료, SQL 11/26 실행, Preview 시험 전. 제보 확인 보상은 SQL 009 11/26 실행, Preview 시험 전)
+class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vectorNext,events,eventsApi,sourceDates,eventReport,rewardNotice,mapReport,calRoute partial    ← 일부 구현(행사는 화면 · 서버 완료, 데이터 입력 전. 행사 제보는 서버 · 화면 완료, SQL 11/26 실행, Preview 시험 전. 제보 확인 보상은 SQL 009 11/26 실행, Preview 시험 전. 학사일정 바로 찾기는 11/27 코드 · 시험용 DB 반영, Preview 평가 전)
 (만들 것 todo: 11/19 기준 없음. 새로 만들 기능이 생기면 `class 이름 todo` 줄을 다시 추가)
 ```
 
@@ -121,6 +124,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 | --- | --- | --- |
 | 캠퍼스 탐험 | `src/scenes/CampusScene.js`, `src/scenes/MapScene.js`(전체 지도 · 나침반), `src/data/world.js`(맵 선택: 기본 v2, `?map=v1`이면 옛 타일맵 — 12/3 밤 동결 뒤 이상 없으면 v1 삭제). **v2**: `src/data/campusV2Data.js`(미터 좌표 다각형) → `src/data/campusV2.js`(정문 진입로 기준 65.6° 회전 · 픽셀 채우기 · 1m 판정 격자 · 발 상자 이동 · 입구 · 퀴즈 상자 자리) → `src/gfx/campusV2Paint.js` · `campusV2Texture.js`(2×2 조각 텍스처, 축소 지도). **정문 기둥 · 현수막(11/27, v2 전용)**: `campusV2Data.js` `GATE_PILLARS_M`(받침 미터 다각형) → `campusV2.js` `GATE`(받침 6m×2m를 판정 격자에서만 막음 · 그림 사각형 · 깊이 = 받침 바닥 − 8, `gateRects`로 퀴즈 상자 후보 제외) → `src/gfx/campusGate.js`(비대칭 기둥 동 · 서 거울 · 현수막 도트와 5×7 도트 글꼴을 코드로 찍어 텍스처 3장, `addCampusGate`가 이미지 3장으로 세움). 시작 위치 `SPAWN_M`은 첫 화면에서 정문이 미니맵 · HUD에 가리지 않는 자리(11/27 서쪽 6m), "정문 & 진입광장" 이름표 자리는 `OPEN_SPACES_M` `tagM`. 정문 그림은 `CampusScene`이 세움(v2일 때만, 건물 이름표는 정문 그림을 피하고 가리면 `buildingLabels.js` `liftClear`로 위로). 테스트 `tests/campusGate.test.js`. **v1**: `src/data/campus.js`(88×90 타일), `src/gfx/textures.js`. 기준은 [`docs/GRAPHICS.md`](GRAPHICS.md). 건물 이름표: `src/data/buildingLabels.js`(입구에 가까운 지붕 위, 넘치면 작게 → 두 줄 → 지붕 가운데, 캐릭터보다 아래 깊이, 안내원 글자 칸은 피함). **정문 고정값**: `campusV2Data.js` `DOOR_OVERRIDES`(11개 건물, 11/25 종헌 지정 자리 · 외벽 면) → `campusV2.js` `computeDoors`가 자동 입구를 덮어씀, 문 그림은 면 방향대로. **건물 소개 안내원**(13곳: 정문 지정 11곳 + 법학관 + Minerva Complex(정문 대신 이름표 옆, `guides.js` `GUIDE_NEAR_LABEL`), 정문안내실은 `officeView.js` `GUIDE_EXCLUDED`로 제외): `src/data/guides.js`(문 바로 옆 칸 · 발밑 이름표 칸) → `world.js` `place.guide` → `CampusScene`(안내원 · 발밑 "건물 소개 안내원" 작은 이름표 · 머리 위 말풍선 `src/ui/guidePrompt.js` "[Enter] 시설 소개"(남색 반투명 + 키 모양), Enter · 안내원 클릭 · 문구 터치로 `src/ui/officeOverlay.js` 창, 거리 `src/ui/officeView.js` `GUIDE_RANGE`, 안내원 칸은 지나갈 수 없음). 테스트 `tests/buildingGuide.test.js` · `tests/campusV2.test.js`(통로 · 끼임 방지 포함) · `tests/buildingLabels.test.js` · `tests/campusDrawn.test.js`(모든 건물이 텍스처 · 축소 지도에 그려지고 윤곽선이 있는지, 두 줄 이름) · `tests/campusLayout.test.js`(v1) | 이종헌 |
 | 빠른 검색창 | `src/ui/searchBar.js` → `src/data/askApi.js` → `api/ask.js` (11/20~ `shared/academicDate.js`: 한국 시간 오늘 날짜 · 현재 학기를 지시문에 붙이고, 답변의 날짜(연-월-일 · 월-일)나 연도(YYYY학년도 · YYYY년)가 근거 조각에 없으면 "찾지 못함"으로 바꿈. 테스트 `tests/academicDate.test.js`. 11/20~ `api/_lib/decompose.js`: 질문을 하위 질문 최대 2개로 쪼개(`parseQueries`) 하위 질문마다 동시에 벡터 검색하고 `mergeDocs`로 합침, RPC는 `CHUNKS_RPC`(match_chunks · match_chunks_next만 허용). 테스트 `tests/decompose.test.js`. `api/_lib/answerFormat.js`: 답변의 줄 맨 앞 번호 목록을 지우고, 넘긴 자료 수를 넘는 인용 번호를 지움. 11/22~ 출력 상한(400)에 걸려 끊긴 답은 끝난 문장까지만(`trimTruncated`). 테스트 `tests/answerFormat.test.js`. 11/27~ `api/_lib/contactGuard.js`: 답의 이메일 · 전화번호 · 인터넷 주소가 근거 조각(제목 · 본문 · 출처 주소)이나 질문에 없으면 원문 보여 주기로. 테스트 `tests/contactGuard.test.js`) | 신중혁 |
+| 학사일정 바로 찾기(C03) | `shared/calendarRoute.js`(날짜 질문 판별 · 대상 학기 규칙 · 근거 줄 · termBasis · alternatives · clarify), `shared/calendarTerms.js`(동의어 표), `shared/academicCalendar.js`(`npm run calendar`로 생성, 11/27~ 2026 · 2027학년도 126행) ← `api/ask.js`가 검색 앞단에서 호출, 화면 `src/scenes/DialogScene.js`(기준 학기 작은 글씨 · 다른 학기 버튼), 규칙 `docs/ACADEMIC_CALENDAR.md` 10장, 테스트 `tests/calendarRoute.test.js` | 이종헌(11/27 이어받음) · 신중혁 |
 | 출처 수집일 | `api/_lib/sourceDates.js`: 검색된 조각 ID로 `chunks` 또는 `chunks_next`의 `collected_at` 일괄 조회, 한국 시간 기준 YYYY-MM-DD 변환. `api/ask.js`의 `citedSources()`가 기존 출처에 `collectedAt` 추가. 동일 URL은 확인 가능한 날짜 중 가장 오래된 수집일 표시. 조회 실패 또는 날짜가 없으면 기존 출처 유지. `src/scenes/DialogScene.js` · `src/state.js`에서 한·영 표시. 테스트 `tests/sourceDates.test.js` · `tests/answerCache.test.js`. SQL 변경 없음, Preview 검수 예정 | 신중혁(서버·테스트) · 이종헌(화면 주 담당) |
 | O/X 퀴즈 | `src/scenes/QuizScene.js`, `src/quizBoxes.js`(상자 자리는 `world.js` `WORLD.quizSpots`), `src/quizProgress.js`, `src/data/quiz.js` | 이종헌(배치) · 신중혁(문항) |
 | 일일 퀘스트 (11/27 PM 결정: 이종헌) | **스탬프 랠리 4곳**(도서관 · 국제학사 및 학생회관 · 본관 · 인문과학관): `shared/stampRally.js`(대상 · 도장 약칭 · 건물별 3지선다 후보 3개 · 한국 날짜로 정해지는 오늘의 문제 · 채점. 문제 · 보기는 `buildingInfo.js` 공식 출처 항목에서만), `src/data/stampRallySpots.js`(출입구 옆 팻말 · 반대쪽 부스 자리 계산, 통과 불가 판정), `src/gfx/rallyTextures.js`(캐노피 부스 · 나무 팻말 그림, 도서관은 3/4 각도), `src/scenes/BoothScene.js`(부스 문제 창), `src/ui/stampMark.js`(도장 · 색종이 연출). 11/27 오후: **"건물 소개 안내원" NPC를 모두 없애고 시설 소개가 있는 13곳에 "[시설 안내문]" 팻말**(`signSpotOf`, 문과 같은 외벽에 붙임, 그림은 80% `SIGN_SCALE` · `BOOTH_SCALE`)을 세워 거기서 `[Enter] 시설 소개`(`officeView.js` `officeSpot`)가 열림. 부스는 랠리 4곳만(문을 사이에 두고 팻말 반대쪽, 팻말 ↔ 부스 거리 예전의 1.5배). 출입문 그림은 1.5배(`campusV2.js` `DOOR_ART_SCALE` · `doorArtRect`, 팻말 · 부스가 2px 여유로 피함), 가로수는 길 위 · 크게 겹친 나무를 뺀 목록만 그림(`cleanedTrees`). **일일 퀴즈**: 오늘 맞춘 정답 n/5, 5개(`DAILY_QUIZ_GOAL`, 11/27 저녁 10 → 5)면 보너스. 화면 로직 `src/dailyQuests.js`(게스트는 메모리, 자정 넘김 30초마다 확인), HUD 창 `HudScene.renderDailyPanel` + 배치 `src/ui/hudLayout.js`, 상세 창 `src/ui/questOverlay.js`. 서버는 새 함수 · 새 SQL 없이 `api/quiz-answer.js`(`kind: "booth"` → `reward_log` source `stamp`) · `api/quest-complete.js`(`stampRally` · `dailyQuiz`를 날짜 붙인 id로) · `progress.daily`. 테스트 `tests/stampRally.test.js` · `stampRallySpots.test.js` · `dailyQuests.test.js` · `dailyQuestsServer.test.js` · `hudLayout.test.js` | 이종헌 |
@@ -142,7 +146,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 | CLOVA Studio · Supabase 벡터 DB | `api/ask.js`, `scripts/ingest.mjs` (11/20~ `--target next`: 실서비스 `chunks` 대신 시험용 `chunks_next`에 저장 · 옛 조각 삭제 · 개수 확인, 첫 줄에 대상 테이블 출력, `--dry-run`과 함께 사용 가능. `api/ask.js`는 계속 `chunks`만 검색. 11/21~ `scripts/lib/retry.mjs`: 임베딩 · 저장 실패 시 2 · 5 · 10초 뒤 최대 3번 다시 시도, 그래도 실패하면 멈춘 조각 번호 · id를 출력하고 옛 조각 삭제 없이 종료 코드 1, 진행 표시는 50조각마다. 테스트 `scripts/lib/retry.test.mjs`) | 신중혁 |
 | 서버 함수 실행 지역 | 저장소 루트 `vercel.json`의 `"regions": ["icn1"]`(서울). Supabase(ap-northeast-2 서울) · CLOVA Studio가 한국에 있고 개인정보 처리 위치도 한국으로 두기 위함. Vercel 문서상 `vercel.json` 값이 대시보드 Function Regions 설정보다 우선 | 이종헌 |
 | 범위 밖 기능 숨김 | `src/data/features.js`의 `SHOW_OUT_OF_SCOPE`(지금 `false`). false면 HUD "수강신청 추천 서비스" 버튼(`HudScene.renderPlannerButton`)을 만들지 않고, 퀘스트 목록(`state.js` `QUEST_LIST`)에서 `outOfScope` 퀘스트(`mockReg`)를 빼고, `CampusScene.openPlanner` · `openMockReg` 진입을 막음. 숨김 대상 파일(`public/planner/`, `plannerOverlay.js`, `MockRegScene.js`, `teammate/`)과 `main.js` 장면 등록은 그대로 | 이종헌 |
-| 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` (11/20~ 사람 이름 표시(담당자 ○○○ · ○○○ 선생님 · 주무관 · 교수)가 있는 줄은 이름과 그 구간의 메일 · 직통번호만 "(개인 연락처 생략)"으로 가림(줄 · 대표번호 · 부서 메일은 남김). 이름 표시 없는 개인 메일은 `PERSONAL_MAIL_IDS` 목록으로 가림, 각주 기호(`*`) 정리, 본문 40자 미만 조각 제거(부서 연락처 조각은 예외), 캠퍼스 표시 `[서울]` · `[글로벌]`. 테스트 `scripts/lib/hufsPage.test.mjs`), collect는 `[글로벌]` 표시 조각을 저장하지 않고(서울캠퍼스 서비스, 11/20 eval 2025학번 졸업학점 오답 원인), 본문이 같은 조각을 해시로 하나만 남기고 "글로벌 전용 조각 제외 n개(표 정리 포함), 중복 제거 n개, 개인 연락처 가림 n줄"과 가린 메일 아이디를 출력. 학사일정 `scripts/lib/calendarPage.mjs`는 조각마다 적용 학년도 범위 문장 · 겨울방학 조각에 다음 학년도 개강일 없음 문장 | 신중혁 |
+| 학사 페이지 수집 | `scripts/urls.txt`, `scripts/collect.mjs`, `scripts/lib/hufsPage.mjs` (11/20~ 사람 이름 표시(담당자 ○○○ · ○○○ 선생님 · 주무관 · 교수)가 있는 줄은 이름과 그 구간의 메일 · 직통번호만 "(개인 연락처 생략)"으로 가림(줄 · 대표번호 · 부서 메일은 남김). 이름 표시 없는 개인 메일은 `PERSONAL_MAIL_IDS` 목록으로 가림, 각주 기호(`*`) 정리, 본문 40자 미만 조각 제거(부서 연락처 조각은 예외), 캠퍼스 표시 `[서울]` · `[글로벌]`. 테스트 `scripts/lib/hufsPage.test.mjs`), collect는 `[글로벌]` 표시 조각을 저장하지 않고(서울캠퍼스 서비스, 11/20 eval 2025학번 졸업학점 오답 원인), 본문이 같은 조각을 해시로 하나만 남기고 "글로벌 전용 조각 제외 n개(표 정리 포함), 중복 제거 n개, 개인 연락처 가림 n줄"과 가린 메일 아이디를 출력. 학사일정 `scripts/lib/calendarPage.mjs`는 조각마다 적용 학년도 범위 문장 · 겨울방학 조각에 다음 학년도 개강일 없음 문장(11/27~ 다음 학년도 화면 `subview.do?year=YYYY`도 수집해 `11360-YYYY-NN` 조각으로, 그때는 "다음 학년도 일정은 그 조각 참고") | 신중혁 |
 | 표 정리 조각 | `scripts/tablePages.mjs`, `scripts/lib/tableGrid.mjs`, `scripts/lib/tableSentences.mjs`, `scripts/lib/tableCheck.mjs` → `data/table-check.md` (11/20~ 표 제목에 글로벌캠퍼스만 있는 문장은 `excludeGlobalOnlyTables`로 빼고, 검수표에 "제외"로 표시) | 이종헌 (검색창 개선 1~4단계) |
 
 게임 상태(경험치·포인트)는 `src/state.js`에 있고, 서버 저장과 연결하는 부분은 이종헌·임현규 공동 담당입니다. 재학생의 레벨·경험치·포인트·완료 퀘스트는 서버 응답으로만 바뀌고(`applyProgress`), 게스트는 서버를 부르지 않고 메모리에서만 동작합니다.
@@ -223,6 +227,7 @@ class explore,quiz,notice,progress,rules,userDb,login,limiter,mapInfo,newApi,vec
 | 2026-11-26 | 게스트 제보 닫음(PM 결정: 이종헌): 행사창의 구글 폼 링크 · 안내 대신 "로그인하고 제보하기" → 타이틀 로그인 창, 로그인하면 앱 제보 폼 | 게스트 제보 닫음 PR |
 | 2026-11-26 | 게임 안 지도 신고: "실제와 달라요"를 구글 폼 대신 게임 안 창으로(`mapReportOverlay.js` · `api/map-report.js` · `shared/mapReport.js` · `supabase/010_map_reports.sql` 실행 전), 반영되면 경험치 20 · 알림(009 알림 표에 kind 추가) | 게임 안 지도 신고 PR |
 | 2026-11-27 | 사용량 제한: 전체 하루 상한 500 → 2000, eval 토큰 요청은 `ask_hit` 없이 메모리 1분 120회만(`eval-bypass`). 파일 표 사용량 제한 줄 갱신(상자 · 연결선 변화 없음) | eval 한도 분리 PR |
+| 2026-11-27 | 학사일정 바로 찾기(C03): `calRoute` 상자 · `ask --> calRoute` 연결선(일부 구현), 파일 표 줄 추가, 학사 페이지 수집 줄에 다음 학년도 화면 수집 | 학사일정 학기 자동 선택 PR |
 | 2026-11-27 | 일일 퀘스트 추가(PM 결정: 이종헌): 캠퍼스 스탬프 랠리 4곳(부스 · 시설 안내문 팻말 · 부스 문제 은행) + 일일 퀴즈 + HUD 일일 퀘스트 창, 미니맵 20% 축소, 퀴즈 하루 상한 50 → 100. 상자 `daily` · `rallyBank`와 연결선 추가, 파일 표 "일일 퀘스트" 줄 추가 · HUD 줄 갱신, 주요 흐름 추가. 새 서버 함수 · 새 SQL 없음 | 일일 퀘스트 PR |
 | 2026-11-27 | HUD 배치 변경(PM 결정: 이종헌): 미니맵(232 · 194px)과 일일 퀘스트 창을 오른쪽 위로, 첫 화면 카메라 가로 오프셋(정문이 가리면), 휴대폰 방향키를 사이버관 안내원 화면 x에. 파일 표 HUD 줄 갱신(상자 · 연결선 변화 없음), 새 파일 `src/ui/firstScreen.js` · `src/ui/searchBarLayout.js` | 일일 퀘스트 PR |
 | 2026-11-27 | 오후 다듬기(PM 결정: 이종헌): 미니맵 · 일일 퀘스트 창 7% 줄임 · 본문 반투명, 팻말 · 부스 80% · 팻말 외벽에 붙임 · 부스 거리 1.5배, 안내원 NPC → 팻말 13곳, 출입문 그림 1.5배, 가로수 정리(100 → 49그루, 11/27 저녁에 보도 가장자리 가로수 줄 32그루를 되살려 81그루 `TREE_ROW`), 지도 위 내 위치 표시 흰색(`HERE_COLOR`). 파일 표 HUD · 일일 퀘스트 줄 갱신(상자 · 연결선 변화 없음), 새 테스트 `tests/campusTrees.test.js` | 일일 퀘스트 PR |
