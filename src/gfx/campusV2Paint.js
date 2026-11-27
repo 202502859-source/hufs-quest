@@ -1,4 +1,4 @@
-import { BUILDINGS, BUILDING_BASE, GRID_H, GRID_W, MAT, PX_PER_M, TREES, WORLD_W, doorArtOffsets, doorOf, pointInPolygon, rasterize, toWorld } from "../data/campusV2.js";
+import { BUILDINGS, BUILDING_BASE, GRID_H, GRID_W, MAT, PX_PER_M, WORLD_W, cleanedTrees, doorArtOffsets, doorOf, pointInPolygon, rasterize, toWorld } from "../data/campusV2.js";
 
 /*
  * 캠퍼스 맵 v2의 색칠. 재질 격자(campusV2.js)를 RGBA 픽셀로 바꿉니다. 브라우저 API를 쓰지 않습니다.
@@ -112,8 +112,8 @@ export function paintRegion(x0, y0, w, h) {
     const o = (y * w + x) * 4;
     out[o] = c[0]; out[o + 1] = c[1]; out[o + 2] = c[2];
   };
-  // 가로수(그림만): 그림자 → 잎 → 밝은 면
-  for (const [E, N, r] of TREES) {
+  // 가로수(그림만): 그림자 → 잎 → 밝은 면. 길 위 나무 · 크게 겹친 나무는 뺀 목록(campusV2.js cleanedTrees)
+  for (const [E, N, r] of cleanedTrees().kept) {
     const [cx, cy] = toWorld([E, N]);
     const R = r * PX_PER_M;
     if (cx + R + 3 < x0 || cy + R + 3 < y0 || cx - R > x0 + w || cy - R > y0 + h) continue;

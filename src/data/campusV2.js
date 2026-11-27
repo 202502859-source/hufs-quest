@@ -421,4 +421,35 @@ export function nearestPlace(x, y) {
 }
 
 export const PASSAGES = PASSAGES_M.map(([name, seg]) => ({ name, seg, segPx: seg.map(toWorld) }));
+// ── 가로수 정리(그림만, 걷기 · 충돌과 무관) ─────────────────
+// 11/27 오후(PM 결정: 이종헌): campusV2Data.js TREES(원본, 맵 범위 계산에도 쓰임)는 그대로 두고 그릴 나무만 고릅니다.
+// - 길 위 나무 삭제: 밑동(줄기 가운데)이 차도 · 보도 · 건널목 · 주차장 · 계단 칸 위면 그리지 않습니다.
+//   잔디 · 수풀 · 흙에 서 있고 잎만 길로 튀어나온 나무는 그대로 둡니다.
+// - 겹친 나무 합치기: 두 나무 가운데 거리가 나무 지름(둘 중 큰 쪽)의 TREE_MERGE_RATIO 미만이면 먼저 나온 하나만 남깁니다.
+export const TREE_PATH_MATS = [MAT.road, MAT.pave, MAT.crosswalk, MAT.parking, MAT.steps, MAT.outerRoad];
+export const TREE_MERGE_RATIO = 0.6;
+let treeResult = null;
+// { kept: [[E, N, r], …], onPath: 길 위라 지운 나무, merged: 겹쳐서 합친(지운) 나무 }
+export function cleanedTrees() {
+  if (treeResult) return treeResult;
+  const pathMats = new Set(TREE_PATH_MATS);
+  const kept = [];
+  const onPath = [];
+  const merged = [];
+  for (const tree of TREES) {
+    const [x, y] = toWorld([tree[0], tree[1]]);
+    if (pathMats.has(matAt(x, y))) {
+      onPath.push(tree);
+      continue;
+    }
+    const tooClose = kept.some((k) => {
+      const [kx, ky] = toWorld([k[0], k[1]]);
+      return Math.hypot(kx - x, ky - y) < Math.max(k[2], tree[2]) * 2 * PX_PER_M * TREE_MERGE_RATIO;
+    });
+    if (tooClose) merged.push(tree);
+    else kept.push(tree);
+  }
+  treeResult = { kept, onPath, merged };
+  return treeResult;
+}
 export { TREES };
