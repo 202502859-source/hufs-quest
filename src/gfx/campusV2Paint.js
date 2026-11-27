@@ -112,7 +112,7 @@ export function paintRegion(x0, y0, w, h) {
     const o = (y * w + x) * 4;
     out[o] = c[0]; out[o + 1] = c[1]; out[o + 2] = c[2];
   };
-  // 가로수(그림만): 그림자 → 잎 → 밝은 면. 길 위 나무 · 크게 겹친 나무는 뺀 목록(campusV2.js cleanedTrees)
+  // 가로수(그림만): 그림자 → 잎 → 밝은 면. 길 위 나무(보도 가장자리 가로수 줄은 남김) · 크게 겹친 나무는 뺀 목록(campusV2.js cleanedTrees)
   for (const [E, N, r] of cleanedTrees().kept) {
     const [cx, cy] = toWorld([E, N]);
     const R = r * PX_PER_M;
