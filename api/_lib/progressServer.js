@@ -198,7 +198,7 @@ export async function buildProgress(supabase, userId, email, now = new Date()) {
   const todayRows = rewardRes.data ?? [];
   const todayQuizRows = todayRows.filter((row) => row.source === "quiz");
   const todayExp = todayQuizRows.reduce((sum, row) => sum + Number(row.exp ?? 0), 0);
-  // 일일 퀴즈 "맞춘 정답 n/10" = 오늘(한국 날짜) 퀴즈로 경험치를 받은 개수
+  // 일일 퀴즈 "맞춘 정답 n/DAILY_QUIZ_GOAL"(11/27부터 5)의 n = 오늘(한국 날짜) 퀴즈로 경험치를 받은 개수
   const quizCorrect = todayQuizRows.filter((row) => Number(row.exp ?? 0) > 0).length;
   // 오늘 받은 스탬프(ref_id "YYYY-MM-DD:<buildingId>"), 표시 순서대로
   const stamped = new Set(
