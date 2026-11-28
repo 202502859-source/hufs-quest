@@ -1,7 +1,7 @@
 /*
  * Vercel 서버 함수: 퀘스트 완료 기록 및 보상 지급 (POST /api/quest-complete)
  * - 영구 퀘스트(REWARD_QUESTS): 퀘스트마다 한 번. 범위 밖(mockReg)은 400으로 거절합니다.
- * - 일일 퀘스트(DAILY_QUESTS, 11/27): "stampRally"는 오늘 스탬프 4곳, "dailyQuiz"는 오늘 정답 10개를 서버가 직접 확인한 뒤
+ * - 일일 퀘스트(DAILY_QUESTS, 11/27): "stampRally"는 오늘 스탬프 4곳, "dailyQuiz"는 오늘 정답 DAILY_QUIZ_GOAL개(11/27부터 5)를 서버가 직접 확인한 뒤
  *   완료 기록 id에 한국 날짜를 붙여("stampRally:2026-11-27") complete_quest를 부릅니다. 하루 한 번(같은 날 다시 부르면 already),
  *   다음 날 다시 받을 수 있습니다. 조건을 못 채웠으면 400.
  */
